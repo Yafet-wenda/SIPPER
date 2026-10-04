@@ -1,0 +1,23 @@
+[ req ]
+default_bits        = 2048
+distinguished_name  = dn
+prompt              = no
+x509_extensions     = v3_req
+
+[ dn ]
+C  = ID
+ST = Papua
+L  = Jayapura
+O  = SIPPER
+CN = localhost
+
+[ v3_req ]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = localhost
+DNS.2 = sipper.localhost
+IP.1 = 127.0.0.1

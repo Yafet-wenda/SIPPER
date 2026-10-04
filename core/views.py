@@ -2,6 +2,7 @@ from datetime import timedelta
 from datetime import datetime
 import mimetypes
 import os
+from functools import wraps
 from urllib.parse import quote
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import PasswordChangeForm
@@ -20,10 +21,55 @@ from django.core.cache import cache
 from django.utils import timezone
 from django.contrib.auth.models import User
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
+from .emails import notify_status
 
 
 def is_officer(user):
     return user.is_authenticated and (user.is_staff or UserRole.objects.filter(user=user, role='petugas').exists())
+
+
+PUBLIC_LIMIT = 60
+PUBLIC_WINDOW = 300
+
+
+def _client_ip(request):
+    """Alamat IP pemanggil, terkoreksi untuk topologi Apache -> Waitress di mesin ini.
+
+    Waitress selalu melihat REMOTE_ADDR = 127.0.0.1 karena Apache yang menghubungkan
+    diri, jadi tanpa X-Forwarded-For semua pengunjung berbagi satu pencacah. Apache
+    menambahkan IP klien sungguhan di AKHIR daftar, dan nilai itulah yang dipercaya;
+    bagian depan masih bisa dipalsukan klien, jadi tidak dipakai.
+    """
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    if forwarded:
+        return forwarded.split(',')[-1].strip() or 'anon'
+    return request.META.get('REMOTE_ADDR', 'anon')
+
+
+def throttle_public(view=None, *, limit=PUBLIC_LIMIT, window=PUBLIC_WINDOW, json_error=False):
+    """Batas kasar permintaan per alamat IP untuk endpoint yang bisa dibuka tanpa login.
+
+    LocMemCache bersifat per proses, jadi ini pengaman dari penyalahgunaan sederhana
+    (enumerasi kode kartu, spam API), bukan kuota ketat. Setiap hit menyegarkan
+    masa berlaku pencacah, sehingga jendela waktu bergeser selama IP terus meminta.
+    """
+    def decorate(func):
+        @wraps(func)
+        def wrapper(request, *args, **kwargs):
+            key = f'publik:{func.__name__}:{_client_ip(request)}'
+            if cache.get(key, 0) >= limit:
+                if json_error:
+                    response = JsonResponse({'detail': 'Terlalu banyak permintaan.'}, status=429)
+                else:
+                    response = HttpResponse('Terlalu banyak permintaan. Coba lagi beberapa menit lagi.', status=429)
+                response['Retry-After'] = window
+                return response
+            cache.set(key, cache.get(key, 0) + 1, window)
+            return func(request, *args, **kwargs)
+        return wrapper
+    if view is None:
+        return decorate
+    return decorate(view)
 
 
 def issue_card(request, person):
@@ -37,6 +83,26 @@ def issue_card(request, person):
         qrcode.make(request.build_absolute_uri(f'/kartu/{card.kode}/')).save(buffer, format='PNG')
         card.qr_code.save(f'{card.kode}.png', ContentFile(buffer.getvalue()), save=True)
     return card
+
+
+def announce_status(person, status, actor):
+    """Beri tahu warga lewat email; kegagalan kirim dicatat, bukan dilempar.
+
+    Status di database sudah tersimpan sebelum fungsi ini dipanggil, jadi
+    SMTP yang mati tidak boleh membatalkan verifikasi petugas. Yang hilang
+    hanyalah pemberitahuannya, dan itu sengaja ditulis ke AuditLog supaya
+    terlihat di halaman histori, bukan hilang tanpa jejak.
+    """
+    try:
+        sent, detail = notify_status(person, status)
+    except Exception as error:
+        # Sengaja lebar: status sudah tersimpan, dan halaman petugas tidak boleh
+        # 500 hanya karena email tidak bisa berangkat (alamat salah, DNS, dsb).
+        AuditLog.objects.create(user=actor, aksi='notifikasi-gagal', deskripsi=f'Email status {status} untuk {person.nama} gagal: {error}')
+        return False
+    if sent:
+        AuditLog.objects.create(user=actor, aksi='notifikasi', deskripsi=f'Email status {status} dikirim ke {detail}.')
+    return sent
 
 
 def landing_counts():
@@ -162,7 +228,7 @@ def application(request):
                 Pengajuan.objects.create(penduduk=person)
                 uploaded = request.FILES.get('document')
                 if uploaded:
-                    if uploaded.size > 5 * 1024 * 1024:
+                    if uploaded.size > MAX_UPLOAD_BYTES:
                         person.delete()
                         messages.error(request, 'Ukuran dokumen maksimal 5 MB.')
                         return render(request, 'application_v3.html', {'name': request.user.first_name})
@@ -170,7 +236,7 @@ def application(request):
                         person.delete()
                         messages.error(request, 'Dokumen harus berformat PDF, JPG, atau PNG.')
                         return render(request, 'application_v3.html', {'name': request.user.first_name})
-                    Dokumen.objects.create(penduduk=person, nama=uploaded.name, file=uploaded, ukuran=uploaded.size)
+                    Dokumen.objects.create(penduduk=person, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
                 AuditLog.objects.create(user=request.user, aksi='pengajuan', deskripsi=f'Pengajuan dibuat untuk {person.nama}.')
             except IntegrityError:
                 messages.error(request, 'NIK tersebut sudah terdaftar.')
@@ -189,14 +255,14 @@ def resubmit_application(request, pk):
         messages.error(request, 'Pengajuan ini belum dapat dikirim ulang.')
     else:
         uploaded = request.FILES.get('document')
-        if uploaded and (uploaded.size > 5 * 1024 * 1024 or not _valid_upload(uploaded)):
+        if uploaded and (uploaded.size > MAX_UPLOAD_BYTES or not _valid_upload(uploaded)):
             messages.error(request, 'Dokumen baru harus PDF, JPG, atau PNG dan maksimal 5 MB.')
             return redirect('core:dashboard')
         item.status = 'menunggu'
         item.catatan = ''
         item.save(update_fields=['status', 'catatan'])
         if uploaded:
-            Dokumen.objects.create(penduduk=item.penduduk, nama=uploaded.name, file=uploaded, ukuran=uploaded.size)
+            Dokumen.objects.create(penduduk=item.penduduk, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
         AuditLog.objects.create(user=request.user, aksi='kirim_ulang', deskripsi=f'Pengajuan {item.penduduk.nama} dikirim ulang.')
         messages.success(request, 'Pengajuan berhasil dikirim ulang untuk ditinjau.')
     return redirect('core:dashboard')
@@ -233,7 +299,10 @@ def officer(request):
         if item.status == 'disetujui':
             issue_card(request, item.penduduk)
         AuditLog.objects.create(user=request.user, aksi='verifikasi', deskripsi=f'Status {item.penduduk.nama} menjadi {item.get_status_display()}.')
-        messages.success(request, f'Status {item.penduduk.nama} diperbarui.')
+        if not announce_status(item.penduduk, item.status, request.user):
+            messages.warning(request, f'Status {item.penduduk.nama} diperbarui, tapi email pemberitahuan tidak terkirim.')
+        else:
+            messages.success(request, f'Status {item.penduduk.nama} diperbarui dan warga diberitahu.')
     page = Paginator(applications, 10).get_page(request.GET.get('page'))
     return render(request, 'officer.html', {'applications': page, 'query': query, 'selected_status': status, 'page_obj': page})
 
@@ -255,6 +324,7 @@ def application_detail(request, pk):
             AuditLog.objects.create(user=request.user, aksi='verifikasi', deskripsi=f'Detail pengajuan {item.penduduk.nama} diperbarui.')
             if status == 'disetujui':
                 issue_card(request, item.penduduk)
+            announce_status(item.penduduk, status, request.user)
             messages.success(request, 'Detail pengajuan berhasil diperbarui.')
             return redirect('core:application_detail', pk=item.pk)
     return render(request, 'application_detail_v2.html', {'item': item, 'documents': item.penduduk.dokumen.all()})
@@ -308,6 +378,7 @@ def document_file(request, pk):
     return _serve_file(document.file)
 
 
+@throttle_public(limit=120)
 def card_qr(request, code):
     """Gambar QR kartu. Isinya hanya URL validasi yang memang sudah publik di halaman kartu."""
     card = get_object_or_404(KartuDigital, kode=code)
@@ -322,6 +393,7 @@ def history(request):
     return render(request, 'history.html', {'updates': person.riwayat_pemutakhiran.all(), 'logs': AuditLog.objects.filter(user=request.user).order_by('-created_at')[:30]})
 
 
+@throttle_public
 def scan_card(request):
     return render(request, 'scan_card.html')
 
@@ -334,6 +406,7 @@ def statistics(request):
     return render(request, 'statistics_chart.html', {'by_status': by_status, 'by_destination': by_destination, 'maximum': maximum, 'total': Penduduk.objects.count(), 'approved': Pengajuan.objects.filter(status='disetujui').count()})
 
 
+@throttle_public
 def validate_card(request, code):
     card = KartuDigital.objects.select_related('penduduk').filter(kode=code).first()
     if not card:
@@ -344,6 +417,7 @@ def validate_card(request, code):
     return render(request, 'card_v2.html', {'card': card, 'valid': card.is_valid()})
 
 
+@throttle_public
 def card_lookup(request):
     code = request.GET.get('code', '').strip()
     if not code:
@@ -351,6 +425,7 @@ def card_lookup(request):
     return redirect('core:validate_card', code=code)
 
 
+@throttle_public(limit=20)
 def download_card(request, code):
     card = get_object_or_404(KartuDigital.objects.select_related('penduduk'), kode=code)
     if not request.user.is_authenticated or (not is_officer(request.user) and card.penduduk.user_id != request.user.id):
@@ -393,6 +468,7 @@ def api_pending_count(request):
     return JsonResponse({'count': Pengajuan.objects.filter(status='menunggu').count()})
 
 
+@throttle_public(limit=120, json_error=True)
 def api_landing_stats(request):
     """Statistik publik landing page: hanya agregat, tanpa data pribadi."""
     return JsonResponse(landing_counts(), headers={'Cache-Control': 'no-store'})
@@ -413,6 +489,7 @@ def api_status(request):
     return JsonResponse({'status': person.pengajuan.status if person else None})
 
 
+@throttle_public(limit=30, json_error=True)
 def api_validate_nik(request):
     nik = request.GET.get('nik', '')
     response = {'valid': len(nik) == 16 and nik.isdigit()}
@@ -429,8 +506,20 @@ def _valid_date(value):
     return True
 
 
-def _valid_upload(uploaded):
-    name = uploaded.name.lower()
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
+def _valid_upload(uploaded, max_bytes=MAX_UPLOAD_BYTES):
+    """Ukuran + ekstensi + isi file harus cocok, dan ClamAV harus bersih.
+
+    Batas ukuran sengaja ada di sini juga (bukan hanya di pemanggil) supaya
+    jalur unggah baru tidak lupa memeriksanya. Saat CLAMAV_ENABLED aktif tapi
+    server ClamAV tidak bisa dihubungi, hasilya ditolak (fail closed) - lebih
+    baik unggahan gagal daripada lolos tanpa pemindaian.
+    """
+    if uploaded.size > max_bytes:
+        return False
+    name = os.path.basename(uploaded.name or '').lower()
     if not name.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
         return False
     uploaded.seek(0)

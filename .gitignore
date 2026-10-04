@@ -12,6 +12,7 @@ venv/
 # artefak kerja lokal
 tmp/
 *.log
+apache/ssl/*.key
 .qodo/
 .django-stub-gen/
 .claude/

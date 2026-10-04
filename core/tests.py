@@ -1,11 +1,13 @@
 import shutil
 import tempfile
 from django.contrib.auth.models import User
+from django.core import mail
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from io import BytesIO
 from PIL import Image
-from .models import Dokumen, KartuDigital, Penduduk, Pengajuan, UserRole
+from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, UserRole
 
 # Tes mengunggah dokumen; arahkan MEDIA_ROOT ke folder sementara supaya
 # folder media/ asli tidak ikut tertumpuk file uji.
@@ -25,6 +27,7 @@ class SipperFlowTests(TestCase):
         shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(username='citizen@example.com', password='password123', first_name='Citizen')
         self.staff = User.objects.create_user(username='officer@example.com', password='password123', is_staff=True)
 
@@ -72,11 +75,34 @@ class SipperFlowTests(TestCase):
         application.refresh_from_db()
         self.assertEqual(application.catatan, 'Mohon unggah dokumen yang lebih jelas.')
 
+    def post_document(self, uploaded):
+        data = {'name': 'Citizen', 'nik': '9101010101010101', 'origin': 'Jayapura',
+                'destination': 'Surabaya', 'purpose': 'pekerjaan', 'document': uploaded}
+        return self.client.post('/pengajuan/', data)
+
     def test_upload_rejects_unsupported_extension(self):
         self.client.force_login(self.user)
-        response = self.client.post('/pengajuan/', {'name': 'Citizen', 'nik': '9101010101010101', 'origin': 'Jayapura', 'destination': 'Surabaya', 'purpose': 'pekerjaan', 'document': SimpleUploadedFile('data.exe', b'not allowed')})
+        response = self.post_document(SimpleUploadedFile('data.exe', b'not allowed'))
         self.assertEqual(response.status_code, 200)
         self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_upload_rejects_oversized_file(self):
+        self.client.force_login(self.user)
+        oversized = SimpleUploadedFile('document.png', self.png_upload().read() + b'x' * (6 * 1024 * 1024))
+        self.post_document(oversized)
+        self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_upload_rejects_content_that_is_not_its_extension(self):
+        # Nama file .pdf tapi isinya PNG (dan sebaliknya): header harus cocok.
+        self.client.force_login(self.user)
+        self.post_document(SimpleUploadedFile('dokumen.pdf', self.png_upload().read()))
+        self.post_document(SimpleUploadedFile('dokumen.png', b'%PDF-1.4 bukan gambar'))
+        self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_oversized_request_body_is_rejected_before_parsing(self):
+        # 413 dari middleware, bukan 403 CSRF: badan permintaan tidak dibaca sama sekali.
+        response = self.client.post('/login/', data=b'x' * (9 * 1024 * 1024), content_type='application/x-www-form-urlencoded')
+        self.assertEqual(response.status_code, 413)
 
     def test_citizen_can_update_destination(self):
         person = Penduduk.objects.create(user=self.user, nama='Citizen', nik='9303030303030303', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
@@ -220,3 +246,55 @@ class SipperFlowTests(TestCase):
         self.client.get(f'/kartu/{card.kode}/')
         card.refresh_from_db()
         self.assertEqual(card.status, 'expired')
+
+    def test_public_endpoint_rejects_burst_from_one_ip(self):
+        codes = [self.client.get('/api/validate-nik/', {'nik': '1' * 16}).status_code for _ in range(60)]
+        self.assertIn(429, codes)
+        first_block = codes.index(429)
+        self.assertGreaterEqual(first_block, 10)
+        self.assertTrue(all(code == 200 for code in codes[:first_block]))
+        self.assertEqual(self.client.get('/api/validate-nik/', {'nik': '1' * 16})['Retry-After'], '300')
+
+    def test_throttle_counts_per_forwarded_client_ip(self):
+        # Apache menambah IP klien di akhir X-Forwarded-For; IP berbeda dapat jatah sendiri.
+        for _ in range(30):
+            self.client.get('/api/validate-nik/', {'nik': '1' * 16}, HTTP_X_FORWARDED_FOR='10.0.0.1')
+        self.assertEqual(self.client.get('/api/validate-nik/', {'nik': '1' * 16}, HTTP_X_FORWARDED_FOR='10.0.0.2').status_code, 200)
+        self.assertEqual(self.client.get('/api/validate-nik/', {'nik': '1' * 16}, HTTP_X_FORWARDED_FOR='palsu, 10.0.0.1').status_code, 429)
+
+    def test_officer_status_change_emails_the_citizen(self):
+        self.user.email = 'citizen@example.com'
+        self.user.save(update_fields=['email'])
+        person = Penduduk.objects.create(user=self.user, nama='Notified Citizen', nik='9920202020202020', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        application = Pengajuan.objects.create(penduduk=person)
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'disetujui'})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['citizen@example.com'])
+        self.assertTrue(AuditLog.objects.filter(aksi='notifikasi').exists())
+        self.assertTrue(KartuDigital.objects.filter(penduduk=person).exists())
+
+    def test_broken_email_backend_does_not_break_verification(self):
+        from unittest import mock
+        self.user.email = 'broken-address'
+        self.user.save(update_fields=['email'])
+        person = Penduduk.objects.create(user=self.user, nama='Warga', nik='9940404040404040', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        application = Pengajuan.objects.create(penduduk=person)
+        self.client.force_login(self.staff)
+        with mock.patch('core.emails.send_mail', side_effect=ValueError('alamat email tidak valid')):
+            response = self.client.post('/petugas/', {'id': application.pk, 'status': 'disetujui'})
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'disetujui')
+        self.assertTrue(KartuDigital.objects.filter(penduduk=person).exists())
+        self.assertTrue(AuditLog.objects.filter(aksi='notifikasi-gagal').exists())
+
+    def test_missing_citizen_email_does_not_break_verification(self):
+        person = Penduduk.objects.create(user=self.user, nama='No Email', nik='9930303030303030', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        application = Pengajuan.objects.create(penduduk=person)
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'ditolak'})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'ditolak')
+        self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(AuditLog.objects.filter(aksi='verifikasi').exists())
