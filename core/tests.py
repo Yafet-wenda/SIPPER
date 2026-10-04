@@ -1,5 +1,7 @@
+import re
 import shutil
 import tempfile
+from urllib.parse import urlparse
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
@@ -154,6 +156,24 @@ class SipperFlowTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get('/profil/').status_code, 200)
         self.assertEqual(self.client.get('/lupa-password/').status_code, 200)
+
+    def test_password_reset_email_carries_a_working_link(self):
+        # Regresi nyata: view auth Django me-reverse 'password_reset_done' dan
+        # template email bawaan me-reverse 'password_reset_confirm' tanpa namespace,
+        # sementara semua nama URL di proyek ini ada di namespace 'core'.
+        self.user.email = 'reset@example.com'
+        self.user.save(update_fields=['email'])
+        response = self.client.post('/lupa-password/', {'email': self.user.email})
+        self.assertRedirects(response, '/lupa-password/terkirim/')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['reset@example.com'])
+        tautan = re.search(r'https?://[^\s]+/reset-password/[^/]+/[^/]+/', mail.outbox[0].body)
+        self.assertIsNotNone(tautan, mail.outbox[0].body)
+        dibuka = self.client.get(urlparse(tautan.group(0)).path, follow=True)
+        self.assertEqual(dibuka.status_code, 200)
+        self.assertContains(dibuka, 'name="new_password1"')
+        ditolak = self.client.get(urlparse(tautan.group(0)).path.replace('reset-password/', 'reset-password/x/'))
+        self.assertEqual(ditolak.status_code, 404)
 
     def test_resubmit_accepts_new_document_and_history_is_visible(self):
         person = Penduduk.objects.create(user=self.user, nama='History Citizen', nik='9707070707070707', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')

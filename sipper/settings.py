@@ -58,6 +58,7 @@ EMAIL_PORT = int(os.getenv('DJANGO_EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('DJANGO_EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('DJANGO_EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('DJANGO_EMAIL_USE_TLS', '1') == '1'
+EMAIL_FILE_PATH = BASE_DIR / os.getenv('DJANGO_EMAIL_FILE_PATH', 'tmp/outbox')
 DEFAULT_FROM_EMAIL = os.getenv('DJANGO_DEFAULT_FROM_EMAIL', 'SIPPER <no-reply@example.com>')
 CLAMAV_ENABLED = os.getenv('CLAMAV_ENABLED', '0') == '1'
 CLAMAV_HOST = os.getenv('CLAMAV_HOST', '127.0.0.1')
