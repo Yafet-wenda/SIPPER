@@ -28,7 +28,9 @@
       isolation: isolate;
       padding: 130px 10vw 90px;
       min-height: 61.5vw;   /* tinggi hero mengikuti rasio foto → gambar utuh, kepala tidak terpotong */
-      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}") 50% 36% / cover no-repeat;
+      /* ?v wajib dinaiki tiap gambar diganti: Apache mengirim Cache-Control: max-age=3600
+         untuk /static/, jadi nama file yang sama membuat browser menahan versi lama. */
+      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") 50% 36% / cover no-repeat;
     }
     .hero::before {
       content: "";
