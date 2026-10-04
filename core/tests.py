@@ -318,3 +318,117 @@ class SipperFlowTests(TestCase):
         self.assertEqual(application.status, 'ditolak')
         self.assertEqual(len(mail.outbox), 0)
         self.assertTrue(AuditLog.objects.filter(aksi='verifikasi').exists())
+
+    def admin_user(self):
+        user = User.objects.create_user(username='super@example.com', password='password123',
+                                       is_staff=True, is_superuser=True)
+        self.client.force_login(user)
+        return user
+
+    def make_person(self, nama, nik, **kwargs):
+        return Penduduk.objects.create(user=self.user, nama=nama, nik=nik,
+                                       daerah_asal='Jayapura', kota_tujuan='Surabaya',
+                                       tujuan='pekerjaan', **kwargs)
+
+    def test_admin_dashboard_theme_loads_on_every_admin_page(self):
+        self.admin_user()
+        for path in ['/admin/', '/admin/core/pengajuan/', '/admin/core/pengajuan/?status__exact=menunggu']:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertContains(response, '/static/css/admin.css')
+        response = self.client.get('/admin/')
+        self.assertContains(response, 'sipper-dashboard')
+        self.assertContains(response, '/static/js/admin-dashboard.js')
+        # Modul model harus tetap tampil di halaman depan admin.
+        self.assertContains(response, '/admin/core/penduduk/')
+        # Nama modul memakai bentuk Indonesia, bukan akhiran 's' bahasa Inggris.
+        for label_inggris in ('Penduduks', 'Pengajuans', 'Dokumens', 'Kartu digitals', 'Pemutakhirans', 'User roles'):
+            self.assertNotContains(response, label_inggris)
+        self.assertContains(response, 'Kartu digital')
+
+    def test_admin_live_stats_requires_staff(self):
+        self.assertEqual(self.client.get('/admin/live-stats/').status_code, 302)
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get('/admin/live-stats/').status_code, 302)
+
+    def test_admin_live_stats_counts_match_the_database(self):
+        from django.utils import timezone
+        person = self.make_person('Warga Satu', '9101010101010111')
+        Pengajuan.objects.create(penduduk=person)
+        other = self.make_person('Warga Dua', '9101010101010112')
+        disetujui = Pengajuan.objects.create(penduduk=other, status='disetujui')
+        disetujui.refresh_from_db()
+        disetujui.verified_at = timezone.now()
+        disetujui.save(update_fields=['verified_at'])
+        self.admin_user()
+        data = self.client.get('/admin/live-stats/').json()
+
+        self.assertEqual(len(data['deret_hari']), 14)
+        self.assertEqual(data['deret_hari'][-1]['tanggal'], timezone.localdate().isoformat())
+        self.assertEqual(data['deret_hari'][-1]['masuk'], 2)
+        self.assertEqual(data['deret_hari'][-1]['selesai'], 1)
+        self.assertEqual(data['status']['menunggu'], 1)
+        self.assertEqual(data['status']['disetujui'], 1)
+        self.assertEqual(data['total_pengajuan'], 2)
+        self.assertEqual(data['hari_ini'], 2)
+        self.assertEqual(len(data['antrean']), 1)
+        self.assertEqual(data['antrean'][0]['nama'], 'Warga Satu')
+        self.assertIsNotNone(data['rerata_jam'])
+        self.assertGreaterEqual(data['rerata_jam'], 0.0)
+
+    def test_admin_live_stats_hides_pii_from_staff_without_model_perms(self):
+        """Akun staff tanpa izin model tidak boleh membaca identitas warga.
+
+        Halaman depan admin bawaan Django hanya menampilkan model yang diizinkan,
+        jadi data dashboard harus mengikuti aturan yang sama: agregat boleh,
+        nama warga dan isi log audit tidak.
+        """
+        person = self.make_person('Warga Rahasia', '9101010101010115')
+        Pengajuan.objects.create(penduduk=person)
+        AuditLog.objects.create(user=self.staff, aksi='verifikasi',
+                                deskripsi='Warga Rahasia menjadi Disetujui')
+        self.client.force_login(self.staff)
+        tubuh = self.client.get('/admin/live-stats/').json()
+        self.assertEqual(tubuh['antrean'], [])
+        self.assertEqual(tubuh['aktivitas'], [])
+        self.assertNotContains(self.client.get('/admin/'), 'Warga Rahasia')
+
+    def test_admin_changelist_shows_status_badge(self):
+        person = self.make_person('Warga Tiga', '9101010101010113')
+        Pengajuan.objects.create(penduduk=person)
+        self.admin_user()
+        response = self.client.get('/admin/core/pengajuan/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'sip-status--menunggu')
+        # Kepala kolom memakai label Indonesia, bukan nama field mentah.
+        self.assertContains(response, 'Dikirim pada')
+        self.assertNotContains(response, 'Submitted at')
+
+    def test_admin_time_filters_work_without_database_zoneinfo(self):
+        """Filter waktu tidak boleh memakai lookup tanggal.
+
+        MariaDB XAMPP di mesin ini tidak punya tabel zoneinfo, jadi CONVERT_TZ
+        (dipakai lookup __date/__year) mengembalikan NULL dan halaman changelist
+        rusak. Rentang datetime adalah jalur yang aman di semua engine.
+        """
+        person = self.make_person('Warga Empat', '9101010101010114')
+        Pengajuan.objects.create(penduduk=person)
+        self.admin_user()
+        for path in [
+            '/admin/core/pengajuan/?masuk=hari-ini',
+            '/admin/core/pengajuan/?masuk=7-hari',
+            '/admin/core/pengajuan/?masuk=90-hari',
+            '/admin/core/pengajuan/?masuk=tidak-valid',
+            '/admin/core/penduduk/?daftar=30-hari',
+            '/admin/core/dokumen/?unggah=7-hari',
+            '/admin/core/auditlog/?waktu=7-hari',
+            '/admin/core/pengajuan/?q=Warga',
+        ]:
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+        hari_ini = self.client.get('/admin/core/pengajuan/?masuk=hari-ini')
+        self.assertContains(hari_ini, 'Warga Empat')
+        # Nilai tak dikenal diperlakukan sebagai "Semua", bukan error.
+        nilai_asing = self.client.get('/admin/core/pengajuan/?masuk=900-hari')
+        self.assertEqual(nilai_asing.status_code, 200)
+        self.assertContains(nilai_asing, 'Warga Empat')

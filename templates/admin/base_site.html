@@ -1,0 +1,25 @@
+{% extends 'admin/base.html' %}
+{% load i18n static %}
+
+{# Tema SIPPER berlaku di semua halaman admin: template ini adalah induk dari
+   index, change_list, change_form, login, history, dan 404 admin. #}
+
+{% block title %}{% if subtitle %}{{ subtitle }} — {% endif %}{{ title }} · SIPPER{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+  <div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header }}</a></div>
+  {% if user.is_anonymous %}
+    {% include 'admin/color_theme_toggle.html' %}
+  {% endif %}
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

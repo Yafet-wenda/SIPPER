@@ -1,231 +1,1358 @@
-body {
-  background: #f7f8f3;
-  color: #18312b;
+/*
+  Tema admin SIPPER.
+  Dimuat lewat templates/admin/base_site.html sehingga berlaku di semua halaman
+  admin. Urutan muat ada di blok extrastyle, yaitu setelah base.css dan
+  dark_mode.css bawaan Django, jadi nilai variabel di atas menimpa milik Django.
+*/
+
+:root {
+  --sip-ink: #10231e;
+  --sip-navy: #18312b;
+  --sip-green: #1f6b58;
+  --sip-green-deep: #184f42;
+  --sip-mint: #b7d9c8;
+  --sip-paper: #f7f8f3;
+  --sip-card: #ffffff;
+  --sip-hairline: #d8e3dc;
+  --sip-quiet: #668078;
+  --sip-amber: #d99a2b;
+  --sip-coral: #e36b51;
+  --sip-info: #2f6f8f;
+
+  --sip-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --sip-body: 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+
+  --primary: #1f6b58;
+  --secondary: #18312b;
+  --accent: #d99a2b;
+  --primary-fg: #ffffff;
+
+  --body-fg: #23342e;
+  --body-bg: #f7f8f3;
+  --body-quiet-color: #668078;
+  --body-medium-color: #3b4f47;
+  --body-loud-color: #10231e;
+
+  --header-color: #ffffff;
+  --header-branding-color: #b7d9c8;
+  --header-bg: #18312b;
+  --header-link-color: #d6e8dd;
+
+  --breadcrumbs-fg: #506a60;
+  --breadcrumbs-link-fg: #1f6b58;
+  --breadcrumbs-bg: #e7f1e9;
+
+  --link-fg: #1f6b58;
+  --link-hover-color: #184f42;
+  --link-selected-fg: #18312b;
+
+  --hairline-color: #d8e3dc;
+  --border-color: #c6d5cc;
+
+  --error-fg: #b23b26;
+
+  --message-success-bg: #e2f1e6;
+  --message-warning-bg: #fbf0d8;
+  --message-error-bg: #fbe6e0;
+
+  --darkened-bg: #eef5ef;
+  --selected-bg: #e7f1e9;
+  --selected-row: #fbf3de;
+
+  --button-fg: #ffffff;
+  --button-bg: #1f6b58;
+  --button-hover-bg: #184f42;
+  --default-button-bg: #18312b;
+  --default-button-hover-bg: #10231e;
+  --close-button-bg: #8aa198;
+  --close-button-hover-bg: #668078;
+  --delete-button-bg: #c2543c;
+  --delete-button-hover-bg: #a5432e;
+
+  --object-tools-fg: #ffffff;
+  --object-tools-bg: #506a60;
+  --object-tools-hover-bg: #18312b;
+
+  --font-family-primary: var(--sip-body);
+  --font-family-monospace: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', Consolas, monospace;
+
+  --sip-radius: 6px;
+  --sip-shadow: 0 1px 2px rgba(16, 35, 30, .06), 0 8px 24px rgba(16, 35, 30, .05);
 }
+
+html[data-theme="dark"] {
+  --sip-ink: #eaf2ed;
+  --sip-navy: #0d1714;
+  --sip-green: #4ea88c;
+  --sip-green-deep: #2f6f5c;
+  --sip-mint: #a9d5bf;
+  --sip-paper: #101a17;
+  --sip-card: #16221d;
+  --sip-hairline: #27382f;
+  --sip-quiet: #93aaa0;
+  --sip-amber: #e3b25c;
+  --sip-coral: #ef8b73;
+  --sip-info: #74b3d0;
+
+  --primary: #2f6f5c;
+  --secondary: #0d1714;
+  --accent: #e3b25c;
+  --primary-fg: #eaf2ed;
+
+  --body-fg: #d6e2db;
+  --body-bg: #101a17;
+  --body-quiet-color: #93aaa0;
+  --body-medium-color: #bed0c6;
+  --body-loud-color: #f2f8f4;
+
+  --header-color: #f2f8f4;
+  --header-branding-color: #a9d5bf;
+  --header-bg: #0d1714;
+  --header-link-color: #a9d5bf;
+
+  --breadcrumbs-fg: #93aaa0;
+  --breadcrumbs-link-fg: #a9d5bf;
+  --breadcrumbs-bg: #16221d;
+
+  --link-fg: #7fc7a8;
+  --link-hover-color: #b7e4cd;
+  --link-selected-fg: #d6e2db;
+
+  --hairline-color: #27382f;
+  --border-color: #35473d;
+
+  --error-fg: #ef8b73;
+
+  --message-success-bg: #1c3529;
+  --message-warning-bg: #3a2f16;
+  --message-error-bg: #40211c;
+
+  --darkened-bg: #16221d;
+  --selected-bg: #1d2b25;
+  --selected-row: #2f2a1a;
+
+  --button-bg: #2f6f5c;
+  --button-hover-bg: #3d8670;
+  --default-button-bg: #4ea88c;
+  --default-button-hover-bg: #62bd9f;
+  --close-button-bg: #35473d;
+  --close-button-hover-bg: #4b6155;
+
+  --object-tools-bg: #35473d;
+  --object-tools-hover-bg: #4b6155;
+
+  --sip-shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .35);
+}
+
+/* ---------------------------------------------------------------- tipografi */
+
+body {
+  font-feature-settings: 'tnum' 1;
+}
+
+#header,
+.sipper-panel h2,
+.sipper-metrics strong,
+div.breadcrumbs + h1 {
+  font-family: var(--sip-display);
+}
+
+h1 {
+  font-family: var(--sip-display);
+  font-weight: 600;
+  letter-spacing: -.015em;
+  color: var(--body-loud-color);
+}
+
+/* ------------------------------------------------------------------- header */
 
 #header {
-  background: #18312b;
-  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 24px;
+  border-bottom: 1px solid rgba(183, 217, 200, .18);
 }
 
-#branding h1,
-#branding h1 a:link,
-#branding h1 a:visited {
-  color: #fff;
-  font-family: 'Space Grotesk', sans-serif;
+#branding {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+#site-name a {
+  font-family: var(--sip-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--header-branding-color);
+}
+
+#branding h2 {
+  color: var(--sip-mint);
+  font-weight: 500;
+}
+
+#user-tools {
+  font-size: .8rem;
+}
+
+#user-tools a,
+#logout-form button {
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
 }
 
 #user-tools a:focus,
-#user-tools a:hover {
-  color: #b7d9c8;
-  border-bottom-color: #b7d9c8;
+#user-tools a:hover,
+#logout-form button:focus,
+#logout-form button:hover {
+  color: #ffffff;
+  border-bottom-color: var(--sip-mint);
 }
 
-.breadcrumbs {
-  background: #e7f1e9;
-  color: #506a60;
+/* -------------------------------------------------------------- breadcrumbs */
+
+div.breadcrumbs {
+  font-family: var(--sip-body);
+  font-size: .75rem;
+  letter-spacing: .04em;
+  padding: 11px 24px;
+  border-bottom: 1px solid var(--hairline-color);
 }
 
-.breadcrumbs a {
-  color: #1f6b58;
+/* -------------------------------------------------------------- kerangka */
+
+#container {
+  min-height: 100vh;
 }
 
-a:link,
-a:visited {
-  color: #1f6b58;
+.main #content {
+  padding: 24px;
 }
 
-.button,
-.submit-row input,
-.submit-row input.default {
-  background: #1f6b58;
-  border-radius: 2px;
+#content-title,
+div#content > h1:first-child {
+  margin-bottom: 18px;
 }
 
-.button:hover,
-.submit-row input:hover {
-  background: #184f42;
+.module,
+#content-related .module {
+  background: var(--sip-card);
+  border: 1px solid var(--hairline-color);
+  border-radius: var(--sip-radius);
+  box-shadow: var(--sip-shadow);
+  margin-bottom: 20px;
+  overflow: hidden;
 }
 
 .module h2,
 .module caption,
 .inline-group h2 {
-  background: #1f6b58;
+  font-family: var(--sip-display);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 12px 16px;
+}
+
+.module table {
+  border-radius: 0;
+}
+
+.module caption a.section:link,
+.module caption a.section:visited {
+  color: var(--primary-fg);
+}
+
+#content-main .module table th,
+#content-main .module table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+#content-main .module table tr:last-child th,
+#content-main .module table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* .module memotong isinya (untuk radius kartu), jadi tabel hasil yang lebih
+   lebar dari kartu harus bisa digulir, bukan kehilangan kolom terakhir.
+   Kepala kolom boleh turun baris karena label Indonesia lebih panjang. */
+.results {
+  overflow-x: auto;
+}
+
+/* changelists.css dimuat setelah file ini dan memaksa kepala kolom nowrap,
+   jadi perlu dua id agar label Indonesia yang panjang boleh turun baris. */
+#changelist #result_list thead th {
+  white-space: normal;
+}
+
+/* Sel tabel hasil memakai padding lebih rapat supaya lima kolom data tetap
+   muat tanpa gulir horizontal pada layar kerja normal. */
+#changelist #result_list th,
+#changelist #result_list td {
+  padding: 10px 10px;
+}
+
+#changelist #result_list th:first-child,
+#changelist #result_list td:first-child {
+  padding-left: 16px;
+}
+
+.dashboard .module table td a {
+  font-weight: 600;
+}
+
+div.module .addlink,
+div.module .changelink,
+div.module .viewlink {
+  padding-left: 0;
+  background-image: none;
+  font-size: .72rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--body-quiet-color);
+  border: 1px solid var(--hairline-color);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+div.module .addlink:hover,
+div.module .changelink:hover,
+div.module .viewlink:hover {
+  background: var(--selected-bg);
+  color: var(--link-hover-color);
+}
+
+/* ------------------------------------------------------------- tabel list */
+
+#changelist table thead th {
+  font-family: var(--sip-display);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--body-quiet-color);
+}
+
+#changelist table tbody tr {
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+#changelist table tbody tr.selected {
+  background-color: var(--selected-row);
+}
+
+.results {
+  border-radius: var(--sip-radius);
 }
 
 .object-tools a {
-  background: #1f6b58;
+  border-radius: 999px;
+  font-family: var(--sip-display);
+  font-size: .72rem;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 
-.object-tools a:hover {
-  background: #184f42;
+/* ---------------------------------------------------------------- filter */
+
+#changelist-filter {
+  background: var(--darkened-bg);
+  border-left: 1px solid var(--hairline-color);
 }
 
-#content {
-  max-width: 1400px;
+#changelist-filter h2,
+#changelist-filter h3 {
+  font-family: var(--sip-display);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: .7rem;
 }
 
-.sipper-admin-dashboard {
-  margin-bottom: 35px;
+#changelist-filter a:focus,
+#changelist-filter a:hover {
+  color: var(--link-hover-color);
 }
 
-.sipper-admin-head {
+#changelist-filter li.selected a {
+  color: var(--link-selected-fg);
+  font-weight: 700;
+}
+
+/* ----------------------------------------------------------- pagination */
+
+.paginator {
+  border-top: 1px solid var(--hairline-color);
+  color: var(--body-quiet-color);
+  font-size: .78rem;
+}
+
+.pager {
+  font-family: var(--sip-display);
+}
+
+/* -------------------------------------------------------------- form */
+
+.field-group-name,
+.module h2 + .tabular,
+form .form-row label {
+  font-family: var(--sip-display);
+}
+
+form .form-row p,
+form label {
+  font-weight: 600;
+  color: var(--body-medium-color);
+}
+
+input:not([type]),
+input[type=text],
+input[type=password],
+input[type=email],
+input[type=url],
+input[type=number],
+input[type=tel],
+input[type=search],
+input[type=date],
+input[type=time],
+input[type=datetime-local],
+textarea,
+select,
+.vTextField {
+  background: var(--sip-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--sip-radius);
+  padding: 9px 11px;
+}
+
+input:not([type]):focus,
+input[type=text]:focus,
+input[type=password]:focus,
+input[type=email]:focus,
+input[type=url]:focus,
+input[type=number]:focus,
+input[type=tel]:focus,
+input[type=search]:focus,
+textarea:focus,
+select:focus,
+.vTextField:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(31, 107, 88, .16);
+  outline: none;
+}
+
+form .readonly {
+  color: var(--body-quiet-color);
+}
+
+.submit-row {
+  background: var(--darkened-bg);
+  border-top: 1px solid var(--hairline-color);
+  padding: 14px 16px;
+}
+
+.submit-row input,
+.submit-row a.closelink,
+.delete-confirmation form .cancel-link {
+  border-radius: var(--sip-radius);
+  font-family: var(--sip-display);
+  letter-spacing: .02em;
+}
+
+/* ------------------------------------------------------------- buttons */
+
+.button,
+input[type=submit],
+input[type=button],
+.submit-row input,
+a.button {
+  border-radius: var(--sip-radius);
+  font-family: var(--sip-display);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.button.default,
+.submit-row input.default,
+input[type=submit].default {
+  background: var(--sip-green);
+}
+
+.button.default:hover,
+.submit-row input.default:hover {
+  background: var(--sip-green-deep);
+}
+
+/* ------------------------------------------------------------- pesan */
+
+.messagelist {
+  padding: 0;
+  margin: 0 0 18px;
+}
+
+.messagelist li {
+  border-radius: var(--sip-radius);
+  border-left: 4px solid var(--sip-green);
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+  background: var(--message-success-bg);
+  color: var(--body-loud-color);
+}
+
+.messagelist li.warning {
+  border-left-color: var(--sip-amber);
+  background: var(--message-warning-bg);
+}
+
+.messagelist li.error,
+.messagelist li.errormixin {
+  border-left-color: var(--sip-coral);
+  background: var(--message-error-bg);
+}
+
+.errornote,
+ul.errorlist li {
+  border-radius: var(--sip-radius);
+}
+
+div.errornote {
+  background: var(--message-error-bg);
+  color: var(--error-fg);
+  border-left: 4px solid var(--sip-coral);
+}
+
+/* --------------------------------------------------------------- login */
+
+#login #container {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  max-width: 460px;
+}
+
+#login .box,
+#login #content-main {
+  background: var(--sip-card);
+  border: 1px solid var(--hairline-color);
+  border-radius: var(--sip-radius);
+  box-shadow: var(--sip-shadow);
+  padding: 26px;
+}
+
+#login #header {
+  background: transparent;
+  border-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+#login h1 + p,
+#login .errornote {
+  border-radius: var(--sip-radius);
+}
+
+/* -------------------------------------------------- badge status list */
+
+.sip-status {
+  display: inline-block;
+  font-family: var(--sip-display);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  border: 1px solid currentColor;
+}
+
+.sip-status--menunggu {
+  color: #8a5d10;
+  background: #fbf0d8;
+}
+
+.sip-status--disetujui {
+  color: #16513f;
+  background: #e2f1e6;
+}
+
+.sip-status--ditolak {
+  color: #9c3a24;
+  background: #fbe6e0;
+}
+
+.sip-status--perlu_perbaikan {
+  color: #235570;
+  background: #e2eef5;
+}
+
+html[data-theme="dark"] .sip-status--menunggu {
+  color: #f0c979;
+  background: #3a2f16;
+}
+
+html[data-theme="dark"] .sip-status--disetujui {
+  color: #9ad9bd;
+  background: #1c3529;
+}
+
+html[data-theme="dark"] .sip-status--ditolak {
+  color: #f4a892;
+  background: #40211c;
+}
+
+html[data-theme="dark"] .sip-status--perlu_perbaikan {
+  color: #93c9e6;
+  background: #17293a;
+}
+
+/* ==================================================== dashboard SIPPER */
+
+/* base.css memaksa dashboard selebar 600px dan menyisakan 300px untuk modul
+   "Recent actions" yang tidak dipakai template ini, sedangkan dashboard.css
+   (dimuat setelah file ini) memaksa pemenggalan kata per karakter di dalam
+   .dashboard. Selector di bawah menang lewat specificity, bukan !important. */
+body.dashboard #content {
+  width: auto;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+body.dashboard .sipper-dashboard td,
+body.dashboard .sipper-dashboard th {
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+
+.sipper-dashboard {
+  display: grid;
+  gap: 18px;
+}
+
+.sipper-head {
   display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
   justify-content: space-between;
-  align-items: flex-start;
-  background: #18312b;
+  gap: 14px;
+  background: var(--sip-navy);
   color: #fff;
-  padding: 28px 32px;
-  margin-bottom: 18px;
+  border-radius: var(--sip-radius);
+  padding: 22px 26px;
+  box-shadow: var(--sip-shadow);
+}
+
+html[data-theme="dark"] .sipper-head {
+  background: var(--sip-card);
+  border: 1px solid var(--hairline-color);
 }
 
 .sipper-kicker {
-  font-size: 10px;
-  letter-spacing: 1.8px;
-  color: #b7d9c8;
+  display: block;
+  font-family: var(--sip-display);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--sip-mint);
 }
 
-.sipper-admin-head h1 {
-  font: 600 32px 'Space Grotesk';
-  margin: 9px 0 4px;
+.sipper-head h1 {
+  margin: 8px 0 4px;
+  font-family: var(--sip-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: #fff;
 }
 
-.sipper-admin-head p {
-  color: #c4ddd0;
+.sipper-head p {
   margin: 0;
+  color: #c4ddd0;
+  font-size: .82rem;
 }
 
 .sipper-live {
-  font-size: 11px;
-  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-family: var(--sip-display);
+  font-size: .68rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
 }
 
-.sipper-live i {
-  display: inline-block;
+.sipper-live__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--sip-mint);
+}
+
+.sipper-live__state i {
   width: 8px;
   height: 8px;
-  background: #e36b51;
   border-radius: 50%;
-  margin-right: 6px;
-  animation: adminpulse 1.5s infinite;
+  background: var(--sip-green);
+  animation: sipper-pulse 1.8s ease-in-out infinite;
 }
+
+.sipper-live__state.is-stale i {
+  background: var(--sip-amber);
+  animation: none;
+}
+
+.sipper-live__state.is-offline {
+  color: var(--sip-coral);
+}
+
+.sipper-live__state.is-offline i {
+  background: var(--sip-coral);
+  animation: none;
+}
+
+.sipper-live__updated {
+  color: #9db8ac;
+  letter-spacing: .04em;
+  text-transform: none;
+  font-size: .72rem;
+}
+
+button.sipper-pause {
+  background: transparent;
+  border: 1px solid rgba(183, 217, 200, .5);
+  color: var(--sip-mint);
+  border-radius: 999px;
+  font-family: var(--sip-display);
+  font-size: .66rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  padding: 5px 13px;
+  cursor: pointer;
+}
+
+button.sipper-pause:hover {
+  background: rgba(183, 217, 200, .14);
+  color: #fff;
+}
+
+/* --------------------------------------------------------------- metrik */
 
 .sipper-metrics {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
   gap: 12px;
-  margin-bottom: 28px;
 }
 
-.sipper-metrics > div {
-  background: #eef5ef;
-  border-top: 3px solid #1f6b58;
-  padding: 17px;
-}
-
-.sipper-metrics small,
-.sipper-metrics strong,
 .sipper-metrics a {
   display: block;
+  background: var(--sip-card);
+  border: 1px solid var(--hairline-color);
+  border-top: 3px solid var(--metric-accent, var(--sip-green));
+  border-radius: var(--sip-radius);
+  box-shadow: var(--sip-shadow);
+  padding: 15px 17px;
+  color: inherit;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+
+.sipper-metrics a:hover,
+.sipper-metrics a:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 3px 6px rgba(16, 35, 30, .1), 0 14px 30px rgba(16, 35, 30, .1);
+  color: inherit;
 }
 
 .sipper-metrics small {
-  color: #668078;
-  font-size: 11px;
+  display: block;
+  font-family: var(--sip-display);
+  font-size: .64rem;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--sip-quiet);
 }
 
 .sipper-metrics strong {
-  font: 600 30px 'Space Grotesk';
-  margin: 8px 0;
+  display: block;
+  font-family: var(--sip-display);
+  font-size: 1.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 8px 0 2px;
+  color: var(--body-loud-color);
+  font-variant-numeric: tabular-nums;
 }
 
-.sipper-metrics a {
-  font-size: 11px;
-  color: #1f6b58;
-  font-weight: 700;
+.sipper-metrics em {
+  display: block;
+  font-style: normal;
+  font-size: .74rem;
+  color: var(--sip-quiet);
 }
 
-.sipper-admin-columns {
+.sipper-metrics a[data-metric="menunggu"] {
+  --metric-accent: var(--sip-amber);
+}
+
+.sipper-metrics a[data-metric="disetujui"] {
+  --metric-accent: var(--sip-green);
+}
+
+.sipper-metrics a[data-metric="ditolak"] {
+  --metric-accent: var(--sip-coral);
+}
+
+.sipper-metrics a[data-metric="perlu_perbaikan"] {
+  --metric-accent: var(--sip-info);
+}
+
+/* ------------------------------------------------------------ kolom isi */
+
+.sipper-columns {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
-  gap: 24px;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
 }
 
-.sipper-admin-columns section {
-  background: #fff;
-  border: 1px solid #d8e3dc;
-  padding: 20px;
+/* Baris antrean + aktivitas memakai dua kolom seimbang agar tabel antrean
+   punya cukup ruang untuk nama warga. */
+.sipper-columns--pair {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
-.sipper-admin-columns h2 {
-  font: 600 19px 'Space Grotesk';
-  margin: 0 0 17px;
-  color: #18312b;
+/* Lebar kolom tetap dalam persen (satu-satunya satuan yang aman untuk
+   table-layout: fixed) dengan kolom status cukup luas untuk badge
+   "Perlu perbaikan" yang tidak boleh terpotong. */
+#sip-queue table {
+  table-layout: fixed;
 }
 
-.sipper-admin-columns table {
+#sip-queue th:nth-child(1),
+#sip-queue td:nth-child(1) {
+  width: 22%;
+}
+
+#sip-queue th:nth-child(2),
+#sip-queue td:nth-child(2) {
+  width: 29%;
+}
+
+#sip-queue th:nth-child(3),
+#sip-queue td:nth-child(3) {
+  width: 19%;
+}
+
+#sip-queue th:nth-child(4),
+#sip-queue td:nth-child(4) {
+  width: 30%;
+}
+
+.sipper-panel {
+  background: var(--sip-card);
+  border: 1px solid var(--hairline-color);
+  border-radius: var(--sip-radius);
+  box-shadow: var(--sip-shadow);
+  padding: 18px 20px;
+  margin: 0;
+}
+
+.sipper-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 14px;
+}
+
+.sipper-panel h2 {
+  font-family: var(--sip-display);
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--body-loud-color);
+  margin: 0;
+}
+
+.sipper-panel__link {
+  font-family: var(--sip-display);
+  font-size: .7rem;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--link-fg);
+}
+
+.sipper-panel table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: .78rem;
 }
 
-.sipper-admin-columns th {
+.sipper-panel th {
   text-align: left;
+  font-family: var(--sip-display);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .1em;
   text-transform: uppercase;
+  color: var(--sip-quiet);
+  border-bottom: 1px solid var(--hairline-color);
+  padding: 8px 6px;
+}
+
+.sipper-panel td {
+  border-bottom: 1px solid var(--hairline-color);
+  padding: 10px 6px;
+  vertical-align: top;
+}
+
+.sipper-panel tr:last-child td {
+  border-bottom: 0;
+}
+
+.sipper-panel td.sip-num {
+  text-align: right;
+  font-family: var(--sip-body);
+  font-variant-numeric: tabular-nums;
+}
+
+.sipper-empty {
+  color: var(--sip-quiet);
+  font-size: .8rem;
+  margin: 4px 0 0;
+}
+
+.sipper-time {
+  font-family: var(--font-family-monospace);
+  font-size: .72rem;
+  color: var(--sip-quiet);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------- denyut 14 hari (SVG) */
+
+.sipper-pulse-chart {
+  margin: 0;
+}
+
+.sipper-pulse-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.sipper-pulse-chart .sip-bar--masuk {
+  fill: var(--sip-green);
+}
+
+.sipper-pulse-chart .sip-bar--selesai {
+  fill: var(--sip-amber);
+}
+
+html[data-theme="dark"] .sipper-pulse-chart .sip-bar--masuk {
+  fill: var(--sip-green);
+}
+
+.sipper-pulse-chart .sip-bar--now.sip-bar--masuk,
+.sipper-pulse-chart .sip-bar--now.sip-bar--selesai {
+  animation: sipper-bar 2.4s ease-in-out infinite;
+}
+
+.sipper-pulse-chart .sip-axis {
+  stroke: var(--hairline-color);
+  stroke-width: 1;
+}
+
+.sipper-pulse-chart .sip-label {
+  font-family: var(--sip-display);
   font-size: 9px;
-  letter-spacing: 1px;
-  color: #758a82;
-  border-bottom: 1px solid #cad8d0;
-  padding: 9px;
+  letter-spacing: .06em;
+  fill: var(--sip-quiet);
 }
 
-.sipper-admin-columns td {
-  border-bottom: 1px solid #e3ebe5;
-  padding: 11px 9px;
+.sipper-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  font-size: .72rem;
+  color: var(--sip-quiet);
 }
 
-.sipper-admin-columns a {
-  color: #1f6b58;
-  font-weight: 700;
+.sipper-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+
+.sipper-legend b {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.sipper-legend b.sip-bar--masuk {
+  background: var(--sip-green);
+}
+
+.sipper-legend b.sip-bar--selesai {
+  background: var(--sip-amber);
+}
+
+/* ------------------------------------------------------- komposisi status */
+
+.sipper-composition {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--darkened-bg);
+  margin-bottom: 14px;
+}
+
+.sipper-composition i {
+  display: block;
+  height: 100%;
+  transition: width .4s ease;
+}
+
+.sipper-composition i[data-status="menunggu"] {
+  background: var(--sip-amber);
+}
+
+.sipper-composition i[data-status="disetujui"] {
+  background: var(--sip-green);
+}
+
+.sipper-composition i[data-status="ditolak"] {
+  background: var(--sip-coral);
+}
+
+.sipper-composition i[data-status="perlu_perbaikan"] {
+  background: var(--sip-info);
+}
+
+.sipper-breakdown {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: .78rem;
+}
+
+.sipper-breakdown li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline-color);
+}
+
+.sipper-breakdown li:last-child {
+  border-bottom: 0;
+}
+
+.sipper-breakdown i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--sip-quiet);
+}
+
+.sipper-breakdown i[data-status="menunggu"] {
+  background: var(--sip-amber);
+}
+
+.sipper-breakdown i[data-status="disetujui"] {
+  background: var(--sip-green);
+}
+
+.sipper-breakdown i[data-status="ditolak"] {
+  background: var(--sip-coral);
+}
+
+.sipper-breakdown i[data-status="perlu_perbaikan"] {
+  background: var(--sip-info);
+}
+
+.sipper-breakdown b {
+  font-family: var(--sip-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.sipper-breakdown small {
+  color: var(--sip-quiet);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------- aktivitas */
 
 .sipper-activity {
   list-style: none;
   padding: 0;
   margin: 0;
+  /* Log feed lebih panjang daripada antrean, jadi dipotong pada tinggi tetap
+     supaya dua panel pada baris yang sama tidak timpang. */
+  max-height: 26rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .sipper-activity li {
   display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 8px;
-  padding: 12px 0;
-  border-bottom: 1px solid #e3ebe5;
-  font-size: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--hairline-color);
+  font-size: .78rem;
+}
+
+.sipper-activity li:last-child {
+  border-bottom: 0;
+}
+
+.sipper-activity b {
+  font-family: var(--sip-display);
+  font-size: .68rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--sip-green);
 }
 
 .sipper-activity span {
-  color: #506a60;
+  grid-column: 1 / -1;
+  color: var(--body-medium-color);
 }
 
 .sipper-activity small {
-  grid-column: 2;
-  color: #94a69e;
-  font-size: 10px;
+  grid-column: 1 / -1;
+  color: var(--sip-quiet);
+  font-size: .7rem;
 }
 
-@keyframes adminpulse {
+/* ----------------------------------------------------------- modul aplikasi */
+
+.sipper-apps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.sipper-apps .module {
+  margin-bottom: 0;
+}
+
+/* --------------------------------------------------------- aksesibilitas */
+
+:focus-visible {
+  outline: 2px solid var(--sip-green);
+  outline-offset: 2px;
+}
+
+.sipper-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@keyframes sipper-pulse {
   50% {
-    opacity: 0.35;
+    opacity: .3;
   }
 }
 
-@media (max-width: 850px) {
-  .sipper-metrics {
-    grid-template-columns: repeat(2, 1fr);
+@keyframes sipper-bar {
+  50% {
+    opacity: .55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .sipper-columns {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .sipper-admin-columns {
-    grid-template-columns: 1fr;
+  /* .object-tools ditarik naik -48px agar sejajar dengan judul, tapi baris
+     judul tidak dipersingkat oleh float yang datang kemudian, jadi pada layar
+     sempit tombol "Tambah …" menutupi judul. Angka di bawah sama dengan yang
+     dipakai Django sendiri pada <=767px agar tidak ada lompatan di 767px. */
+  .object-tools {
+    float: none;
+    margin: 0 0 15px;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .object-tools li {
+    height: auto;
+    margin-left: 0;
+  }
+
+  .object-tools li + li {
+    margin-left: 15px;
+  }
+
+  /* Pada tablet ruang menyempit, jadi isi tabel diperketat agar gulir
+     horizontal di dalam kartu tidak muncul terlalu cepat. */
+  #changelist #result_list th,
+  #changelist #result_list td {
+    padding: 9px 7px;
+  }
+}
+
+/* Pada laptop 1280px, sidebar (276px) + kolom filter (240px) menyisakan 661px
+   untuk tabel padahal tabel butuh 771px, jadi kolom terakhir hilang di balik
+   gulir. Di bawah 1400px filter dipindah ke bawah tabel (perangkat yang sama
+   hanya menumpuk pada <=767px) sehingga tabel punya ruang penuh. */
+@media (max-width: 1400px) {
+  #content-main #changelist {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #changelist #changelist-filter {
+    flex: 1 1 auto;
+    width: auto;
+    margin: 20px 0 0;
+    border-left: 0;
+    border-radius: var(--sip-radius);
+  }
+}
+
+/* Di layar ponsel empat kolom antrean tidak muat lagi (badge status tidak
+   boleh terpotong), jadi tiap pengajuan ditumpuk menjadi dua baris. */
+@media (max-width: 640px) {
+  #sip-queue table,
+  #sip-queue tbody {
+    display: block;
+    width: auto;
+  }
+
+  #sip-queue thead {
+    display: none;
+  }
+
+  #sip-queue tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 3px 12px;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--hairline-color);
+  }
+
+  #sip-queue tr:last-child {
+    border-bottom: 0;
+  }
+
+  #sip-queue td {
+    display: block;
+    width: auto;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  #sip-queue td:nth-child(1) {
+    grid-area: 1 / 2;
+    width: auto;
+    text-align: right;
+  }
+
+  #sip-queue td:nth-child(2) {
+    grid-area: 1 / 1;
+    width: auto;
+    font-weight: 600;
+  }
+
+  #sip-queue td:nth-child(3) {
+    grid-area: 2 / 1;
+    width: auto;
+    color: var(--sip-quiet);
+  }
+
+  #sip-queue td:nth-child(4) {
+    grid-area: 2 / 2;
+    width: auto;
+    justify-self: end;
+  }
+}
+
+@media (max-width: 768px) {
+  #header {
+    padding: 12px 16px;
+  }
+
+  .main #content,
+  div.breadcrumbs {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .sipper-head {
+    padding: 18px;
+  }
+
+  .sipper-head h1 {
+    font-size: 1.4rem;
+  }
+
+  .sipper-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+
+  .sipper-metrics strong {
+    font-size: 1.5rem;
+  }
+
+  .sipper-apps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sipper-panel {
+    padding: 15px;
+  }
+
+  .sipper-breakdown li {
+    grid-template-columns: 10px 1fr auto auto;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sipper-activity li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sipper-live {
+    gap: 10px;
   }
 }
