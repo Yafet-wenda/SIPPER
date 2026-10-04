@@ -11,6 +11,7 @@ venv/
 
 # artefak kerja lokal
 tmp/
+vibe_images/
 *.log
 apache/ssl/*.key
 .qodo/
