@@ -666,17 +666,11 @@ html[data-theme="dark"] .sipper-head {
 }
 
 .sipper-head h1 {
-  margin: 8px 0 4px;
+  margin: 8px 0 0;
   font-family: var(--sip-display);
   font-size: 1.75rem;
   font-weight: 600;
   color: #fff;
-}
-
-.sipper-head p {
-  margin: 0;
-  color: #c4ddd0;
-  font-size: .82rem;
 }
 
 .sipper-live {
