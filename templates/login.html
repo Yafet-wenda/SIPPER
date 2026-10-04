@@ -1,0 +1,53 @@
+{% load static %}
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Masuk / SIPPER</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}" />
+    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  </head>
+  <body>
+    <div class="form-page">
+      <div class="form-intro">
+        <p class="eyebrow">Akses SIPPER</p>
+        <h1>
+          Selamat<br />
+          <em>datang kembali.</em>
+        </h1>
+        <p>Masuk untuk melihat status data dan pengajuan Anda.</p>
+      </div>
+
+      <form method="post" class="form-card">
+        {% csrf_token %}
+        <label>
+          Username atau email
+          <input
+            type="text"
+            name="email"
+            required
+            autocomplete="username"
+            placeholder="Yafet atau nama@email.com"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            type="password"
+            name="password"
+            required
+            placeholder="Password Anda"
+          />
+        </label>
+        <button class="button button-dark" type="submit">
+          Masuk <span>→</span>
+        </button>
+        <p class="form-note">
+          Belum punya akun?
+          <a href="{% url 'core:register' %}">Daftar sekarang.</a>
+        </p>
+      </form>
+    </div>
+  </body>
+</html>

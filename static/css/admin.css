@@ -1,0 +1,231 @@
+body {
+  background: #f7f8f3;
+  color: #18312b;
+}
+
+#header {
+  background: #18312b;
+  color: #fff;
+}
+
+#branding h1,
+#branding h1 a:link,
+#branding h1 a:visited {
+  color: #fff;
+  font-family: 'Space Grotesk', sans-serif;
+}
+
+#user-tools a:focus,
+#user-tools a:hover {
+  color: #b7d9c8;
+  border-bottom-color: #b7d9c8;
+}
+
+.breadcrumbs {
+  background: #e7f1e9;
+  color: #506a60;
+}
+
+.breadcrumbs a {
+  color: #1f6b58;
+}
+
+a:link,
+a:visited {
+  color: #1f6b58;
+}
+
+.button,
+.submit-row input,
+.submit-row input.default {
+  background: #1f6b58;
+  border-radius: 2px;
+}
+
+.button:hover,
+.submit-row input:hover {
+  background: #184f42;
+}
+
+.module h2,
+.module caption,
+.inline-group h2 {
+  background: #1f6b58;
+}
+
+.object-tools a {
+  background: #1f6b58;
+}
+
+.object-tools a:hover {
+  background: #184f42;
+}
+
+#content {
+  max-width: 1400px;
+}
+
+.sipper-admin-dashboard {
+  margin-bottom: 35px;
+}
+
+.sipper-admin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #18312b;
+  color: #fff;
+  padding: 28px 32px;
+  margin-bottom: 18px;
+}
+
+.sipper-kicker {
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  color: #b7d9c8;
+}
+
+.sipper-admin-head h1 {
+  font: 600 32px 'Space Grotesk';
+  margin: 9px 0 4px;
+}
+
+.sipper-admin-head p {
+  color: #c4ddd0;
+  margin: 0;
+}
+
+.sipper-live {
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.sipper-live i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: #e36b51;
+  border-radius: 50%;
+  margin-right: 6px;
+  animation: adminpulse 1.5s infinite;
+}
+
+.sipper-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.sipper-metrics > div {
+  background: #eef5ef;
+  border-top: 3px solid #1f6b58;
+  padding: 17px;
+}
+
+.sipper-metrics small,
+.sipper-metrics strong,
+.sipper-metrics a {
+  display: block;
+}
+
+.sipper-metrics small {
+  color: #668078;
+  font-size: 11px;
+}
+
+.sipper-metrics strong {
+  font: 600 30px 'Space Grotesk';
+  margin: 8px 0;
+}
+
+.sipper-metrics a {
+  font-size: 11px;
+  color: #1f6b58;
+  font-weight: 700;
+}
+
+.sipper-admin-columns {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 24px;
+}
+
+.sipper-admin-columns section {
+  background: #fff;
+  border: 1px solid #d8e3dc;
+  padding: 20px;
+}
+
+.sipper-admin-columns h2 {
+  font: 600 19px 'Space Grotesk';
+  margin: 0 0 17px;
+  color: #18312b;
+}
+
+.sipper-admin-columns table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.sipper-admin-columns th {
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #758a82;
+  border-bottom: 1px solid #cad8d0;
+  padding: 9px;
+}
+
+.sipper-admin-columns td {
+  border-bottom: 1px solid #e3ebe5;
+  padding: 11px 9px;
+}
+
+.sipper-admin-columns a {
+  color: #1f6b58;
+  font-weight: 700;
+}
+
+.sipper-activity {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sipper-activity li {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e3ebe5;
+  font-size: 12px;
+}
+
+.sipper-activity span {
+  color: #506a60;
+}
+
+.sipper-activity small {
+  grid-column: 2;
+  color: #94a69e;
+  font-size: 10px;
+}
+
+@keyframes adminpulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (max-width: 850px) {
+  .sipper-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .sipper-admin-columns {
+    grid-template-columns: 1fr;
+  }
+}

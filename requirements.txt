@@ -1,0 +1,9 @@
+Django>=5.2,<6.0
+Pillow>=10.0
+qrcode>=7.4
+reportlab>=4.0
+gunicorn>=21.0; sys_platform != 'win32'
+waitress>=3.0; sys_platform == 'win32'
+clamd>=1.0.2
+PyMySQL>=1.1.0
+python-dotenv>=1.0

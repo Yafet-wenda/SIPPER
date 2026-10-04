@@ -1,0 +1,61 @@
+
+{% load static %}
+<!doctype html>
+<html lang="id">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>{% block title %}SIPPER{% endblock %}</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+    <nav class="nav">
+        <a class="brand" href="{% url 'core:home' %}">
+            <span class="brand-mark">S</span>
+            <span>SIPPER</span>
+        </a>
+        <div class="nav-links">
+            <a href="{% url 'core:home' %}">Home</a>
+            {% if user.is_authenticated %}
+                <a href="{% url 'core:dashboard' %}">Ringkasan</a>
+                {% if is_sipper_officer %}
+                    <a href="{% url 'core:officer' %}">Panel petugas</a>
+                    <a href="{% url 'core:statistics' %}">Statistik</a>
+                    <a href="{% url 'core:scan_card' %}">Scan QR</a>
+                {% else %}
+                    <a href="{% url 'core:update_data' %}">Pemutakhiran</a>
+                    <a href="{% url 'core:history' %}">Histori</a>
+                {% endif %}
+                <a href="{% url 'core:profile' %}">Profil</a>
+                <form method="post" action="{% url 'core:logout' %}" style="display:inline">
+                    <button type="submit">Keluar</button>
+                    {% csrf_token %}
+                </form>
+            {% else %}
+                <a href="{% url 'core:login' %}">Masuk</a>
+            {% endif %}
+            <a class="nav-cta" href="{% url 'core:application' %}">Ajukan data <span>↗</span></a>
+        </div>
+    </nav>
+
+    <main>
+        {% if messages %}
+            <div class="flash-wrap">
+                {% for message in messages %}
+                    <div class="flash {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <span>SIPPER / 2026</span>
+        <span>Data perantauan, lebih tertata.</span>
+    </footer>
+</body>
+</html>

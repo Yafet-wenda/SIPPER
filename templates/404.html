@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Tidak ditemukan / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="validation-page">
+    <p class="eyebrow">404 / Tidak ditemukan</p>
+    <h1>Halaman ini<br><em>tidak ada.</em></h1>
+    <a class="text-link" href="{% url 'core:home' %}">
+      Kembali ke beranda <span>→</span>
+    </a>
+  </div>
+{% endblock %}

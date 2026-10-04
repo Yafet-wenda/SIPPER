@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Detail pengajuan / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="page-shell">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Review pengajuan #{{ item.pk }}</p>
+        <h1>{{ item.penduduk.nama }}</h1>
+      </div>
+      <a class="text-link" href="{% url 'core:officer' %}">← Kembali</a>
+    </div>
+
+    <div class="detail-grid">
+      <section class="identity-panel detail-panel">
+        <div>
+          <small>NIK</small>
+          <strong>{{ item.penduduk.nik }}</strong>
+        </div>
+        <div>
+          <small>ASAL</small>
+          <strong>{{ item.penduduk.daerah_asal }}</strong>
+        </div>
+        <div>
+          <small>TUJUAN</small>
+          <strong>{{ item.penduduk.kota_tujuan }}</strong>
+        </div>
+        <div>
+          <small>STATUS</small>
+          <strong>{{ item.get_status_display }}</strong>
+        </div>
+      </section>
+
+      <form method="post" class="form-card review-form">
+        {% csrf_token %}
+        <label>
+          Status
+          <select name="status">
+            <option value="menunggu">Menunggu</option>
+            <option value="disetujui">Disetujui</option>
+            <option value="ditolak">Ditolak</option>
+            <option value="perlu_perbaikan">Perlu perbaikan</option>
+          </select>
+        </label>
+        <label>
+          Catatan
+          <textarea name="catatan" rows="5">{{ item.catatan }}</textarea>
+        </label>
+        <button class="button button-green" type="submit">
+          Simpan keputusan <span>→</span>
+        </button>
+      </form>
+    </div>
+
+    <section class="table-section detail-docs">
+      <div class="section-label">
+        <h2>Dokumen pendukung</h2>
+        <span>{{ documents|length }} berkas</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>Status</th>
+              <th>Ukuran</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for document in documents %}
+              <tr>
+                <td>{{ document.nama }}</td>
+                <td>
+                  <span class="status status-{{ document.status }}">
+                    {{ document.get_status_display }}
+                  </span>
+                </td>
+                <td>{{ document.ukuran|filesizeformat }}</td>
+                <td>
+                  <a class="text-link" href="{% url 'core:document_file' document.pk %}" target="_blank" rel="noopener">Buka</a>
+                  <form method="post" action="{% url 'core:document_review' document.pk %}" style="display:inline;margin-left:8px">
+                    {% csrf_token %}
+                    <button name="status" value="valid">Valid</button>
+                    <button name="status" value="invalid">Tidak valid</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="empty">Belum ada dokumen.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}

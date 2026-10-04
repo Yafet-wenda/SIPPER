@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Scan kartu / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="validation-page">
+    <p class="eyebrow">Validasi lapangan</p>
+    <h1>
+      Scan kartu<br>
+      <em>digital.</em>
+    </h1>
+    <p class="muted">Izinkan akses kamera, arahkan ke QR kartu SIPPER.</p>
+    <video id="qr-reader" style="width:100%;max-width:520px;margin:30px 0;border:1px solid #cad8d0" autoplay muted playsinline></video>
+    <p id="scan-status" class="muted">Menyiapkan kamera...</p>
+  </div>
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <script>
+    const status = document.getElementById('scan-status');
+    const scanner = new Html5Qrcode('qr-reader');
+
+    scanner.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: 220 },
+      text => {
+        try {
+          const target = new URL(text, window.location.origin);
+          if (target.origin !== window.location.origin || !/^\/kartu\/[^/]+\/$/.test(target.pathname)) {
+            throw new Error('invalid QR');
+          }
+          status.textContent = 'QR ditemukan. Membuka validasi...';
+          window.location.href = target.href;
+        } catch (error) {
+          status.textContent = 'QR bukan kartu SIPPER yang valid.';
+        }
+      },
+      () => {}
+    ).catch(() => {
+      status.textContent = 'Kamera tidak tersedia. Gunakan URL validasi kartu.';
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %} Kesalahan / SIPPER {% endblock %}
+
+{% block content %}
+<div class="validation-page">
+  <p class="eyebrow">500 / Kesalahan sistem</p>
+  <h1>
+    Tenang, kami<br />
+    <em>sedang memeriksa.</em>
+  </h1>
+  <a class="text-link" href="{% url 'core:home' %}">
+    Kembali ke beranda <span>→</span>
+  </a>
+</div>
+{% endblock %}

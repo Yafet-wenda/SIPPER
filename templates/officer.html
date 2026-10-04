@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Panel petugas / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="page-shell">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Ruang kerja petugas</p>
+        <h1>Antrean verifikasi</h1>
+      </div>
+      <span class="live"><i></i> Sistem aktif</span>
+    </div>
+
+    <form method="get" class="toolbar">
+      <input name="q" value="{{ query }}" placeholder="Cari nama atau NIK">
+      <select name="status">
+        <option value="">Semua status</option>
+        <option value="menunggu" {% if selected_status == 'menunggu' %}selected{% endif %}>Menunggu</option>
+        <option value="disetujui" {% if selected_status == 'disetujui' %}selected{% endif %}>Disetujui</option>
+        <option value="ditolak" {% if selected_status == 'ditolak' %}selected{% endif %}>Ditolak</option>
+        <option value="perlu_perbaikan" {% if selected_status == 'perlu_perbaikan' %}selected{% endif %}>Perlu perbaikan</option>
+      </select>
+      <button class="button button-green" type="submit">Filter</button>
+      <a class="button button-dark" href="?q={{ query }}&status={{ selected_status }}&export=csv">Export CSV</a>
+    </form>
+
+    <div class="table-section">
+      <div class="section-label">
+        <h2>{{ applications|length }} pengajuan ditemukan</h2>
+        <span>Periksa data sebelum menyetujui</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Perantau</th>
+              <th>Asal → Tujuan</th>
+              <th>Tujuan</th>
+              <th>Status</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in applications %}
+              <tr>
+                <td>
+                  <strong><a href="{% url 'core:application_detail' item.pk %}">{{ item.penduduk.nama }}</a></strong>
+                  <small>{{ item.penduduk.nik }}</small>
+                </td>
+                <td>{{ item.penduduk.daerah_asal }} → {{ item.penduduk.kota_tujuan }}</td>
+                <td>{{ item.penduduk.tujuan|title }}</td>
+                <td>
+                  <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
+                </td>
+                <td>
+                  <form method="post" class="inline-actions">
+                    {% csrf_token %}
+                    <input type="hidden" name="id" value="{{ item.id }}">
+                    <button name="status" value="disetujui" title="Setujui">✓</button>
+                    <button name="status" value="ditolak" title="Tolak">×</button>
+                    <button name="status" value="perlu_perbaikan" title="Minta perbaikan">!</button>
+                  </form>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="empty">Antrean masih kosong.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if page_obj.has_other_pages %}
+      <div class="pagination">
+        <a href="?q={{ query }}&status={{ selected_status }}&page={{ page_obj.previous_page_number }}">← Sebelumnya</a>
+        <span>Halaman {{ page_obj.number }} dari {{ page_obj.paginator.num_pages }}</span>
+        <a href="?q={{ query }}&status={{ selected_status }}&page={{ page_obj.next_page_number }}">Berikutnya →</a>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

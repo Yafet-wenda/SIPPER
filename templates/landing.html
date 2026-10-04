@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}SIPPER / Sistem Informasi Penduduk Perantauan{% endblock %}
+
+{% block content %}
+  <style>
+    /* --- Navbar transparan, menyatu dengan banner (khusus landing) --- */
+    .nav {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      background: transparent;
+      border-bottom: 0;
+      z-index: 10;
+    }
+    .nav .brand { color: #fff; }
+    .nav-links > a { color: rgba(255, 255, 255, 0.88); }
+    .nav-links > a:hover { color: #fff; }
+    .nav .nav-cta {
+      background: #fff;
+      color: var(--ink);
+    }
+
+    /* --- Hero dengan latar foto + overlay gelap --- */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      isolation: isolate;
+      padding: 130px 10vw 90px;
+      min-height: 61.5vw;   /* tinggi hero mengikuti rasio foto → gambar utuh, kepala tidak terpotong */
+      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}") 50% 36% / cover no-repeat;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(180deg, rgba(9, 20, 17, 0.55) 0, rgba(9, 20, 17, 0) 110px),
+        linear-gradient(100deg, rgba(9, 20, 17, 0.90) 0%, rgba(9, 20, 17, 0.72) 45%, rgba(9, 20, 17, 0.45) 100%);
+    }
+    .hero > * {
+      position: relative;
+      z-index: 2;
+    }
+
+    /* --- Teks di atas latar gelap --- */
+    .hero .eyebrow { color: #9fd3bd; }
+    .hero h1 { color: #fff; }
+    .hero h1 em { color: #f2b544; }
+    .hero .hero-lede { color: rgba(233, 240, 236, 0.85); }
+    .hero .button-dark {
+      background: #f2b544;
+      color: var(--ink);
+      box-shadow: 0 10px 30px rgba(242, 181, 68, 0.25);
+    }
+    .hero .text-link { color: #fff; }
+    .hero .text-link span { color: #9fd3bd; }
+    .hero .art-orbit { border-color: rgba(255, 255, 255, 0.28); }
+
+    /* --- Pill kaca mini-stats (opsi 3) --- */
+    .art-pill {
+      position: absolute;
+      top: 12%;
+      right: 8%;
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px 12px 14px;
+      border-radius: 999px;
+      font: 600 13px 'Space Grotesk';
+      letter-spacing: 0.2px;
+      color: #eaf5ef;
+      background: rgba(9, 20, 17, 0.38);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      backdrop-filter: blur(4px);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.30);
+      animation: check-float 6s ease-in-out infinite;
+      white-space: nowrap;
+    }
+    .art-pill b { font-weight: 700; color: #ffd484; display: inline-block; }
+    .art-pill b.bump { animation: stat-bump 0.5s ease-out; }
+    @keyframes stat-bump {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.18); }
+      100% { transform: scale(1); }
+    }
+    .art-pill .pill-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex: none;
+      background: #6fe0a8;
+      animation: pill-pulse 2.4s ease-out infinite;
+    }
+    .art-pill .pill-sep {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.35);
+      flex: none;
+    }
+    @keyframes check-float {
+      0%, 100% { transform: translateY(0); }
+      50%      { transform: translateY(-10px); }
+    }
+    @keyframes pill-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(111, 224, 168, 0.55); }
+      70%  { box-shadow: 0 0 0 10px rgba(111, 224, 168, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(111, 224, 168, 0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .art-pill, .art-pill .pill-dot, .art-pill b { animation: none; }
+    }
+
+    /* --- Cahaya berkelip (seperti video) --- */
+    #hero-sparks {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .spark {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 30%, rgba(255, 255, 255, 0) 70%);
+      opacity: 0;
+      animation: spark-float linear infinite;
+    }
+    @keyframes spark-float {
+      0%   { opacity: 0;   transform: translateY(16px) scale(0.55); }
+      20%  { opacity: 1; }
+      55%  { opacity: 0.85; }
+      100% { opacity: 0;   transform: translateY(-52px) scale(1.1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #hero-sparks { display: none; }
+    }
+
+    /* --- Bagian langkah (tetap di atas kertas) --- */
+    .landing-steps {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      padding: 0 10vw 100px;
+      margin-top: -20px;
+    }
+    .landing-step {
+      border-top: 2px solid var(--ink);
+      padding-top: 18px;
+    }
+    .landing-step .step-no {
+      font: 700 12px 'Space Grotesk';
+      letter-spacing: 2px;
+      color: var(--green);
+      display: block;
+      margin-bottom: 12px;
+    }
+    .landing-step h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+    }
+    .landing-step p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: #4c615a;
+    }
+    @media (max-width: 1024px) {
+      .hero { grid-template-columns: 1fr; }
+      .hero-art { display: none; }
+    }
+    @media (max-width: 860px) {
+      .landing-steps { grid-template-columns: 1fr; gap: 22px; padding-bottom: 70px; }
+    }
+    @media (max-width: 600px) {
+      .hero {
+        background-position: 22% 40%;
+        min-height: 585px;
+        padding-bottom: 60px;
+      }
+      .hero::before {
+        background: linear-gradient(180deg, rgba(9, 20, 17, 0.92) 0%, rgba(9, 20, 17, 0.80) 100%);
+      }
+    }
+  </style>
+
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">Sistem Informasi Penduduk Perantauan <span>●</span></p>
+      <h1>
+        Berpindah tempat,<br>
+        <em>tetap terdata.</em>
+      </h1>
+      <p class="hero-lede">
+        Catat domisili perantauan Anda dalam satu alur yang jelas, transparan, dan mudah dilacak.
+      </p>
+      <div class="hero-actions">
+        <a class="button button-dark" href="{% url 'core:register' %}">Mulai pendataan <span>↗</span></a>
+        <a class="text-link" href="{% url 'core:login' %}">Sudah punya akun? Masuk <span>→</span></a>
+      </div>
+    </div>
+
+    <div class="hero-art">
+      <div class="art-orbit orbit-a" aria-hidden="true"></div>
+      <div class="art-orbit orbit-b" aria-hidden="true"></div>
+      <div class="art-pill" id="live-stats" role="status" aria-live="polite">
+        <span class="pill-dot" aria-hidden="true"></span>
+        <span><b id="stat-warga">{{ stat_warga }}</b> warga terdata</span>
+        <span class="pill-sep" aria-hidden="true"></span>
+        <span><b id="stat-disetujui">{{ stat_disetujui }}</b> pengajuan disetujui</span>
+      </div>
+    </div>
+
+    <div id="hero-sparks" aria-hidden="true"></div>
+  </section>
+
+  <section class="landing-steps">
+    <div class="landing-step">
+      <span class="step-no">01</span>
+      <h3>Daftar akun</h3>
+      <p>Buat akun dengan nama dan email aktif. Prosesnya kurang dari satu menit.</p>
+    </div>
+    <div class="landing-step">
+      <span class="step-no">02</span>
+      <h3>Ajukan data</h3>
+      <p>Isi identitas dan tujuan perantauan, lampirkan dokumen, lalu tunggu verifikasi petugas.</p>
+    </div>
+    <div class="landing-step">
+      <span class="step-no">03</span>
+      <h3>Kartu digital</h3>
+      <p>Setelah disetujui, Anda menerima kartu digital ber-QR yang dapat divalidasi kapan saja.</p>
+    </div>
+  </section>
+
+  <script>
+    (function () {
+      var layer = document.getElementById('hero-sparks');
+      if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      var N = 26;
+      for (var i = 0; i < N; i++) {
+        var s = document.createElement('span');
+        s.className = 'spark';
+        var size = 2 + Math.random() * 4;               // 2–6 px
+        s.style.width = size + 'px';
+        s.style.height = size + 'px';
+        s.style.left = (Math.random() * 96 + 2) + '%';
+        s.style.top = (Math.random() * 88 + 6) + '%';
+        s.style.animationDuration = (4 + Math.random() * 5).toFixed(2) + 's';   // 4–9 s
+        s.style.animationDelay = (-Math.random() * 8).toFixed(2) + 's';          // mulai tersebar
+        layer.appendChild(s);
+      }
+    })();
+
+    /* --- Mini-stats: angka diambil langsung dari database, bukan angka hiasan --- */
+    (function () {
+      var elWarga = document.getElementById('stat-warga');
+      var elSetuju = document.getElementById('stat-disetujui');
+      if (!elWarga || !elSetuju) return;
+      var endpoint = "{% url 'core:api_landing_stats' %}";
+
+      function tulis(el, nilai) {
+        var baru = Number(nilai || 0).toLocaleString('id-ID');
+        if (el.textContent === baru) return;
+        el.textContent = baru;
+        el.classList.remove('bump');
+        void el.offsetWidth;          // mulai ulang animasi
+        el.classList.add('bump');
+      }
+
+      function ambil() {
+        fetch(endpoint, { credentials: 'same-origin', cache: 'no-store' })
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            tulis(elWarga, d.warga);
+            tulis(elSetuju, d.disetujui);
+          })
+          .catch(function () {
+            /* Database/jaringan sedang bermasalah: pertahankan angka nyata terakhir. */
+          });
+      }
+
+      ambil();                         // samakan format angka dengan isi database saat halaman dibuka
+      setInterval(ambil, 15000);       // perbarui tanpa reload
+      document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) ambil(); // langsung sinkron ketika tab dibuka lagi
+      });
+    })();
+  </script>
+{% endblock %}

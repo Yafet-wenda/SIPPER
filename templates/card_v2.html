@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Validasi kartu / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="validation-page">
+    <div class="validation-badge {% if not valid %}invalid{% endif %}">
+      {% if valid %}
+        KARTU TERVERIFIKASI
+      {% else %}
+        KARTU TIDAK AKTIF
+      {% endif %}
+    </div>
+    <h1>{{ card.penduduk.nama }}</h1>
+    <p class="muted">Identitas perantau terdaftar di SIPPER</p>
+    <div class="identity-panel">
+      <div>
+        <small>NIK</small>
+        <strong>************{{ card.penduduk.nik|slice:'-4:' }}</strong>
+      </div>
+      <div>
+        <small>DOMISILI TUJUAN</small>
+        <strong>{{ card.penduduk.kota_tujuan }}</strong>
+      </div>
+      <div>
+        <small>BERLAKU SAMPAI</small>
+        <strong>{{ card.berlaku_sampai|date:'d M Y' }}</strong>
+      </div>
+      <div>
+        <small>KODE VALIDASI</small>
+        <strong>{{ card.kode }}</strong>
+      </div>
+      {% if card.qr_code %}
+        <div class="qr-wrap">
+          <img src="{% url 'core:card_qr' card.kode %}" alt="QR {{ card.kode }}">
+        </div>
+      {% endif %}
+    </div>
+    <a class="button button-green" href="{% url 'core:download_card' card.kode %}">Download PDF</a>
+    <button class="button button-green" type="button" onclick="window.print()">Cetak kartu</button>
+  </div>
+{% endblock %}

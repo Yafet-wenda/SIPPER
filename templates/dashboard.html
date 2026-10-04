@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Ringkasan / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="page-shell">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Pusat informasi</p>
+        <h1>Ringkasan SIPPER</h1>
+      </div>
+      <a class="button button-green" href="{% url 'core:application' %}">+ Pengajuan baru</a>
+    </div>
+
+    <div class="metric-grid">
+      <div class="metric">
+        <span>Total perantau</span>
+        <strong>{{ total }}</strong>
+        <small>Semua data tercatat</small>
+      </div>
+      <div class="metric">
+        <span>Menunggu tinjauan</span>
+        <strong>{{ pending }}</strong>
+        <small class="amber">Perlu perhatian petugas</small>
+      </div>
+      <div class="metric">
+        <span>Telah disetujui</span>
+        <strong>{{ approved }}</strong>
+        <small class="green">Data tervalidasi</small>
+      </div>
+    </div>
+
+    <section class="table-section">
+      <div class="section-label">
+        <h2>Aktivitas pengajuan</h2>
+        <a href="{% url 'core:officer' %}">Buka panel petugas →</a>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nama perantau</th>
+              <th>Tujuan</th>
+              <th>Alasan</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in latest %}
+              <tr>
+                <td>
+                  <strong>{{ item.penduduk.nama }}</strong>
+                  <small>{{ item.penduduk.nik }}</small>
+                </td>
+                <td>{{ item.penduduk.kota_tujuan }}</td>
+                <td>{{ item.penduduk.tujuan|title }}</td>
+                <td>
+                  <span class="status status-{{ item.status }}">
+                    {{ item.get_status_display }}
+                  </span>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="empty">Belum ada pengajuan. Data pertama Anda bisa dimulai sekarang.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}

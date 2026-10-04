@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Profil / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-intro">
+      <p class="eyebrow">Profil akun</p>
+      <h1>
+        {{ profile_user.first_name }}<br>
+        <em>SIPPER.</em>
+      </h1>
+      <p>Kelola identitas akun dan keamanan akses Anda.</p>
+    </div>
+
+    <section class="form-card">
+      <p>
+        <strong>Email</strong><br>
+        {{ profile_user.email }}
+      </p>
+      <p>
+        <strong>Peran</strong><br>
+        {{ role }}
+      </p>
+      <p>
+        <strong>Bergabung</strong><br>
+        {{ profile_user.date_joined|date:'d M Y' }}
+      </p>
+      <a class="button button-green" href="{% url 'core:change_password' %}">Ganti password</a>
+    </section>
+  </div>
+{% endblock %}

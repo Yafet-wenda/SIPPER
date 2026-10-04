@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.env
+.env.bak-*
+db.sqlite3
+backups/
+media/*
+staticfiles/
+venv/
+.venv/
+
+# artefak kerja lokal
+tmp/
+*.log
+.qodo/
+.django-stub-gen/
+.claude/
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini

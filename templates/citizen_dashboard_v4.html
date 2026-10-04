@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Dashboard warga / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="page-shell">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Ruang pribadi</p>
+        <h1>Halo, {{ user.first_name }}.</h1>
+      </div>
+      <a class="button button-green" href="{% url 'core:update_data' %}">Pemutakhiran</a>
+    </div>
+
+    {% if person %}
+      <div class="metric-grid">
+        <div class="metric">
+          <span>Status pengajuan</span>
+          <strong>{{ person.pengajuan.get_status_display }}</strong>
+          <small>{{ person.pengajuan.submitted_at|date:'d M Y' }}</small>
+        </div>
+        <div class="metric">
+          <span>Domisili tujuan</span>
+          <strong>{{ person.kota_tujuan }}</strong>
+          <small>{{ person.daerah_asal }} → {{ person.kota_tujuan }}</small>
+        </div>
+        <div class="metric">
+          <span>Dokumen</span>
+          <strong>{{ person.dokumen.count }}</strong>
+          <small>File tersimpan</small>
+        </div>
+      </div>
+
+      {% if person.pengajuan.status == 'perlu_perbaikan' or person.pengajuan.status == 'ditolak' %}
+        <div class="flash">
+          Catatan petugas: {{ person.pengajuan.catatan|default:'Pengajuan dapat dikirim ulang.' }}
+          <form method="post" enctype="multipart/form-data" action="{% url 'core:resubmit_application' person.pengajuan.pk %}" style="margin-top:15px">
+            <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png">
+            <button class="button button-green" type="submit">Kirim ulang</button>
+            {% csrf_token %}
+          </form>
+        </div>
+      {% endif %}
+
+      <section class="identity-panel detail-panel">
+        <div>
+          <small>NAMA</small>
+          <strong>{{ person.nama }}</strong>
+        </div>
+        <div>
+          <small>NIK</small>
+          <strong>{{ person.nik }}</strong>
+        </div>
+        <div>
+          <small>TUJUAN</small>
+          <strong>{{ person.tujuan|title }}</strong>
+        </div>
+        {% if card %}
+          <div>
+            <small>KARTU DIGITAL</small>
+            <strong><a href="{% url 'core:validate_card' card.kode %}">Lihat kartu →</a></strong>
+          </div>
+        {% endif %}
+      </section>
+
+      <section class="table-section">
+        <div class="section-label">
+          <h2>Dokumen saya</h2>
+          <span>{{ person.dokumen.count }} berkas</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Status</th>
+                <th>Ukuran</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for document in person.dokumen.all %}
+                <tr>
+                  <td>{{ document.nama }}</td>
+                  <td>
+                    <span class="status status-{{ document.status }}">
+                      {{ document.get_status_display }}
+                    </span>
+                  </td>
+                  <td>{{ document.ukuran|filesizeformat }}</td>
+                  <td>
+                    <a class="text-link" href="{% url 'core:document_file' document.pk %}" target="_blank" rel="noopener">Buka →</a>
+                  </td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="empty">Belum ada dokumen pendukung.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% else %}
+      <section class="table-section">
+        <div class="empty">
+          Anda belum memiliki data perantauan.
+          <a class="text-link" href="{% url 'core:application' %}">Mulai pengajuan →</a>
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endblock %}

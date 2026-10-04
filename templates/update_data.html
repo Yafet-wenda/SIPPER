@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Pemutakhiran data / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-intro">
+      <p class="eyebrow">Pemutakhiran data</p>
+      <h1>
+        Perbarui<br>
+        <em>perjalanan Anda.</em>
+      </h1>
+      <p>Gunakan halaman ini saat alamat tujuan atau alasan merantau berubah.</p>
+    </div>
+
+    <form method="post" class="form-card">
+      {% csrf_token %}
+      <label>
+        Nama lengkap
+        <input value="{{ person.nama }}" disabled>
+      </label>
+      <label>
+        NIK
+        <input value="{{ person.nik }}" disabled>
+      </label>
+      <label>
+        Daerah asal
+        <input name="origin" value="{{ person.daerah_asal }}" required>
+      </label>
+      <label>
+        Kota tujuan
+        <input name="destination" value="{{ person.kota_tujuan }}" required>
+      </label>
+      <label>
+        Tujuan merantau
+        <select name="purpose" required>
+          <option value="pendidikan" {% if person.tujuan == 'pendidikan' %}selected{% endif %}>Pendidikan</option>
+          <option value="pekerjaan" {% if person.tujuan == 'pekerjaan' %}selected{% endif %}>Pekerjaan</option>
+          <option value="usaha" {% if person.tujuan == 'usaha' %}selected{% endif %}>Pengembangan usaha</option>
+          <option value="keluarga" {% if person.tujuan == 'keluarga' %}selected{% endif %}>Kepentingan keluarga</option>
+        </select>
+      </label>
+      <button class="button button-green" type="submit">
+        Simpan perubahan <span>→</span>
+      </button>
+    </form>
+  </div>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Histori / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="page-shell">
+    <div class="page-heading">
+      <div>
+        <p class="eyebrow">Jejak perubahan</p>
+        <h1>Histori data</h1>
+      </div>
+    </div>
+
+    <section class="table-section">
+      <div class="section-label">
+        <h2>Pemutakhiran domisili</h2>
+        <span>{{ updates|length }} perubahan</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Data lama</th>
+              <th>Data baru</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for update in updates %}
+              <tr>
+                <td>{{ update.created_at|date:'d M Y, H:i' }}</td>
+                <td>{{ update.data_lama.kota_tujuan }}</td>
+                <td><strong>{{ update.data_baru.kota_tujuan }}</strong></td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" class="empty">Belum ada histori pemutakhiran.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="table-section" style="margin-top:35px">
+      <div class="section-label">
+        <h2>Aktivitas akun</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Aksi</th>
+              <th>Deskripsi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+              <tr>
+                <td>{{ log.created_at|date:'d M Y, H:i' }}</td>
+                <td>{{ log.aksi|title }}</td>
+                <td>{{ log.deskripsi }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" class="empty">Belum ada aktivitas.</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+{% endblock %}

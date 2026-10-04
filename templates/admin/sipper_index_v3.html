@@ -1,0 +1,111 @@
+{% extends 'admin/index.html' %}
+{% load static %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'css/admin.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="sipper-admin-dashboard">
+  <div class="sipper-admin-head">
+    <div>
+      <span class="sipper-kicker">SIPPER / COMMAND CENTER</span>
+      <h1>Administrasi layanan</h1>
+      <p>Monitor pengajuan dan aktivitas sistem secara live.</p>
+    </div>
+    <span class="sipper-live"><i></i> LIVE</span>
+  </div>
+
+  <div class="sipper-metrics">
+    <div>
+      <small>Menunggu</small>
+      <strong id="live-pending">{{ live_stats.pending }}</strong>
+      <a href="{% url 'sipper_admin:core_pengajuan_changelist' %}?status__exact=menunggu">Kelola →</a>
+    </div>
+    <div>
+      <small>Disetujui</small>
+      <strong id="live-approved">{{ live_stats.approved }}</strong>
+      <a href="{% url 'sipper_admin:core_pengajuan_changelist' %}?status__exact=disetujui">Lihat →</a>
+    </div>
+    <div>
+      <small>Ditolak</small>
+      <strong id="live-rejected">{{ live_stats.rejected }}</strong>
+      <a href="{% url 'sipper_admin:core_pengajuan_changelist' %}?status__exact=ditolak">Lihat →</a>
+    </div>
+    <div>
+      <small>Dokumen pending</small>
+      <strong id="live-documents">{{ live_stats.documents }}</strong>
+      <a href="{% url 'sipper_admin:core_dokumen_changelist' %}?status__exact=pending">Review →</a>
+    </div>
+    <div>
+      <small>Total warga</small>
+      <strong id="live-citizens">{{ live_stats.citizens }}</strong>
+      <a href="{% url 'sipper_admin:core_penduduk_changelist' %}">Kelola →</a>
+    </div>
+  </div>
+
+  <div class="sipper-admin-columns">
+    <section>
+      <h2>Pengajuan terbaru</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Nama</th>
+            <th>Tujuan</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in recent_applications %}
+            <tr>
+              <td>{{ item.submitted_at|date:'d M H:i' }}</td>
+              <td><a href="{% url 'sipper_admin:core_pengajuan_change' item.pk %}">{{ item.penduduk.nama }}</a></td>
+              <td>{{ item.penduduk.kota_tujuan }}</td>
+              <td>{{ item.get_status_display }}</td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="4">Belum ada pengajuan.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Aktivitas terbaru</h2>
+      <ul class="sipper-activity">
+        {% for log in recent_logs %}
+          <li>
+            <b>{{ log.aksi|title }}</b>
+            <span>{{ log.deskripsi }}</span>
+            <small>{{ log.created_at|date:'d M H:i' }}</small>
+          </li>
+        {% empty %}
+          <li>Belum ada aktivitas.</li>
+        {% endfor %}
+      </ul>
+    </section>
+  </div>
+</section>
+
+<script>
+  async function refreshSipperStats() {
+    try {
+      const response = await fetch('{% url "sipper_admin:live_stats" %}');
+      if (!response.ok) return;
+
+      const stats = await response.json();
+      for (const key of ['pending', 'approved', 'rejected', 'documents', 'citizens']) {
+        const node = document.getElementById('live-' + key);
+        if (node) node.textContent = stats[key];
+      }
+    } catch (error) {}
+  }
+
+  setInterval(refreshSipperStats, 15000);
+</script>
+{{ block.super }}
+{% endblock %}

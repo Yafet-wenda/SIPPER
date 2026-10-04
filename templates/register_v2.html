@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Daftar / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="form-page">
+    <div class="form-intro">
+      <p class="eyebrow">Langkah 01 / Akun</p>
+      <h1>
+        Mulai dari<br>
+        <em>nama Anda.</em>
+      </h1>
+      <p>Data akun ini dipakai untuk menghubungkan Anda dengan pengajuan perantauan.</p>
+    </div>
+
+    <form method="post" class="form-card">
+      {% csrf_token %}
+      <label>
+        Nama lengkap
+        <input name="name" required placeholder="Contoh: Yafet">
+      </label>
+      <label>
+        Email aktif
+        <input type="email" name="email" required placeholder="wendayafet@gamil.com">
+      </label>
+      <label>
+        Password
+        <input type="password" name="password" minlength="8" required placeholder="Minimal 8 karakter">
+      </label>
+      <button class="button button-dark" type="submit">
+        Lanjutkan pendataan <span>→</span>
+      </button>
+      <p class="form-note">
+        Sudah punya akun? <a href="{% url 'core:login' %}">Masuk di sini.</a>
+      </p>
+    </form>
+  </div>
+{% endblock %}

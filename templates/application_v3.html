@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}
+  Pengajuan / SIPPER
+{% endblock %}
+
+{% block content %}
+  <div class="form-page wide">
+    <div class="form-intro">
+      <p class="eyebrow">Data perantauan</p>
+      <h1>
+        Lengkapi<br>
+        <em>perjalanan.</em>
+      </h1>
+      <p>Contoh pengisian: Yafet berdomisili asal Papua, Jayapura dan merantau ke Surabaya.</p>
+    </div>
+
+    <form method="post" enctype="multipart/form-data" class="form-card grid-form">
+      {% csrf_token %}
+      <label>
+        Nama lengkap
+        <input name="name" value="{{ name }}" required placeholder="Contoh: Yafet">
+      </label>
+      <label>
+        NIK <small>16 digit</small>
+        <input name="nik" required inputmode="numeric" maxlength="16" placeholder="910101xxxxxxxxxx">
+      </label>
+      <label>
+        Nomor telepon <small>10-15 digit</small>
+        <input name="phone" inputmode="numeric" placeholder="08xxxxxxxxxx">
+      </label>
+      <label>
+        Daerah asal
+        <input name="origin" required placeholder="Papua, Jayapura">
+      </label>
+      <label>
+        Kota tujuan
+        <input name="destination" required placeholder="Surabaya">
+      </label>
+      <label>
+        Mulai merantau
+        <input type="date" name="tanggal_mulai">
+      </label>
+      <label>
+        Perkiraan kembali
+        <input type="date" name="perkiraan_kembali">
+      </label>
+      <label class="full">
+        Tujuan merantau
+        <select name="purpose" required>
+          <option value="">Pilih tujuan</option>
+          <option value="pendidikan">Pendidikan</option>
+          <option value="pekerjaan">Pekerjaan</option>
+          <option value="usaha">Pengembangan usaha</option>
+          <option value="keluarga">Kepentingan keluarga</option>
+        </select>
+      </label>
+      <label class="full">
+        Dokumen pendukung <small>PDF, JPG, PNG / maksimal 5 MB</small>
+        <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png">
+      </label>
+      <button class="button button-green full" type="submit">
+        Kirim pengajuan <span>↗</span>
+      </button>
+    </form>
+  </div>
+{% endblock %}
