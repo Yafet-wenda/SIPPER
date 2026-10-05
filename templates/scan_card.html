@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load static %}
 
 {% block title %}
   Scan kartu / SIPPER
@@ -12,34 +13,88 @@
       <em>digital.</em>
     </h1>
     <p class="muted">Izinkan akses kamera, arahkan ke QR kartu SIPPER.</p>
-    <video id="qr-reader" style="width:100%;max-width:520px;margin:30px 0;border:1px solid #cad8d0" autoplay muted playsinline></video>
-    <p id="scan-status" class="muted">Menyiapkan kamera...</p>
+
+    <div id="qr-reader" class="scan-viewfinder" aria-label="Pratinjau kamera"></div>
+    <p id="scan-status" class="muted" role="status">Meminta izin kamera...</p>
+    <p class="scan-actions">
+      <button id="scan-restart" class="button button-dark" type="button" hidden>Nyalakan kamera</button>
+    </p>
+
+    <form class="scan-manual" method="get" action="/kartu/">
+      <label for="scan-code">Kamera bermasalah? Ketik kode kartu manual:</label>
+      <div class="scan-manual-row">
+        <input id="scan-code" name="code" type="text" autocomplete="off" placeholder="Kode kartu" required>
+        <button class="button" type="submit">Buka <span>→</span></button>
+      </div>
+    </form>
   </div>
 
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="{% static 'js/html5-qrcode.min.js' %}?v=1"></script>
 
   <script>
-    const status = document.getElementById('scan-status');
-    const scanner = new Html5Qrcode('qr-reader');
+    const scanStatus = document.getElementById('scan-status');
+    const restartBtn = document.getElementById('scan-restart');
+    let scanner = null;
+    let starting = false;
 
-    scanner.start(
-      { facingMode: 'environment' },
-      { fps: 10, qrbox: 220 },
-      text => {
-        try {
-          const target = new URL(text, window.location.origin);
-          if (target.origin !== window.location.origin || !/^\/kartu\/[^/]+\/$/.test(target.pathname)) {
-            throw new Error('invalid QR');
+    function kameraGagal(pesan, bolehUlang) {
+      scanStatus.textContent = pesan;
+      restartBtn.hidden = !bolehUlang;
+    }
+
+    function nyalakanKamera() {
+      if (starting) return;
+      starting = true;
+      restartBtn.hidden = true;
+
+      if (!window.isSecureContext || !navigator.mediaDevices) {
+        starting = false;
+        kameraGagal('Kamera butuh koneksi aman (https atau localhost). Pakai input kode manual di bawah.', false);
+        return;
+      }
+      if (typeof Html5Qrcode === 'undefined') {
+        starting = false;
+        kameraGagal('Pustaka pemindai gagal dimuat. Pakai input kode manual di bawah.', false);
+        return;
+      }
+
+      scanStatus.textContent = 'Meminta izin kamera...';
+      if (!scanner) scanner = new Html5Qrcode('qr-reader');
+      scanner.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: (vw, vh) => { const s = Math.max(120, Math.round(Math.min(vw, vh) * 0.7)); return { width: s, height: s }; } },
+        text => {
+          try {
+            const target = new URL(text, window.location.origin);
+            if (target.origin !== window.location.origin || !/^\/kartu\/[^/]+\/$/.test(target.pathname)) {
+              throw new Error('invalid QR');
+            }
+            scanStatus.textContent = 'QR ditemukan. Membuka validasi...';
+            scanner.stop().finally(() => { window.location.href = target.href; });
+          } catch (error) {
+            scanStatus.textContent = 'QR bukan kartu SIPPER yang valid.';
           }
-          status.textContent = 'QR ditemukan. Membuka validasi...';
-          window.location.href = target.href;
-        } catch (error) {
-          status.textContent = 'QR bukan kartu SIPPER yang valid.';
+        },
+        () => {}
+      ).then(() => {
+        starting = false;
+        scanStatus.textContent = 'Kamera aktif. Arahkan QR pada kartu SIPPER.';
+      }).catch(error => {
+        starting = false;
+        const info = typeof error === 'string' ? error : ((error && error.name) || '');
+        if (/NotAllowedError|PermissionDeniedError/.test(info)) {
+          kameraGagal('Izin kamera ditolak. Izinkan lewat ikon kamera di address bar, lalu klik Nyalakan kamera.', true);
+        } else if (/NotFoundError|DevicesNotFoundError/.test(info)) {
+          kameraGagal('Kamera tidak ditemukan di perangkat ini. Pakai input kode manual di bawah.', false);
+        } else if (/NotReadableError|TrackStartError/.test(info)) {
+          kameraGagal('Kamera sedang dipakai aplikasi lain. Tutup dulu, lalu klik Nyalakan kamera.', true);
+        } else {
+          kameraGagal('Kamera gagal dinyalakan. Pakai input kode manual di bawah.', true);
         }
-      },
-      () => {}
-    ).catch(() => {
-      status.textContent = 'Kamera tidak tersedia. Gunakan URL validasi kartu.';
-    });
+      });
+    }
+
+    restartBtn.addEventListener('click', nyalakanKamera);
+    nyalakanKamera();
   </script>
 {% endblock %}

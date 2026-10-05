@@ -836,3 +836,59 @@ button:focus-visible {
   outline: 2px solid var(--green);
   outline-offset: 2px;
 }
+
+/* ====== Halaman scan kartu ====== */
+.scan-viewfinder {
+  max-width: 520px;
+  min-height: 240px;
+  margin: 30px 0 14px;
+  border: 1px solid var(--line);
+  background: #edf1ea;
+  overflow: hidden;
+}
+
+.scan-viewfinder video {
+  display: block;
+  width: 100%;
+}
+
+.scan-actions {
+  max-width: 520px;
+}
+.scan-actions .button[hidden] {
+  display: none;
+}
+
+.scan-manual {
+  max-width: 520px;
+  margin-top: 26px;
+  display: grid;
+  gap: 8px;
+}
+
+.scan-manual label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.scan-manual-row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.scan-manual-row input {
+  flex: 1;
+  border: 0;
+  border-bottom: 1px solid #bbcbc1;
+  padding: 12px 0;
+  background: transparent;
+  font: 15px 'DM Sans';
+  color: var(--ink);
+  outline: 0;
+}
+
+.scan-manual-row input:focus {
+  border-color: var(--green);
+}
