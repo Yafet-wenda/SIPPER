@@ -726,3 +726,113 @@ footer {
     padding: 25px 22px;
   }
 }
+
+/* ====== Transisi antar halaman (View Transitions) ====== */
+/* Chrome/Edge 126+: klik menu -> halaman lama melorot keluar, baru masuk naik. */
+
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition {
+    navigation: auto;
+  }
+}
+
+::view-transition-old(root) {
+  animation: page-out 180ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+::view-transition-new(root) {
+  animation: page-in 260ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes page-out {
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Fallback browser tanpa View Transitions: konten fade-up sekali saat masuk. */
+@supports not (view-transition-name: root) {
+  @media (prefers-reduced-motion: no-preference) {
+    main {
+      animation: page-in 300ms cubic-bezier(0.4, 0, 0.2, 1) both;
+    }
+  }
+}
+
+/* ====== Micro-interaction nav, tombol, dan flash ====== */
+
+.nav-links > a:not(.nav-cta) {
+  position: relative;
+}
+
+.nav-links > a:not(.nav-cta)::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: -7px;
+  height: 2px;
+  background: var(--green);
+  transition: right 0.22s ease;
+}
+
+.nav-links > a:not(.nav-cta):hover::after,
+.nav-links > a:not(.nav-cta):focus-visible::after {
+  right: 0;
+}
+
+.nav-cta,
+.button {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.nav-cta:hover,
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px #17392b1f;
+}
+
+.nav-cta:active,
+.button:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.flash {
+  animation: flash-in 280ms cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes flash-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  main,
+  .flash {
+    animation: none;
+  }
+
+  .nav-cta,
+  .button {
+    transition: none;
+  }
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
