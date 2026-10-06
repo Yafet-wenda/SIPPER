@@ -1,0 +1,134 @@
+name: CI
+
+# Gerbang mutu SIPPER: kerusakan ketahuan di server, bukan di laptop.
+# - Job "cek cepat" memakai SQLite (tanpa service) untuk umpan balik dalam ~1 menit.
+# - Job "paritas MariaDB" memakai server MariaDB, sesuai produksi (XAMPP) dan
+#   shim versi di sipper/__init__.py.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONUNBUFFERED: '1'
+  # Nilai khusus CI, bukan kredensial produksi. .env tidak ikut ter-commit,
+  # jadi semua variabel yang dibaca sipper/settings.py disupply dari sini.
+  DJANGO_SECRET_KEY: ci-only-placeholder-not-a-real-secret
+  DJANGO_DEBUG: '1'
+  DJANGO_SECURE_SSL_REDIRECT: '0'
+  DJANGO_HSTS_SECONDS: '0'
+  DJANGO_ALLOWED_HOSTS: '127.0.0.1,localhost,testserver'
+  # Email backend bawaan = console, ClamAV bawaan = nonaktif (CLAMAV_ENABLED=0).
+
+jobs:
+  cek-cepat:
+    name: Cek cepat (SQLite, Python ${{ matrix.python-version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.13', '3.14']
+    env:
+      DB_ENGINE: sqlite
+      # tmp/ sudah ada di .gitignore, jadi file basis data tak sengaja tidak mungkin terlacak.
+      DB_NAME: tmp/sipper_ci.sqlite3
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Pasang Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Pasang dependensi
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Siapkan folder runtime
+        # tmp/ dan media/ tidak terlacak git (ada di .gitignore), jadi fresh
+        # checkout runner tidak punya keduanya. MEDIA_ROOT dipakai tes unggah
+        # berkas dan EMAIL_FILE_PATH menunjuk tmp/outbox.
+        run: mkdir -p tmp media staticfiles
+
+      - name: Pastikan berkas .env tidak ikut ter-commit
+        run: |
+          if git ls-files --error-unmatch .env >/dev/null 2>&1; then
+            echo "::error:: berkas .env terlacak oleh git — kredensial bisa bocor."
+            exit 1
+          fi
+          echo "OK: .env tidak terlacak."
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Migrasi tidak tertinggal
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Kumpulkan aset static (WhiteNoise)
+        run: python manage.py collectstatic --noinput --clear
+
+      - name: Test suite
+        run: python manage.py test --verbosity=2
+
+  paritas-mariadb:
+    name: Paritas MariaDB (Python 3.14)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      mariadb:
+        # MariaDB 10.11 LTS: seanginan dengan shim minimum_database_version
+        # (10, 4) di sipper/__init__.py dan tetap di atas ambang resmi Django.
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: sipper-ci
+          MARIADB_DATABASE: sipper_db
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -h 127.0.0.1 -uroot -psipper-ci"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      DB_ENGINE: mysql
+      DB_NAME: sipper_db
+      DB_USER: root
+      DB_PASSWORD: sipper-ci
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+    steps:
+      - name: Ambil kode
+        uses: actions/checkout@v4
+
+      - name: Pasang Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+
+      - name: Pasang dependensi
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Siapkan folder runtime
+        run: mkdir -p tmp media
+
+      - name: Django system check
+        run: python manage.py check
+
+      - name: Test suite (MySQL backend lewat PyMySQL)
+        run: python manage.py test --verbosity=2
