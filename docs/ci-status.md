@@ -31,6 +31,7 @@ Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API Git
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
+| #3 (`37416846349`) | `97df981` | push | **success** | 3 job, semua langkah `success` — termasuk `Migrasi tidak tertinggal` yang baru ditambahkan di job MariaDB |
 | #2 (`37415179379`) | `dd1e6f0` | push | **success** | 3 job, semua langkah `success` |
 | #1 (`37415061772`) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan |
 
