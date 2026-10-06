@@ -82,12 +82,12 @@ baris tertentu supaya mudah diverifikasi ulang sebelum dokumennya disunting.
 | Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Satu aplikasi `core` dengan nama rute yang berbeda. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
 | Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan memakai 3.14. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
 
-Rekam jejak CI berada di `ci-status.md`. Tabelnya memuat tujuh baris — *run* #1–#6 dan #9
-— beserta urutan langkah dan durasi tiap *job*; ketujuhnya lulus pada tiga *job*. *Run* #7
-dan #8 tidak masuk tabel karena dibatalkan gerbang `concurrency` sebelum ada langkah yang
-selesai, perilaku yang memang diharapkan, bukan kegagalan. Kalau ada *run* baru yang
-diverifikasi, tabel itu yang lebih dulu diperbarui — halaman ini hanya menyebut jumlah
-*job* dan kesimpulannya.
+Rekam jejak CI berada di `ci-status.md`. Tabelnya memuat delapan baris — *run* #1–#6 serta
+#9 dan #10 — beserta urutan langkah dan durasi tiap *job*; kedelapan baris itu lulus pada tiga
+*job*. *Run* #7 dan #8 tidak masuk tabel karena dibatalkan gerbang `concurrency` sebelum
+ada langkah yang selesai, perilaku yang memang diharapkan, bukan kegagalan. Kalau ada
+*run* baru yang diverifikasi, tabel itu yang lebih dulu diperbarui — halaman ini hanya
+menyebut jumlah *job* dan kesimpulannya.
 
 ---
 

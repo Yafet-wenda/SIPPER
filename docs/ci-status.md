@@ -28,12 +28,14 @@ berbasis test client gagal, jadi CI tidak boleh memakai setelan keamanan berbent
 ## Hasil terverifikasi
 
 Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub.
-Verifikasi manual terakhir dilakukan 2026-10-06 dan mencakup seluruh run sampai #9; run
-setelah itu tidak dicatat satu per satu, karena lencana CI di `README.md` akar selalu
-menunjuk hasil terbaru. Seluruh run di tabel ini dipicu `push` ke `master`.
+Verifikasi manual terakhir dilakukan 2026-10-06 dan mencakup seluruh run sampai #10. Run
+yang dipicu oleh commit dokumen ini sendiri tidak dicatat satu per satu — lencana CI di
+`README.md` akar selalu menunjuk hasil terbaru. Seluruh run di tabel ini dipicu `push` ke
+`master`.
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
+| #10 (`37476231699`) | `540a9bd` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
 | #9 (`37474714732`) | `815e404` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; keluaran `Ran 38 tests` muncul dan langkah `Test suite` lulus pada ketiga job |
 | #6 (`37472403329`) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` pada ketiga job |
 | #5 (`37420878060`) | `0a8c45c` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
@@ -51,8 +53,9 @@ terakhir dimulai pada detik yang sama), lalu blok `concurrency` dengan
 yang diharapkan dari `cancel-in-progress`, bukan kegagalan. Keduanya tetap tidak dicatat
 sebagai hasil karena tidak ada satu pun langkah yang selesai.
 
-Durasi job pada run #4–#6 dan #9: `cek-cepat` 32–48 detik, `paritas-mariadb` 54–66 detik.
-Satu run penuh selesai dalam waktu di bawah 1,5 menit.
+Durasi job pada run #4–#6 serta #9 dan #10: `cek-cepat` 32–52 detik, `paritas-mariadb`
+54–67 detik. Satu run penuh selesai dalam 59–83 detik, dihitung sejak event `push` sampai
+langkah terakhir, jadi masih di bawah 1,5 menit.
 
 Langkah yang dijalankan pada job `cek-cepat` (13 langkah, tetapi hanya 9 langkah bernama
 yang dikutip di bawah — empat sisanya dibuat otomatis oleh runner: `Set up job`, dua
