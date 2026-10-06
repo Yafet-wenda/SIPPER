@@ -21,7 +21,7 @@ concurrency:
 env:
   PYTHONUNBUFFERED: '1'
   # Nilai khusus CI, bukan kredensial produksi. .env tidak ikut ter-commit,
-  # jadi semua variabel yang dibaca sipper/settings.py disupply dari sini.
+  # jadi semua variabel yang dibaca sipper/settings.py disuplai dari sini.
   DJANGO_SECRET_KEY: ci-only-placeholder-not-a-real-secret
   DJANGO_DEBUG: '1'
   DJANGO_SECURE_SSL_REDIRECT: '0'
@@ -89,7 +89,7 @@ jobs:
     timeout-minutes: 20
     services:
       mariadb:
-        # MariaDB 10.11 LTS: seanginan dengan shim minimum_database_version
+        # MariaDB 10.11 LTS: selaras dengan shim minimum_database_version
         # (10, 4) di sipper/__init__.py dan tetap di atas ambang resmi Django.
         image: mariadb:10.11
         env:
