@@ -32,7 +32,7 @@ dokumen paling mutakhir. Folder ini berisi uraian yang lebih panjang.
 | `SIPPER_QUICK_REFERENCE.md` | Kumpulan perintah singkat untuk Django, *git*, dan MySQL/MariaDB, serta peta struktur berkas dan palet warna. | **Sebagian usang** — tabel versinya lama |
 | `SIPPER_FULLSTACK_GUIDE.md` | Rancangan *fullstack* paling lengkap: arsitektur, model, *view*, *form*, API, keamanan, dan tema UI. Panjangnya 2.445 baris. | **Rujukan historis** — menguraikan rencana multi-*app*, bukan implementasi yang berjalan |
 | `SIPPER_FRONTEND_TEMPLATES.md` | Contoh kerangka HTML dan komponen JavaScript beserta palet warna. | **Rujukan historis** — nama *template* di dalamnya memakai struktur lama |
-| `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual** (verifikasi manual terakhir sampai *run* #9, 6 Oktober 2026) |
+| `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual** (verifikasi manual terakhir sampai *run* #10, 6 Oktober 2026) |
 
 Panduan *fullstack* dan referensi singkat masih menuliskan **Last Updated: 2024**, dan
 tidak ditulis ulang ketika implementasi berpindah dari rencana multi-*app* ke satu

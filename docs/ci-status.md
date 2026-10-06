@@ -35,17 +35,19 @@ yang dipicu oleh commit dokumen ini sendiri tidak dicatat satu per satu — lenc
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
-| #10 (`37476231699`) | `540a9bd` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
-| #9 (`37474714732`) | `815e404` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; keluaran `Ran 38 tests` muncul dan langkah `Test suite` lulus pada ketiga job |
-| #6 (`37472403329`) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` pada ketiga job |
-| #5 (`37420878060`) | `0a8c45c` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
-| #4 (`37417058173`) | `ac47af1` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
-| #3 (`37416846349`) | `97df981` | push | **success** | 3 job × 13 langkah — job MariaDB naik dari 12 menjadi 13 karena `Migrasi tidak tertinggal` untuk pertama kali dijalankan di sana |
-| #2 (`37415179379`) | `dd1e6f0` | push | **success** | `cek-cepat` 13 langkah, `paritas-mariadb` 12 langkah (belum ada cek migrasi) |
-| #1 (`37415061772`) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan; komposisi langkahnya sama seperti #2 |
+| [#10](https://github.com/Yafet-wenda/SIPPER/actions/runs/37476231699) | `540a9bd` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
+| [#9](https://github.com/Yafet-wenda/SIPPER/actions/runs/37474714732) | `815e404` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; keluaran `Ran 38 tests` muncul dan langkah `Test suite` lulus pada ketiga job |
+| [#6](https://github.com/Yafet-wenda/SIPPER/actions/runs/37472403329) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` pada ketiga job |
+| [#5](https://github.com/Yafet-wenda/SIPPER/actions/runs/37420878060) | `0a8c45c` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
+| [#4](https://github.com/Yafet-wenda/SIPPER/actions/runs/37417058173) | `ac47af1` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
+| [#3](https://github.com/Yafet-wenda/SIPPER/actions/runs/37416846349) | `97df981` | push | **success** | 3 job × 13 langkah — job MariaDB naik dari 12 menjadi 13 karena `Migrasi tidak tertinggal` untuk pertama kali dijalankan di sana |
+| [#2](https://github.com/Yafet-wenda/SIPPER/actions/runs/37415179379) | `dd1e6f0` | push | **success** | `cek-cepat` 13 langkah, `paritas-mariadb` 12 langkah (belum ada cek migrasi) |
+| [#1](https://github.com/Yafet-wenda/SIPPER/actions/runs/37415061772) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan; komposisi langkahnya sama seperti #2 |
 
-Nomor run di tabel ini melompat dari #6 ke #9. Run #7 (`37474712819`) dan #8
-(`37474713460`) berstatus `cancelled`; keduanya memakai commit yang sama (`815e404`) dan
+Nomor run di tabel ini melompat dari #6 ke #9. Run
+[#7](https://github.com/Yafet-wenda/SIPPER/actions/runs/37474712819) dan
+[#8](https://github.com/Yafet-wenda/SIPPER/actions/runs/37474713460) berstatus
+`cancelled`; keduanya memakai commit yang sama (`815e404`) dan
 pemicu yang sama (`push`) seperti #9. Satu `push` tampak memicu tiga pengiriman event
 dalam rentang satu detik (`run_started_at` 13:55:44, 13:55:45, dan 13:55:45 UTC — dua run
 terakhir dimulai pada detik yang sama), lalu blok `concurrency` dengan
