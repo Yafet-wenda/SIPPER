@@ -27,34 +27,46 @@ berbasis test client gagal, jadi CI tidak boleh memakai setelan keamanan berbent
 
 ## Hasil terverifikasi
 
-Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub pada
-2026-10-06. Seluruhnya dipicu `push` ke `master`. Tabel ini sengaja berhenti pada run yang
-rinciannya sudah diverifikasi manual; run berikutnya tidak dicatat satu per satu, karena
-lencana CI di `README.md` akar selalu menunjuk hasil terbaru.
+Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub.
+Verifikasi manual terakhir dilakukan 2026-10-06 dan mencakup seluruh run sampai #9; run
+setelah itu tidak dicatat satu per satu, karena lencana CI di `README.md` akar selalu
+menunjuk hasil terbaru. Seluruh run di tabel ini dipicu `push` ke `master`.
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
-| #6 (`37472403329`) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` di ketiga job |
+| #9 (`37474714732`) | `815e404` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; keluaran `Ran 38 tests` muncul dan langkah `Test suite` lulus pada ketiga job |
+| #6 (`37472403329`) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` pada ketiga job |
 | #5 (`37420878060`) | `0a8c45c` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
 | #4 (`37417058173`) | `ac47af1` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
 | #3 (`37416846349`) | `97df981` | push | **success** | 3 job × 13 langkah — job MariaDB naik dari 12 menjadi 13 karena `Migrasi tidak tertinggal` untuk pertama kali dijalankan di sana |
 | #2 (`37415179379`) | `dd1e6f0` | push | **success** | `cek-cepat` 13 langkah, `paritas-mariadb` 12 langkah (belum ada cek migrasi) |
 | #1 (`37415061772`) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan; komposisi langkahnya sama seperti #2 |
 
-Durasi job pada run #4–#6: `cek-cepat` 32–47 detik, `paritas-mariadb` 57–66 detik. Satu
-run penuh selesai dalam waktu di bawah 1,5 menit.
+Nomor run di tabel ini melompat dari #6 ke #9. Run #7 (`37474712819`) dan #8
+(`37474713460`) berstatus `cancelled`; keduanya memakai commit yang sama (`815e404`) dan
+pemicu yang sama (`push`) seperti #9. Satu `push` tampak memicu tiga pengiriman event
+dalam rentang satu detik (`run_started_at` 13:55:44, 13:55:45, dan 13:55:45 UTC — dua run
+terakhir dimulai pada detik yang sama), lalu blok `concurrency` dengan
+`cancel-in-progress: true` menyisakan hanya yang terbaru. Jadi, pembatalan itu perilaku
+yang diharapkan dari `cancel-in-progress`, bukan kegagalan. Keduanya tetap tidak dicatat
+sebagai hasil karena tidak ada satu pun langkah yang selesai.
 
-Langkah yang dijalankan pada job `cek-cepat` (13 langkah termasuk langkah penutup): Ambil
-kode → Pasang Python → Pasang dependensi → Siapkan folder runtime → Pastikan berkas `.env`
-tidak ikut ter-commit → Django system check → Migrasi tidak tertinggal → Kumpulkan aset
-static (WhiteNoise) → Test suite. Job `paritas-mariadb` juga memiliki 13 langkah, tetapi
-isinya berbeda: job ini menambah `Initialize containers` dan `Stop containers`, serta
-tidak memiliki langkah guard `.env` maupun `collectstatic` karena aset static tidak
-dipakai di jalur itu.
+Durasi job pada run #4–#6 dan #9: `cek-cepat` 32–48 detik, `paritas-mariadb` 54–66 detik.
+Satu run penuh selesai dalam waktu di bawah 1,5 menit.
 
-Jumlah 38 pengujian terverifikasi ulang di log run #6, pada ketiga job. Dua job SQLite
-membuat basis data uji in-memory (`file:memorydb_default`), sedangkan job MariaDB membuat
-`test_sipper_db` di server sungguhan. Langkah `Test suite (MySQL backend lewat PyMySQL)`
+Langkah yang dijalankan pada job `cek-cepat` (13 langkah, tetapi hanya 9 langkah bernama
+yang dikutip di bawah — empat sisanya dibuat otomatis oleh runner: `Set up job`, dua
+langkah `Post`, dan `Complete job`): Ambil kode → Pasang Python → Pasang dependensi →
+Siapkan folder runtime → Pastikan berkas `.env` tidak ikut ter-commit → Django system
+check → Migrasi tidak tertinggal → Kumpulkan aset static (WhiteNoise) → Test suite.
+Job `paritas-mariadb` juga memiliki 13 langkah, tetapi isinya berbeda: job ini menambah
+`Initialize containers` dan `Stop containers`, serta tidak memiliki langkah guard `.env`
+maupun `collectstatic` karena aset static tidak dipakai di jalur itu.
+
+Jumlah 38 pengujian terverifikasi ulang di log run #6 dan #9, pada ketiga job. Dua job
+SQLite membuat basis data uji in-memory (`file:memorydb_default`), sedangkan job MariaDB
+membuat `test_sipper_db` di server sungguhan. Langkah
+`Test suite (MySQL backend lewat PyMySQL)`
 hijau — artinya shim `minimum_database_version = (10, 4)` bekerja di MariaDB 10.11, dan
 `pip install -r requirements.txt` berhasil di Linux untuk 3.13 maupun 3.14 (termasuk
 `gunicorn` yang bersyarat non-Windows).
@@ -68,8 +80,8 @@ Sudah diterapkan:
 1. **Guard `.env` dan cek migrasi tidak simetris.** Semula langkah "Migrasi tidak
    tertinggal" hanya ada di job SQLite, padahal `makemigrations --check` justru lebih
    bernilai saat server MySQL sungguhan hidup. Sekarang job `paritas-mariadb` juga
-   menjalankannya. (Guard `.env` tetap satu tempat: ia membaca isi repo, bukan basis data,
-   jadi dua kali tidak menambah nilai.)
+   menjalankannya. (Guard `.env` tetap satu tempat: langkah ini membaca isi repo, bukan
+   basis data, jadi dua kali tidak menambah nilai.)
 2. **Folder runtime tidak ada di fresh checkout.** `tmp/` dan `media/` ada di `.gitignore`,
    jadi runner tidak pernah punya keduanya; `MEDIA_ROOT` (tes unggah) dan
    `EMAIL_FILE_PATH=tmp/outbox` akan menunjuk path yang tidak ada. Langkah `mkdir -p`
