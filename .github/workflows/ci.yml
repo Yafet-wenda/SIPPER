@@ -130,5 +130,8 @@ jobs:
       - name: Django system check
         run: python manage.py check
 
+      - name: Migrasi tidak tertinggal
+        run: python manage.py makemigrations --check --dry-run
+
       - name: Test suite (MySQL backend lewat PyMySQL)
         run: python manage.py test --verbosity=2
