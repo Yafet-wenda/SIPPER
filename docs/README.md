@@ -32,7 +32,7 @@ dokumen paling mutakhir. Folder ini berisi uraian yang lebih panjang.
 | `SIPPER_QUICK_REFERENCE.md` | Kumpulan perintah singkat untuk Django, *git*, dan MySQL/MariaDB, serta peta struktur berkas dan palet warna. | **Sebagian usang** — tabel versinya lama |
 | `SIPPER_FULLSTACK_GUIDE.md` | Rancangan *fullstack* paling lengkap: arsitektur, model, *view*, *form*, API, keamanan, dan tema UI. Panjangnya 2.445 baris. | **Rujukan historis** — menguraikan rencana multi-*app*, bukan implementasi yang berjalan |
 | `SIPPER_FRONTEND_TEMPLATES.md` | Contoh kerangka HTML dan komponen JavaScript beserta palet warna. | **Rujukan historis** — nama *template* di dalamnya memakai struktur lama |
-| `ci-status.md` | Pekerjaan apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual** (tercatat baru sampai *run* #3) |
+| `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual** (verifikasi terakhir sampai *run* #6, 6 Oktober 2026) |
 
 Panduan *fullstack* dan referensi singkat masih menuliskan **Last Updated: 2024**, dan
 tidak ditulis ulang ketika implementasi berpindah dari rencana multi-*app* ke satu
@@ -82,9 +82,10 @@ baris tertentu supaya mudah diverifikasi ulang sebelum dokumennya disunting.
 | Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Satu aplikasi `core` dengan nama rute yang berbeda. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
 | Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan memakai 3.14. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
 
-Satu catatan yang belum tertangani di `ci-status.md`: tabel hasil di sana berhenti pada
-*run* #3. *Run* #4 (`ac47af1`) dan *run* #5 (`0a8c45c`) sudah diverifikasi dan lulus tiga
-*job* dengan 13 langkah masing-masing, tetapi belum ditambahkan ke tabel itu.
+Rekam jejak CI berada di `ci-status.md`. Tabelnya memuat enam *run* pertama (#1–#6,
+ketiga *job*-nya selalu lulus) beserta urutan langkah dan durasi tiap *job*. Kalau ada
+*run* baru yang diverifikasi, tabel itu yang lebih dulu diperbarui — halaman ini hanya
+menyebut jumlah *job* dan kesimpulannya.
 
 ---
 

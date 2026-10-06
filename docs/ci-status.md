@@ -8,7 +8,8 @@ Pemicu: `push` ke `master`, `pull_request` ke `master`, dan `workflow_dispatch`.
 
 ## Apa yang dijalankan
 
-Dua job paralel, keduanya `ubuntu-24.04`:
+Dua job paralel, keduanya `ubuntu-24.04`. Karena `cek-cepat` memakai matriks Python, satu
+run tampil sebagai tiga job di Actions.
 
 | Job | Basis data | Python | Langkah |
 |---|---|---|---|
@@ -27,19 +28,36 @@ berbasis test client gagal, jadi CI tidak boleh memakai setelan keamanan berbent
 ## Hasil terverifikasi
 
 Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub pada
-2026-10-06:
+2026-10-06. Seluruhnya dipicu `push` ke `master`. Tabel ini sengaja berhenti pada run yang
+rinciannya sudah diverifikasi manual; run berikutnya tidak dicatat satu per satu, karena
+lencana CI di `README.md` akar selalu menunjuk hasil terbaru.
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
-| #3 (`37416846349`) | `97df981` | push | **success** | 3 job, semua langkah `success` — termasuk `Migrasi tidak tertinggal` yang baru ditambahkan di job MariaDB |
-| #2 (`37415179379`) | `dd1e6f0` | push | **success** | 3 job, semua langkah `success` |
-| #1 (`37415061772`) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan |
+| #6 (`37472403329`) | `b0787d8` | push | **success** | 3 job × 13 langkah, seluruhnya `success`; log pengujian mencatat `Ran 38 tests` lalu `OK` di ketiga job |
+| #5 (`37420878060`) | `0a8c45c` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
+| #4 (`37417058173`) | `ac47af1` | push | **success** | 3 job × 13 langkah, seluruhnya `success` |
+| #3 (`37416846349`) | `97df981` | push | **success** | 3 job × 13 langkah — job MariaDB naik dari 12 menjadi 13 karena `Migrasi tidak tertinggal` untuk pertama kali dijalankan di sana |
+| #2 (`37415179379`) | `dd1e6f0` | push | **success** | `cek-cepat` 13 langkah, `paritas-mariadb` 12 langkah (belum ada cek migrasi) |
+| #1 (`37415061772`) | `5779f9e` | push | **success** | run pertama sejak workflow ditambahkan; komposisi langkahnya sama seperti #2 |
 
-Rincian job pada run #2: `Cek cepat (SQLite, Python 3.13)` 30 s, `Cek cepat (SQLite,
-Python 3.14)` 40 s, `Paritas MariaDB (Python 3.14)` 56 s. Jumlah tes 38, dan lintasan
-`Test suite (MySQL backend lewat PyMySQL)` hijau — artinya shim `minimum_database_version
-= (10, 4)` bekerja di MariaDB 10.11, dan `pip install -r requirements.txt` berhasil di
-Linux untuk 3.13 maupun 3.14 (termasuk `gunicorn` yang bersyarat non-Windows).
+Durasi job pada run #4–#6: `cek-cepat` 32–47 detik, `paritas-mariadb` 57–66 detik. Satu
+run penuh selesai dalam waktu di bawah 1,5 menit.
+
+Langkah yang dijalankan pada job `cek-cepat` (13 langkah termasuk langkah penutup): Ambil
+kode → Pasang Python → Pasang dependensi → Siapkan folder runtime → Pastikan berkas `.env`
+tidak ikut ter-commit → Django system check → Migrasi tidak tertinggal → Kumpulkan aset
+static (WhiteNoise) → Test suite. Job `paritas-mariadb` juga memiliki 13 langkah, tetapi
+isinya berbeda: job ini menambah `Initialize containers` dan `Stop containers`, serta
+tidak memiliki langkah guard `.env` maupun `collectstatic` karena aset static tidak
+dipakai di jalur itu.
+
+Jumlah 38 pengujian terverifikasi ulang di log run #6, pada ketiga job. Dua job SQLite
+membuat basis data uji in-memory (`file:memorydb_default`), sedangkan job MariaDB membuat
+`test_sipper_db` di server sungguhan. Langkah `Test suite (MySQL backend lewat PyMySQL)`
+hijau — artinya shim `minimum_database_version = (10, 4)` bekerja di MariaDB 10.11, dan
+`pip install -r requirements.txt` berhasil di Linux untuk 3.13 maupun 3.14 (termasuk
+`gunicorn` yang bersyarat non-Windows).
 
 ## Temuan review
 
@@ -92,6 +110,9 @@ Tiga jalur dicoba dan hanya satu yang bekerja (tercatat supaya tidak mengulang j
     "https://api.github.com/repos/Yafet-wenda/SIPPER/actions/runs?per_page=5"
   curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.github+json" \
     "https://api.github.com/repos/Yafet-wenda/SIPPER/actions/runs/<run_id>/jobs"
+  # Log pengujian sebuah job — perlu -L karena endpoint-nya mengirim redirect
+  curl -sL -H "Authorization: Bearer $TOKEN" \
+    "https://api.github.com/repos/Yafet-wenda/SIPPER/actions/jobs/<job_id>/logs"
   unset TOKEN
   ```
 
