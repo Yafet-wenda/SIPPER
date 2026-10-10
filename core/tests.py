@@ -746,3 +746,73 @@ class SipperFlowTests(TestCase):
         self.assertIn('Perlu perbaikan', isi)
         self.assertNotIn('Perlu_Perbaikan', isi)
         self.assertNotIn('div>}', isi, 'kurung kurawal lepas ikut dirender sebagai teks')
+
+
+class AdminExportCSVTests(TestCase):
+    """Ekspor CSV dari changelist admin memakai jalur filter yang sama."""
+
+    def setUp(self):
+        cache.clear()
+        self.superuser = User.objects.create_superuser(
+            username='boss@example.com', email='boss@example.com', password='password123')
+        self.citizen = User.objects.create_user(
+            username='warga@example.com', password='password123')
+        self.warga = Penduduk.objects.create(
+            user=self.citizen, nama='Ani Lestari', nik='9101010101010101',
+            daerah_asal='Jayapura', kota_tujuan='Jakarta', tujuan='pekerjaan')
+
+    def rows(self, response):
+        return list(csv.reader(io.StringIO(response.content.decode())))
+
+    def test_superuser_can_export_pengajuan_as_csv(self):
+        Pengajuan.objects.create(penduduk=self.warga, status='disetujui')
+        self.client.force_login(self.superuser)
+        response = self.client.get('/admin/core/pengajuan/export.csv/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'text/csv')
+        self.assertIn('attachment', response['Content-Disposition'])
+        isi = self.rows(response)
+        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
+        self.assertTrue(any('Ani Lestari' in baris for baris in isi[1:]))
+
+    def test_export_respects_changelist_status_filter(self):
+        Pengajuan.objects.create(penduduk=self.warga, status='disetujui')
+        kedua = Penduduk.objects.create(
+            user=User.objects.create_user(username='b@example.com', password='password123'),
+            nama='Budi', nik='9202020202020202', daerah_asal='Jayapura',
+            kota_tujuan='Bandung', tujuan='pendidikan')
+        Pengajuan.objects.create(penduduk=kedua, status='ditolak', catatan='dokumen kurang')
+        self.client.force_login(self.superuser)
+        response = self.client.get('/admin/core/pengajuan/export.csv/?status=ditolak')
+        isi = self.rows(response)
+        baris_data = isi[1:]
+        self.assertEqual(len(baris_data), 1, 'hanya pengajuan ditolak yang boleh terekspor')
+        self.assertIn('Budi', baris_data[0][0])
+
+    def test_export_neutralizes_formula_injection(self):
+        jahat = Penduduk.objects.create(
+            user=User.objects.create_user(username='c@example.com', password='password123'),
+            nama='=SUM(A1)', nik='9303030303030303', daerah_asal='Jayapura',
+            kota_tujuan='Surabaya', tujuan='usaha')
+        Pengajuan.objects.create(penduduk=jahat, status='menunggu')
+        self.client.force_login(self.superuser)
+        response = self.client.get('/admin/core/pengajuan/export.csv/')
+        isi = self.rows(response)
+        target = [b for b in isi[1:] if 'SUM' in ''.join(b)][0]
+        self.assertTrue(target[0].startswith("'="),
+                        'sel diawali = harus dinetralkan dengan apostrof')
+
+    def test_non_staff_cannot_download_export(self):
+        self.client.force_login(self.citizen)
+        response = self.client.get('/admin/core/pengajuan/export.csv/')
+        self.assertNotEqual(response.status_code, 200,
+                            'warga biasa tidak boleh mengunduh ekspor admin')
+
+    def test_unmatched_filter_yields_empty_csv_not_error(self):
+        Pengajuan.objects.create(penduduk=self.warga, status='menunggu')
+        self.client.force_login(self.superuser)
+        response = self.client.get('/admin/core/pengajuan/export.csv/?status=tidak-ada')
+        self.assertEqual(response.status_code, 200)
+        isi = self.rows(response)
+        self.assertEqual(len(isi), 1, 'filter tak cocok harus menghasilkan CSV tanpa baris data')
+        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
