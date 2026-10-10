@@ -2,11 +2,24 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'sipper-local-development-key-change-this-before-production-2026')
 DEBUG = os.getenv('DJANGO_DEBUG', '1') == '1'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = 'sipper-local-development-key-change-this-before-production-2026'
+    else:
+        # Kunci bawaan terlihat di repository, jadi memakainya saat non-debug
+        # berarti cookie sesi dan token CSRF bisa dipalsukan siapa pun yang
+        # bisa membaca kode ini. Lebih baik gagal saat start daripada diam-diam
+        # berjalan dengan kunci yang sudah diketahui publik.
+        raise ImproperlyConfigured(
+            'DJANGO_SECRET_KEY belum diisi. Salin .env.example menjadi .env dan isi '
+            'DJANGO_SECRET_KEY dengan nilai acak panjang, atau set DJANGO_DEBUG=1 untuk '
+            'pengembangan lokal.')
 ALLOWED_HOSTS = [host.strip() for host in os.getenv('DJANGO_ALLOWED_HOSTS', '127.0.0.1,localhost,testserver').split(',') if host.strip()]
 INSTALLED_APPS = ['django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles', 'core']
 MIDDLEWARE = ['core.middleware.MaxUploadSizeMiddleware', 'django.middleware.security.SecurityMiddleware', 'whitenoise.middleware.WhiteNoiseMiddleware', 'django.contrib.sessions.middleware.SessionMiddleware', 'django.middleware.common.CommonMiddleware', 'django.middleware.csrf.CsrfViewMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware', 'django.contrib.messages.middleware.MessageMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware']

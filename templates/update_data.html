@@ -19,11 +19,11 @@
       {% csrf_token %}
       <label>
         Nama lengkap
-        <input value="{{ person.nama }}" disabled>
+        <input id="nama-display" value="{{ person.nama }}" disabled>
       </label>
       <label>
         NIK
-        <input value="{{ person.nik }}" disabled>
+        <input id="nik-display" value="{{ person.nik }}" disabled>
       </label>
       <label>
         Daerah asal
@@ -36,10 +36,9 @@
       <label>
         Tujuan merantau
         <select name="purpose" required>
-          <option value="pendidikan" {% if person.tujuan == 'pendidikan' %}selected{% endif %}>Pendidikan</option>
-          <option value="pekerjaan" {% if person.tujuan == 'pekerjaan' %}selected{% endif %}>Pekerjaan</option>
-          <option value="usaha" {% if person.tujuan == 'usaha' %}selected{% endif %}>Pengembangan usaha</option>
-          <option value="keluarga" {% if person.tujuan == 'keluarga' %}selected{% endif %}>Kepentingan keluarga</option>
+          {% for nilai, label in tujuan_pilihan %}
+            <option value="{{ nilai }}" {% if person.tujuan == nilai %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
         </select>
       </label>
       <button class="button button-green" type="submit">

@@ -10,7 +10,7 @@ Yang ditulis ke .env:
   DJANGO_EMAIL_PORT      = 587
   DJANGO_EMAIL_USE_TLS   = 1
   DJANGO_EMAIL_HOST_USER = wendayafet@gmail.com
-  DJANGO_EMAIL_HOST_PASSWORD = [REDACTED-GMAIL-APP-PASSWORD]
+  DJANGO_EMAIL_HOST_PASSWORD = <16 karakter dari Google App Passwords>
   DJANGO_DEFAULT_FROM_EMAIL  = "SIPPER <wendayafet@gmail.com>"
 
 Syarat Gmail: akun harus sudah 2-Step Verification, lalu buat App Password di

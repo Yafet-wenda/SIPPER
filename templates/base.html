@@ -7,18 +7,25 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{% block title %}SIPPER{% endblock %}</title>
     {# ?v dinaiki tiap aset ini diganti: Apache mengirim Cache-Control: max-age=3600 untuk /static/. #}
-    <link rel="icon" type="image/svg+xml" href="{% static 'img/favicon.svg' %}?v=1">
+    <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=4">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=14">
+    {% block extra_head %}{% endblock %}
 </head>
 <body>
     <nav class="nav">
         <a class="brand" href="{% url 'core:home' %}">
-            <span class="brand-mark">S</span>
-            <span>SIPPER</span>
+            <img class="brand-logo" src="{% static 'img/logo-sipper.png' %}?v=2" alt="SIPPER" width="1029" height="904">
         </a>
+        <button class="nav-hamburger" aria-label="Toggle menu" style="align-items:center;justify-content:center;width:40px;height:40px;min-width:40px;min-height:40px;background:transparent;border:1px solid rgba(255,255,255,0.4);border-radius:6px;cursor:pointer;padding:8px;margin-left:auto;box-sizing:border-box;position:relative;z-index:100;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" style="width:24px;height:24px;flex-shrink:0;">
+                <line x1="3" y1="6" x2="21" y2="6"></line>
+                <line x1="3" y1="12" x2="21" y2="12"></line>
+                <line x1="3" y1="18" x2="21" y2="18"></line>
+            </svg>
+        </button>
         <div class="nav-links">
             <a href="{% url 'core:home' %}">Home</a>
             {% if user.is_authenticated %}
@@ -39,7 +46,7 @@
             {% else %}
                 <a href="{% url 'core:login' %}">Masuk</a>
             {% endif %}
-            <a class="nav-cta" href="{% url 'core:application' %}">Ajukan data <span>↗</span></a>
+            <a class="nav-cta" href="{% url 'core:application' %}">Ajukan data <span></span></a>
         </div>
     </nav>
 
@@ -58,5 +65,52 @@
         <span>SIPPER / 2026</span>
         <span>Data perantauan, lebih tertata.</span>
     </footer>
+    <script src="{% static 'js/file-label.js' %}?v=1" defer></script>
+    <script>
+      // Responsive nav with hamburger
+      (function() {
+        var hamburger = document.querySelector('.nav-hamburger');
+        var navLinks = document.querySelector('.nav-links');
+        
+        if (!hamburger || !navLinks) return;
+        
+        function checkWidth() {
+          if (window.innerWidth <= 1024) {
+            // Tablet/mobile: show hamburger, hide links by default
+            hamburger.style.setProperty('display', 'flex', 'important');
+            if (!navLinks.classList.contains('active')) {
+              navLinks.style.setProperty('display', 'none', 'important');
+            }
+          } else {
+            // Desktop: hide hamburger, show links
+            hamburger.style.setProperty('display', 'none', 'important');
+            navLinks.style.setProperty('display', 'flex', 'important');
+          }
+        }
+        
+        // Initial check
+        checkWidth();
+        
+        // Check on resize
+        window.addEventListener('resize', checkWidth);
+        
+        // Toggle menu
+        hamburger.addEventListener('click', function() {
+          hamburger.classList.toggle('active');
+          navLinks.classList.toggle('active');
+          navLinks.style.setProperty('display', navLinks.classList.contains('active') ? 'flex' : 'none', 'important');
+        });
+
+        // Tutup menu saat klik link
+        var links = navLinks.querySelectorAll('a');
+        links.forEach(function(link) {
+          link.addEventListener('click', function() {
+            hamburger.classList.remove('active');
+            navLinks.classList.remove('active');
+            navLinks.style.setProperty('display', 'none', 'important');
+          });
+        });
+      })();
+    </script>
 </body>
 </html>

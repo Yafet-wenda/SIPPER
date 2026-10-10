@@ -741,8 +741,14 @@ button.sipper-pause:hover {
 
 .sipper-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(178px, 1fr));
+  /* Tujuh kartu dibuka 4 + (3 dengan kartu penutup melebar), jadi tidak ada
+     ruang kosong di kanan saat layar lebar. */
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+}
+
+.sipper-metrics a:last-child {
+  grid-column: span 2;
 }
 
 .sipper-metrics a {
@@ -1191,6 +1197,10 @@ html[data-theme="dark"] .sipper-pulse-chart .sip-bar--masuk {
 }
 
 @media (max-width: 1024px) {
+  .sipper-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sipper-columns {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1320,7 +1330,7 @@ html[data-theme="dark"] .sipper-pulse-chart .sip-bar--masuk {
   }
 
   .sipper-metrics {
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .sipper-metrics strong {

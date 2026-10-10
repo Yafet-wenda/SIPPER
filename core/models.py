@@ -6,16 +6,23 @@ from django.contrib.auth.models import User
 
 
 class Penduduk(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='penduduk', verbose_name='akun pengguna')
+    STATUS = [('aktif', 'Aktif'), ('pindah', 'Pindah'), ('nonaktif', 'Nonaktif')]
+    TUJUAN = [
+        ('pendidikan', 'Pendidikan'),
+        ('pekerjaan', 'Pekerjaan'),
+        ('usaha', 'Pengembangan usaha'),
+        ('keluarga', 'Kepentingan keluarga'),
+    ]
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='penduduk', verbose_name='akun pengguna')
     nama = models.CharField(max_length=150, verbose_name='nama')
     nik = models.CharField(max_length=16, unique=True, validators=[RegexValidator(r'^\d{16}$', 'NIK harus 16 digit angka.')], verbose_name='NIK')
     daerah_asal = models.CharField(max_length=100, verbose_name='daerah asal')
     kota_tujuan = models.CharField(max_length=100, verbose_name='kota tujuan')
-    tujuan = models.CharField(max_length=50, verbose_name='tujuan berpindah')
+    tujuan = models.CharField(max_length=50, choices=TUJUAN, verbose_name='tujuan berpindah')
     nomor_telepon = models.CharField(max_length=15, blank=True, validators=[RegexValidator(r'^\d{10,15}$', 'Nomor telepon harus 10-15 digit.')], verbose_name='nomor telepon')
     tanggal_mulai = models.DateField(null=True, blank=True, verbose_name='tanggal mulai')
     perkiraan_kembali = models.DateField(null=True, blank=True, verbose_name='perkiraan kembali')
-    status = models.CharField(max_length=20, default='aktif', verbose_name='status')
+    status = models.CharField(max_length=20, choices=STATUS, default='aktif', verbose_name='status')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='terdaftar pada')
 
     def __str__(self):
@@ -44,10 +51,11 @@ class Pengajuan(models.Model):
 
 
 class KartuDigital(models.Model):
+    STATUS = [('aktif', 'Aktif'), ('expired', 'Kedaluwarsa'), ('nonaktif', 'Nonaktif')]
     penduduk = models.OneToOneField(Penduduk, on_delete=models.CASCADE, related_name='kartu', verbose_name='penduduk')
     kode = models.CharField(max_length=32, unique=True, verbose_name='kode kartu')
     berlaku_sampai = models.DateField(verbose_name='berlaku sampai')
-    status = models.CharField(max_length=20, default='aktif', verbose_name='status')
+    status = models.CharField(max_length=20, choices=STATUS, default='aktif', verbose_name='status')
     qr_code = models.ImageField(upload_to='qr_codes/', blank=True, verbose_name='QR code')
 
     def is_valid(self):
@@ -60,13 +68,23 @@ class KartuDigital(models.Model):
 
 class Dokumen(models.Model):
     STATUS = [('pending', 'Menunggu'), ('valid', 'Valid'), ('invalid', 'Tidak valid')]
+    JENIS = [('ktp', 'KTP'), ('kk', 'Kartu Keluarga'), ('surat_tugas', 'Surat Tugas'), ('lainnya', 'Lainnya')]
     penduduk = models.ForeignKey(Penduduk, on_delete=models.CASCADE, related_name='dokumen', verbose_name='penduduk')
     nama = models.CharField(max_length=100, verbose_name='nama berkas')
-    jenis = models.CharField(max_length=30, default='lainnya', verbose_name='jenis dokumen')
+    jenis = models.CharField(max_length=30, choices=JENIS, default='lainnya', verbose_name='jenis dokumen')
     file = models.FileField(upload_to='dokumen/%Y/%m/', validators=[FileExtensionValidator(['pdf', 'jpg', 'jpeg', 'png'])], verbose_name='berkas')
     ukuran = models.PositiveIntegerField(default=0, verbose_name='ukuran')
     status = models.CharField(max_length=20, choices=STATUS, default='pending', verbose_name='status')
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='diunggah pada')
+    
+    # Field untuk hasil OCR dan verifikasi AI
+    ocr_text = models.TextField(blank=True, null=True, verbose_name='teks hasil OCR')
+    ocr_confidence = models.FloatField(null=True, blank=True, verbose_name='confidence OCR')
+    extracted_nik = models.CharField(max_length=16, blank=True, null=True, verbose_name='NIK dari OCR')
+    extracted_data = models.JSONField(default=dict, blank=True, verbose_name='data terstruktur dari OCR')
+    ai_verified = models.BooleanField(default=False, verbose_name='diverifikasi AI')
+    ai_verification_notes = models.TextField(blank=True, verbose_name='catatan verifikasi AI')
+    ocr_processed_at = models.DateTimeField(null=True, blank=True, verbose_name='diproses OCR pada')
 
     class Meta:
         verbose_name = 'dokumen'

@@ -10,6 +10,7 @@ from django.utils.html import format_html
 from django.urls import path, reverse
 from django.db.models import Count
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
+from .keputusan import terapkan_status
 
 
 class SipperAdminSite(admin.AdminSite):
@@ -142,15 +143,23 @@ sipper_admin = SipperAdminSite(name='sipper_admin')
 
 
 def approve_selected(modeladmin, request, queryset):
-    updated = queryset.update(status='disetujui', verified_by=request.user)
-    modeladmin.message_user(request, f'{updated} pengajuan disetujui.')
+    """Setujui banyak pengajuan sekaligus lewat satu jalur keputusan.
+
+    Dulu aksi ini hanya ``queryset.update(status=...)``, sehingga verified_at
+    kosong, kartu tidak terbit, email tidak jalan, dan AuditLog tidak mencatat —
+    padahal keputusan.py menjanjikan satu jalur untuk semua pintu. Kini tiap baris
+    lewat :func:`terapkan_status`, jadi efeknya identik dengan persetujuan di
+    /petugas/.
+    """
+    disetujui = 0
+    for item in queryset:
+        berubah, _ = terapkan_status(item, 'disetujui', request.user, request,
+                                      sumber='aksi massal admin')
+        disetujui += berubah
+    modeladmin.message_user(
+        request,
+        f'{disetujui} pengajuan disetujui; baris lain sudah berstatus disetujui.')
 approve_selected.short_description = 'Setujui pengajuan terpilih'
-
-
-def reject_selected(modeladmin, request, queryset):
-    updated = queryset.update(status='ditolak', verified_by=request.user)
-    modeladmin.message_user(request, f'{updated} pengajuan ditolak.')
-reject_selected.short_description = 'Tolak pengajuan terpilih'
 
 
 def mark_documents_valid(modeladmin, request, queryset):
@@ -252,7 +261,9 @@ class PengajuanAdmin(admin.ModelAdmin):
     search_fields = ('penduduk__nama', 'penduduk__nik', 'catatan')
     autocomplete_fields = ('penduduk', 'verified_by')
     list_per_page = 25
-    actions = (approve_selected, reject_selected)
+    # Hanya 'Setujui' yang massal: status negatif butuh catatan per warga, dan
+    # aksi massal tak bisa mengumpulkannya — penolakan cukup di /petugas/.
+    actions = (approve_selected,)
     readonly_fields = ('submitted_at',)
 
     @admin.display(description='Status', ordering='status', boolean=False)

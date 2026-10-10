@@ -1,6 +1,7 @@
 from django.urls import path, reverse_lazy
 from django.contrib.auth import views as auth_views
 from . import views
+from .forms import SetPasswordFormDjango
 
 app_name = 'core'
 urlpatterns = [
@@ -17,12 +18,14 @@ urlpatterns = [
                                                                 success_url=reverse_lazy('core:password_reset_done')), name='password_reset'),
     path('lupa-password/terkirim/', auth_views.PasswordResetDoneView.as_view(template_name='password_reset_done.html'), name='password_reset_done'),
     path('reset-password/<uidb64>/<token>/', auth_views.PasswordResetConfirmView.as_view(template_name='password_reset_confirm.html',
+                                                                                          form_class=SetPasswordFormDjango,
                                                                                           success_url=reverse_lazy('core:password_reset_complete')), name='password_reset_confirm'),
     path('reset-password/selesai/', auth_views.PasswordResetCompleteView.as_view(template_name='password_reset_complete.html'), name='password_reset_complete'),
     path('pengajuan/', views.application, name='application'),
     path('pengajuan/<int:pk>/kirim-ulang/', views.resubmit_application, name='resubmit_application'),
     path('petugas/', views.officer, name='officer'),
     path('petugas/pengajuan/<int:pk>/', views.application_detail, name='application_detail'),
+    path('petugas/pengajuan/<int:pk>/laporan.pdf', views.pengajuan_report_pdf, name='pengajuan_report_pdf'),
     path('petugas/dokumen/<int:pk>/', views.document_review, name='document_review'),
     path('dokumen/<int:pk>/file/', views.document_file, name='document_file'),
     path('petugas/statistik/', views.statistics, name='statistics'),
@@ -36,4 +39,7 @@ urlpatterns = [
     path('api/landing-stats/', views.api_landing_stats, name='api_landing_stats'),
     path('api/status/', views.api_status, name='api_status'),
     path('api/validate-nik/', views.api_validate_nik, name='api_validate_nik'),
+    path('api/ocr-result/<int:pk>/', views.api_ocr_result, name='api_ocr_result'),
+    path('api/trigger-ocr/<int:pk>/', views.api_trigger_ocr, name='api_trigger_ocr'),
+    path('api/chat/', views.api_chat, name='api_chat'),
 ]

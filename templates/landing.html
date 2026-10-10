@@ -5,13 +5,15 @@
 
 {% block content %}
   <style>
-    /* --- Navbar transparan, menyatu dengan banner (khusus landing) --- */
+    /* Landing page specific styles - nav transparan */
     .nav {
       position: absolute;
       top: 0; left: 0; right: 0;
       background: transparent;
       border-bottom: 0;
       z-index: 10;
+      height: auto;
+      padding: 16px 6vw;
     }
     .nav .brand { color: #fff; }
     .nav-links > a { color: rgba(255, 255, 255, 0.88); }
@@ -20,17 +22,62 @@
       background: #fff;
       color: var(--ink);
     }
+    
+    /* Desktop nav horizontal */
+    @media (min-width: 1025px) {
+      .nav-hamburger {
+        display: none !important;
+      }
+      .nav-links {
+        display: flex !important;
+        position: static !important;
+        background: transparent !important;
+        flex-direction: row !important;
+        padding: 0 !important;
+        gap: 32px !important;
+        border-top: none !important;
+      }
+      .nav-links > a,
+      .nav-links form {
+        width: auto !important;
+        text-align: left !important;
+        padding: 0 !important;
+        border-bottom: none !important;
+        font-size: inherit !important;
+      }
+      .nav .nav-cta {
+        padding: inherit !important;
+        font-size: inherit !important;
+        text-align: left !important;
+        border-radius: 0 !important;
+        margin-top: 0 !important;
+      }
+    }
+    
+    /* Tablet & Mobile nav dropdown */
+    @media (max-width: 1024px) {
+      .nav {
+        position: relative !important;
+        background: rgba(9, 20, 17, 0.95) !important;
+      }
+      .nav-links {
+        position: absolute !important;
+        top: 100% !important;
+        left: 0 !important;
+        right: 0 !important;
+        background: rgba(9, 20, 17, 0.98) !important;
+        flex-direction: column !important;
+      }
+    }
 
     /* --- Hero dengan latar foto + overlay gelap --- */
     .hero {
       position: relative;
       overflow: hidden;
       isolation: isolate;
-      padding: 130px 10vw 90px;
-      min-height: 61.5vw;   /* tinggi hero mengikuti rasio foto → gambar utuh, kepala tidak terpotong */
-      /* ?v wajib dinaiki tiap gambar diganti: Apache mengirim Cache-Control: max-age=3600
-         untuk /static/, jadi nama file yang sama membuat browser menahan versi lama. */
-      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") 50% 36% / cover no-repeat;
+      padding: 40px 10vw 70px;
+      min-height: 61.5vw;
+      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") 50% 44% / cover no-repeat;
     }
     .hero::before {
       content: "";
@@ -60,7 +107,7 @@
     .hero .text-link span { color: #9fd3bd; }
     .hero .art-orbit { border-color: rgba(255, 255, 255, 0.28); }
 
-    /* --- Pill kaca mini-stats (opsi 3) --- */
+    /* --- Pill kaca mini-stats --- */
     .art-pill {
       position: absolute;
       bottom: 4%;
@@ -114,7 +161,7 @@
       .art-pill, .art-pill .pill-dot, .art-pill b { animation: none; }
     }
 
-    /* --- Cahaya berkelip (seperti video) --- */
+    /* --- Cahaya berkelip --- */
     #hero-sparks {
       position: absolute;
       inset: 0;
@@ -138,7 +185,7 @@
       #hero-sparks { display: none; }
     }
 
-    /* --- Bagian langkah (tetap di atas kertas) --- */
+    /* --- Bagian langkah --- */
     .landing-steps {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -146,10 +193,12 @@
       padding: 0 10vw 100px;
       margin-top: -20px;
     }
+
     .landing-step {
       border-top: 2px solid var(--ink);
       padding-top: 18px;
     }
+
     .landing-step .step-no {
       font: 700 12px 'Space Grotesk';
       letter-spacing: 2px;
@@ -157,28 +206,253 @@
       display: block;
       margin-bottom: 12px;
     }
+
     .landing-step h3 {
       margin: 0 0 8px;
       font-size: 17px;
     }
+
     .landing-step p {
       margin: 0;
       font-size: 14px;
       line-height: 1.6;
       color: #4c615a;
     }
+
+    /* ========================================
+       TABLET & MOBILE (< 1024px) - Hamburger menu
+       ======================================== */
     @media (max-width: 1024px) {
-      .hero { grid-template-columns: 1fr; }
-      .hero-art { display: none; }
+      /* Nav dengan hamburger */
+      .landing-nav {
+        padding: 12px 20px 10px;
+        position: relative;
+      }
+
+      .landing-nav .brand {
+        flex: 0 0 auto;
+      }
+
+      /* Hamburger button muncul */
+      .landing-nav .nav-hamburger {
+        display: flex;
+      }
+
+      /* Nav links jadi dropdown */
+      .landing-nav .nav-links {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        right: 0;
+        background: rgba(9, 20, 17, 0.95);
+        backdrop-filter: blur(10px);
+        flex-direction: column;
+        padding: 16px 20px;
+        gap: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .landing-nav .nav-links.active {
+        display: flex;
+      }
+
+      .landing-nav .nav-links > a,
+      .landing-nav .nav-links form {
+        width: 100%;
+        text-align: left;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 14px;
+      }
+
+      .landing-nav .nav-links > a:last-child,
+      .landing-nav .nav-links form:last-child {
+        border-bottom: none;
+      }
+
+      .landing-nav .nav-cta {
+        padding: 10px 16px;
+        font-size: 14px;
+        text-align: center;
+        border-radius: 6px;
+        margin-top: 8px;
+      }
+
+      /* Hero tablet/mobile */
+      .hero {
+        grid-template-columns: 1fr;
+        padding: 80px 24px 50px;
+        min-height: auto;
+        background-position: 30% 50%;
+      }
+
+      .hero h1 {
+        font-size: clamp(32px, 8vw, 56px);
+        line-height: 1.1;
+      }
+
+      .hero .hero-lede {
+        max-width: 100%;
+        font-size: 15px;
+        margin: 20px 0;
+      }
+
+      .hero-actions {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+      }
+
+      .hero .button-dark {
+        width: 100%;
+        justify-content: center;
+        min-height: 48px;
+        font-size: 15px;
+      }
+
+      .hero .text-link {
+        text-align: center;
+        font-size: 14px;
+      }
+
+      .art-pill {
+        bottom: 3%;
+        right: 5%;
+        left: 5%;
+        justify-content: center;
+        font-size: 12px;
+        padding: 10px 16px;
+      }
+
+      /* Steps tablet/mobile */
+      .landing-steps {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        padding: 0 24px 60px;
+        margin-top: 0;
+      }
+
+      .landing-step {
+        padding-top: 16px;
+      }
+
+      .landing-step h3 {
+        font-size: 16px;
+      }
+
+      .landing-step p {
+        font-size: 14px;
+      }
     }
-    @media (max-width: 860px) {
-      .landing-steps { grid-template-columns: 1fr; gap: 22px; padding-bottom: 70px; }
+
+    /* ========================================
+       SMALL MOBILE (< 480px)
+       ======================================== */
+    @media (max-width: 480px) {
+      .landing-nav {
+        padding: 10px 16px 8px;
+      }
+
+      .landing-nav .brand {
+        font-size: 16px;
+      }
+
+      .landing-nav .nav-links > a,
+      .landing-nav .nav-links form {
+        font-size: 13px;
+        padding: 8px 0;
+      }
+
+      .landing-nav .nav-cta {
+        font-size: 13px;
+        padding: 8px 14px;
+      }
+
+      .hero {
+        padding: 70px 20px 40px;
+      }
+
+      .hero h1 {
+        font-size: clamp(28px, 9vw, 48px);
+      }
+
+      .hero .hero-lede {
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .hero .button-dark {
+        font-size: 14px;
+        min-height: 44px;
+      }
+
+      .hero .text-link {
+        font-size: 13px;
+      }
+
+      .art-pill {
+        font-size: 11px;
+        padding: 8px 12px;
+        gap: 8px;
+      }
+
+      .landing-steps {
+        padding: 0 20px 50px;
+        gap: 20px;
+      }
+
+      .landing-step h3 {
+        font-size: 15px;
+      }
+
+      .landing-step p {
+        font-size: 13px;
+      }
     }
+
+    /* ========================================
+       LANDSCAPE MOBILE
+       ======================================== */
+    @media (max-width: 1024px) and (orientation: landscape) {
+      .hero {
+        padding: 60px 24px 40px;
+        min-height: auto;
+      }
+
+      .hero h1 {
+        font-size: clamp(26px, 6vw, 42px);
+      }
+
+      .hero .hero-lede {
+        margin: 12px 0;
+      }
+
+      .hero-actions {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .hero .button-dark {
+        width: auto;
+        flex: 1;
+      }
+
+      .landing-steps {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+        padding: 0 24px 50px;
+      }
+    }
+
+    /* Small screen adjustments */
     @media (max-width: 600px) {
       .hero {
-        background-position: 22% 40%;
+        background-position: 25% 48%;
         min-height: 585px;
-        padding-bottom: 60px;
+        padding-top: 50px;
+        padding-bottom: 50px;
       }
       .hero::before {
         background: linear-gradient(180deg, rgba(9, 20, 17, 0.92) 0%, rgba(9, 20, 17, 0.80) 100%);

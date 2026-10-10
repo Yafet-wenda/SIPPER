@@ -12,14 +12,14 @@
         Lengkapi<br>
         <em>perjalanan.</em>
       </h1>
-      <p>Contoh pengisian: Yafet berdomisili asal Papua, Jayapura dan merantau ke Surabaya.</p>
+      <p>Contoh pengisian: nama tulis sesuai KTP, asal Papua, Jayapura, lalu merantau ke Surabaya.</p>
     </div>
 
     <form method="post" enctype="multipart/form-data" class="form-card grid-form">
       {% csrf_token %}
       <label>
         Nama lengkap
-        <input name="name" value="{{ name }}" required placeholder="Contoh: Yafet">
+        <input name="name" value="{{ name }}" required autocomplete="name" placeholder="Contoh: Nama Sesuai KTP">
       </label>
       <label>
         NIK <small>16 digit</small>
@@ -27,7 +27,7 @@
       </label>
       <label>
         Nomor telepon <small>10-15 digit</small>
-        <input name="phone" inputmode="numeric" placeholder="08xxxxxxxxxx">
+        <input name="phone" inputmode="numeric" autocomplete="tel" placeholder="08xxxxxxxxxx">
       </label>
       <label>
         Daerah asal
@@ -49,15 +49,33 @@
         Tujuan merantau
         <select name="purpose" required>
           <option value="">Pilih tujuan</option>
-          <option value="pendidikan">Pendidikan</option>
-          <option value="pekerjaan">Pekerjaan</option>
-          <option value="usaha">Pengembangan usaha</option>
-          <option value="keluarga">Kepentingan keluarga</option>
+          {% for nilai, label in tujuan_pilihan %}
+            <option value="{{ nilai }}">{{ label }}</option>
+          {% endfor %}
         </select>
       </label>
+
+      <!-- Panduan Upload Foto KTP -->
+      <div class="upload-guide full" style="padding: 16px; background: #f0f7ff; border-left: 4px solid #2563eb; border-radius: 6px; margin-bottom: 8px;">
+        <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #1e40af;">📸 Tips Upload Foto KTP Agar OCR Akurat</h3>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #334155;">
+          <li><strong>Fokus & Tajam:</strong> Pastikan foto tidak blur atau goyang. Ketuk layar HP untuk fokus sebelum memotret.</li>
+          <li><strong>Cahaya Merata:</strong> Hindari bayangan, silau, atau area gelap. Gunakan cahaya alami atau lampu terang dari depan.</li>
+          <li><strong>Angle Lurus:</strong> Pegang kamera sejajar dengan KTP (90°), jangan miring atau dari samping.</li>
+          <li><strong>Latar Belakang Kontras:</strong> Letakkan KTP di atas permukaan gelap/berwarna agar tepi kartu terlihat jelas.</li>
+          <li><strong>Resolusi Cukup:</strong> Minimal 800px lebar. Jangan zoom terlalu dekat — pastikan seluruh KTP masuk frame.</li>
+          <li><strong>Hindari Refleksi:</strong> KTP laminasi sering memantul cahaya. Miringkan sedikit sumber cahaya atau gunakan filter polarisasi.</li>
+        </ul>
+        <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b;"><em>Foto berkualitas baik meningkatkan akurasi ekstraksi data hingga 100%. Foto buram/miring dapat menurunkan akurasi hingga 40-50%.</em></p>
+      </div>
+
       <label class="full">
-        Dokumen pendukung <small>PDF, JPG, PNG / maksimal 5 MB</small>
-        <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png">
+        Foto KTP <small>PDF, JPG, PNG / maksimal 5 MB</small>
+        <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png" required>
+      </label>
+      <label class="full">
+        Foto Kartu Keluarga <small>PDF, JPG, PNG / maksimal 5 MB</small>
+        <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png" required>
       </label>
       <button class="button button-green full" type="submit">
         Kirim pengajuan <span>↗</span>

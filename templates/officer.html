@@ -4,6 +4,31 @@
   Panel petugas / SIPPER
 {% endblock %}
 
+{% block extra_head %}
+  <style>
+    /* Aksi verifikasi di antrean: satu kolom jadi input catatan + baris tombol.
+       Diletakkan di template (bukan static/css) agar tidak perlu collectstatic
+       setiap kali gaya halaman ini disentuh. */
+    .inline-actions { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+    .inline-actions .catatan-inline {
+      width: 100%; padding: 6px 8px; font-size: 13px; border: 1px solid #cbd5e1;
+      border-radius: 6px; box-sizing: border-box;
+    }
+    .inline-actions .catatan-inline.invalid { border-color: #dc2626; background: #fef2f2; }
+    .inline-actions .aksi-tombol { display: flex; gap: 6px; flex-wrap: wrap; }
+    .inline-actions .aksi-tombol button {
+      flex: 1; min-width: 38px; padding: 6px 8px; font-size: 15px; cursor: pointer;
+      border: 1px solid #cbd5e1; border-radius: 6px; background: #fff;
+    }
+    .inline-actions .aksi-tombol button[name="status"][value="disetujui"] { color: #059669; }
+    .inline-actions .aksi-tombol button[name="status"][value="ditolak"] { color: #dc2626; }
+    .inline-actions .aksi-tombol button[name="status"][value="perlu_perbaikan"] { color: #d97706; }
+    .catatan-hint { font-size: 11px; color: #b91c1c; min-height: 14px; }
+    .catatan-existing { display: block; margin-top: 4px; font-size: 12px; color: #64748b; }
+    @media (max-width: 640px) { .inline-actions { min-width: 180px; } }
+  </style>
+{% endblock %}
+
 {% block content %}
   <div class="page-shell">
     <div class="page-heading">
@@ -39,6 +64,7 @@
               <th>Perantau</th>
               <th>Asal → Tujuan</th>
               <th>Tujuan</th>
+              <th>Berkas</th>
               <th>Status</th>
               <th>Aksi</th>
             </tr>
@@ -53,21 +79,36 @@
                 <td>{{ item.penduduk.daerah_asal }} → {{ item.penduduk.kota_tujuan }}</td>
                 <td>{{ item.penduduk.tujuan|title }}</td>
                 <td>
-                  <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
+                  <span class="lampiran {% if 'ktp' in item.jenis_ada %}lampiran--ada{% else %}lampiran--kurang{% endif %}">KTP{% if 'ktp' not in item.jenis_ada %} belum{% endif %}</span>
+                  <span class="lampiran {% if 'kk' in item.jenis_ada %}lampiran--ada{% else %}lampiran--kurang{% endif %}">KK{% if 'kk' not in item.jenis_ada %} belum{% endif %}</span>
                 </td>
                 <td>
-                  <form method="post" class="inline-actions">
+                  <span class="status status-{{ item.status }}">{{ item.get_status_display }}</span>
+                  {% if item.catatan %}
+                    <small class="catatan-existing" title="{{ item.catatan }}">{{ item.catatan|truncatechars:48 }}</small>
+                  {% endif %}
+                </td>
+                <td>
+                  <form method="post" class="inline-actions" novalidate>
                     {% csrf_token %}
                     <input type="hidden" name="id" value="{{ item.id }}">
-                    <button name="status" value="disetujui" title="Setujui">✓</button>
-                    <button name="status" value="ditolak" title="Tolak">×</button>
-                    <button name="status" value="perlu_perbaikan" title="Minta perbaikan">!</button>
+                    <input class="catatan-inline" name="catatan" type="text" maxlength="500"
+                           value="{{ item.catatan }}"
+                           placeholder="Catatan (wajib utk Tolak / Perbaikan)"
+                           aria-label="Catatan untuk {{ item.penduduk.nama }}">
+                    <div class="aksi-tombol">
+                      <button name="status" value="disetujui" title="Setujui">✓</button>
+                      <button name="status" value="perlu_perbaikan" data-wajib-catatan title="Minta perbaikan">!</button>
+                      <button name="status" value="ditolak" data-wajib-catatan title="Tolak">×</button>
+                      <button name="status" value="menunggu" title="Kembalikan ke menunggu">↺</button>
+                    </div>
+                    <span class="catatan-hint" role="status" aria-live="polite"></span>
                   </form>
                 </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="5" class="empty">Antrean masih kosong.</td>
+                <td colspan="6" class="empty">Antrean masih kosong.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -83,4 +124,31 @@
       </div>
     {% endif %}
   </div>
+
+  <script>
+    // Validasi sisi klien sebatas kenyamanan: server tetap satu-satunya yang
+    // berwenang menolak keputusan negatif tanpa catatan. Submitter (tombol yang
+    // ditekan) dibaca untuk tahu aksi mana yang diminta.
+    document.querySelectorAll('form.inline-actions').forEach(function (form) {
+      var catatan = form.querySelector('.catatan-inline');
+      var hint = form.querySelector('.catatan-hint');
+      form.addEventListener('submit', function (event) {
+        var tombol = event.submitter;
+        var butuh = tombol && tombol.hasAttribute('data-wajib-catatan');
+        if (butuh && !catatan.value.trim()) {
+          event.preventDefault();
+          catatan.classList.add('invalid');
+          if (hint) hint.textContent = 'Isi catatan dulu sebelum menolak / meminta perbaikan.';
+          catatan.focus();
+        } else {
+          catatan.classList.remove('invalid');
+          if (hint) hint.textContent = '';
+        }
+      });
+      catatan.addEventListener('input', function () {
+        catatan.classList.remove('invalid');
+        if (hint) hint.textContent = '';
+      });
+    });
+  </script>
 {% endblock %}

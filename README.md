@@ -20,7 +20,7 @@
 | Penyusun | Yafet Wenda (NRP 3125521058), Muhammad Ai Nur Haaq (NRP 3125521052) |
 | Rerangka | Django 5.2 dengan satu aplikasi utama, `core` |
 | Basis data | MariaDB 10.4 (bawaan XAMPP) melalui PyMySQL; SQLite tersedia sebagai jalur uji cepat |
-| Pengujian | 38 pengujian otomatis, seluruhnya lolos |
+| Pengujian | 135 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
 | Integrasi berkelanjutan | GitHub Actions — lihat [Pengujian dan CI](#-pengujian-dan-ci) dan [`docs/ci-status.md`](docs/ci-status.md) |
 | Visibilitas | Repo privat, karena sistem memuat data turunan KTP warga |
 
@@ -54,20 +54,21 @@ Perpindahan penduduk antar daerah untuk studi, pekerjaan, maupun bisnis bersifat
 ### 🧑‍💼 Modul Masyarakat (Perantau)
 
 - **Portal Pendataan Bertahap**: pendaftaran akun dan pengisian formulir domisili asal, alamat tujuan, durasi tinggal, serta alasan merantau.
-- **Unggah dan Pra-pemeriksaan Berkas**: dokumen pendukung (KTP/Surat Tugas) maksimal 5 MB, dengan pemeriksaan tipe berkas (`pdf`, `jpeg`, `png`), batas ukuran di *middleware*, dan validasi format NIK melalui `api/validate-nik/`.
+- **Unggah KTP dan Kartu Keluarga**: formulir pengajuan mewajibkan dua berkas terpisah, *Foto KTP* dan *Foto Kartu Keluarga*, masing-masing maksimal 5 MB dan tersimpan sebagai `Dokumen` berlabel jenis (`ktp`, `kk`). Pemeriksaan meliputi tipe berkas (`pdf`, `jpeg`, `png`) lewat magic byte, batas ukuran di *middleware* (total badan permintaan), dan validasi format NIK melalui `api/validate-nik/`.
 - **Kartu Digital dan QR Code**: kartu identitas perantau terbit setelah pengajuan disetujui, dilengkapi berkas QR dan unduhan PDF. QR dapat dipindai untuk validasi publik.
 - **Pemutakhiran Data Mandiri**: pelaporan perubahan alamat tujuan, perpanjangan durasi tinggal, atau konfirmasi kembali ke daerah asal, lengkap dengan riwayat.
 
 ### 🏛️ Modul Pemerintah (Petugas)
 
 - **Dasbor Monitoring**: visualisasi ringkas statistik perantau aktif, jumlah pengajuan masuk, dan grafik tujuan merantau.
-- **Panel Verifikasi Berkas**: antarmuka peninjauan pengajuan dengan opsi *Approve*, *Reject*, atau *Minta Perbaikan* disertai catatan petugas.
-- **Validasi Kode QR**: pemindaian QR lewat kamera (`html5-qrcode`) untuk memastikan keabsahan kartu digital warga di lokasi, dengan alternatif masukan kode manual bila kamera tidak tersedia.
+- **Panel Verifikasi Berkas**: antrean petugas memberi empat aksi langsung per baris — **Setujui**, **Perlu perbaikan**, **Tolak**, dan **Kembalikan ke menunggu** — masing-masing disertai satu medan catatan. Keputusan yang merugikan warga (*Tolak* dan *Perlu perbaikan*) **wajib menyertakan catatan**; aturannya ditegakkan di sisi server (`STATUS_WAJIB_CATATAN` di `core/views.py`), sehingga permintaan tanpa alasan ditolak meski validasi peramban dilewati. Tanpa catatan, warga tidak tahu apa yang harus diperbaiki dan tombol kirim ulang berkas tidak terbuka untuknya. Daftar antrean menampilkan penanda kelengkapan KTP dan KK per warga serta catatan terakhir tiap baris, dan halaman detail menampilkan pratinjau gambar tiap berkas (PDF ditautkan, bukan ditanam) beserta status valid per dokumen.
+- **Validasi Kode QR**: pemindaian QR lewat kamera (`html5-qrcode`) untuk memastikan keabsahan kartu digital warga di lokasi, dengan alternatif masukan kode manual bila kamera tidak tersedia. Halaman hasil pindas tetap publik dan menutup NIK penuh; bila yang memindai adalah petugas yang sudah masuk, halaman menampilkan tambahan tombol **Lihat data lengkap (petugas)** menuju detail pengajuan warga tersebut.
+- **Laporan PDF Data Lengkap**: setiap pengajuan dapat dicetak sebagai laporan A4 (`/petugas/pengajuan/<pk>/laporan.pdf`) berisi isian pendaftaran, status verifikasi, berkas pendukung beserta hasil baca OCR, dan status kartu. Rutenya dikunci `is_officer`, berkasnya ber-`Cache-Control: no-store`, dan setiap unduhan tercatat di `AuditLog` sebagai `cetak_laporan`. Warga biasa maupun pengunjung anonim tidak bisa membuka berkas milik siapa pun.
 - **Ekspor dan Audit**: ekspor CSV daftar pengajuan (`/petugas/?export=csv`) serta `AuditLog` untuk setiap aksi petugas.
 
 ### 🤖 Pra-verifikasi Otomatis
 
-Pra-verifikasi yang berjalan saat ini **berbasis aturan di Django**, bukan model AI: validasi struktur NIK, kelengkapan isian, tipe dan ukuran berkas, serta pencatatan audit. Asisten berbasis LangChain atau OpenAI API untuk OCR dokumen masih pada tahap rencana dan **belum diimplementasikan** di kode ini.
+Pra-verifikasi yang berjalan saat ini **berbasis aturan di Django**: validasi struktur NIK, kelengkapan isian, tipe dan ukuran berkas, serta pencatatan audit. Di halaman detail petugas ada **Asisten Verifikasi Dokumen** dengan dua mesin: bila `GEMINI_API_KEY` diisi di `.env`, pertanyaan dijawab LLM cloud Google Gemini (percakapan dan ringkasan konteks pengajuan dikirim ke Google); tanpa kunci — atau setiap kali Gemini gagal — asisten otomatis jatuh ke mesin aturan lokal yang jalan sepenuhnya offline.
 
 ---
 
@@ -101,7 +102,10 @@ SIPPER/
 │   ├── admin.py / admin_site.py    # Penampilan dan dasbor admin
 │   ├── middleware.py               # Batas ukuran berkas dan penjaga lain
 │   ├── emails.py                   # Notifikasi surel
-│   ├── tests.py                    # 38 pengujian otomatis
+│   ├── tests.py                    # Pengujian alur utama
+│   ├── chatbot.py                  # Mesin aturan asisten verifikasi
+│   ├── llm.py                      # Klien Gemini (opsional, via .env)
+│   ├── tests_llm.py                # Test router LLM + fallback
 │   └── management/commands/        # backup_db, promote_officer, send_test_email
 │
 ├── sipper/                         # Konfigurasi proyek
@@ -143,8 +147,8 @@ Akun warga dan petugas memakai model bawaan Django (`auth.User`). Di atasnya sis
 
 1. `UserRole` — pemetaan peran tambahan di luar *flag* `is_staff`.
 2. `Penduduk` — profil detail perantau dan status domisili.
-3. `Pengajuan` — alur status verifikasi (`Menunggu`, `Disetujui`, `Ditolak`).
-4. `Dokumen` — jalur penyimpanan berkas pendukung (KTP/Surat Keterangan).
+3. `Pengajuan` — alur status verifikasi (`Menunggu`, `Disetujui`, `Ditolak`, `Perlu perbaikan`); dua status terakhir menuntut catatan dari petugas.
+4. `Dokumen` — jalur penyimpanan berkas per warga, dengan kolom `jenis` (`ktp`, `kk`, `surat_tugas`, `lainnya`) dan status validitas per berkas.
 5. `KartuDigital` — token verifikasi unik dan jalur berkas QR Code.
 6. `Pemutakhiran` — riwayat perubahan alamat atau status perantau.
 7. `AuditLog` — jejak aktivitas petugas dan sistem.
@@ -224,14 +228,15 @@ Buka peramban dan akses aplikasi melalui `http://127.0.0.1:8000/`.
 ## ✅ Pengujian dan CI
 
 ```bash
-# Jalur cepat tanpa peladen basis data (mis. saat MariaDB berhenti)
-DB_ENGINE=sqlite python manage.py test
-
-# Atau terhadap MariaDB/MySQL yang sedang berjalan
+# Jalur utama: terhadap MariaDB/MySQL yang sedang berjalan
 python manage.py test
+
+# Fallback tanpa peladen basis data (mis. saat MariaDB berhenti atau user
+# aplikasi belum diberi hak membuat test_sipper_db)
+DB_ENGINE=sqlite python manage.py test
 ```
 
-Sebanyak 38 pengujian itu menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas, kartu dan QR, statistik, ekspor, dasbor admin, serta aturan hak aksesnya.
+Sebanyak 84 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
 
 GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pull request* ke `master`, dan dapat dipicu manual lewat `workflow_dispatch`. Ada tiga *job*:
 
@@ -274,6 +279,7 @@ Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.
 | `/profil/`, `/password/`, `/lupa-password/` | Profil dan pengelolaan sandi |
 | `/petugas/` | Antrean verifikasi (juga `?export=csv`) |
 | `/petugas/pengajuan/<pk>/`, `/petugas/dokumen/<pk>/` | Detail pengajuan dan peninjauan berkas |
+| `/petugas/pengajuan/<pk>/laporan.pdf` | Laporan PDF data lengkap (khusus petugas, tercatat di audit) |
 | `/petugas/statistik/` | Grafik statistik |
 | `/kartu/`, `/kartu/<code>/`, `/kartu/<code>/download/` | Pencarian kartu, validasi publik, kartu PDF |
 | `/scan-kartu/` | Pemindai QR |
@@ -282,7 +288,8 @@ Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.
 
 ### Administrasi
 
-Akun superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan.
+Akun superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan. Petugas biasa bekerja di `/petugas/`; peran mereka disimpan sebagai baris `UserRole` yang dibaca `core/views.is_officer`, tanpa menyentuh tabel autentikasi.
+
 
 Perintah pengelolaan peran:
 

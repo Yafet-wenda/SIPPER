@@ -4,6 +4,37 @@
   Detail pengajuan / SIPPER
 {% endblock %}
 
+{% block extra_head %}
+  <style>
+    /* Panel asisten verifikasi. Ditaruh di template (bukan static/css) supaya
+       tidak perlu collectstatic tiap kali teksnya disentuh. */
+    .chat-log { scrollbar-width: thin; }
+    .chat-bubble { margin-bottom: 12px; font-size: 14px; line-height: 1.55; }
+    .chat-bubble.own { text-align: right; }
+    .chat-who { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .75; margin-bottom: 3px; }
+    .chat-text { display: inline-block; white-space: pre-wrap; word-break: break-word; max-width: 100%;
+                 text-align: left; background: rgba(255,255,255,.14); padding: 8px 12px; border-radius: 8px; }
+    .chat-bubble.own .chat-text { background: rgba(251,191,36,.22); }
+    .chat-chip { border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.12); color: #fff;
+                 font-size: 12.5px; padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+    .chat-chip:hover { background: rgba(255,255,255,.28); }
+    .chat-typing { opacity: .85; font-size: 13px; font-style: italic; }
+    #btn-send-chat:disabled { opacity: .55; cursor: progress; }
+    #chat-input:focus-visible, .chat-chip:focus-visible, #btn-send-chat:focus-visible {
+      outline: 2px solid #fde68a; outline-offset: 2px;
+    }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+               overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 768px) {
+      #ocr-panel > div { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 640px) {
+      #chat-form { flex-direction: column; }
+      #btn-send-chat { width: 100%; }
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
   <div class="page-shell">
     <div class="page-heading">
@@ -11,7 +42,10 @@
         <p class="eyebrow">Review pengajuan #{{ item.pk }}</p>
         <h1>{{ item.penduduk.nama }}</h1>
       </div>
-      <a class="text-link" href="{% url 'core:officer' %}">← Kembali</a>
+      <div class="heading-actions">
+        <a class="button button-green" href="{% url 'core:pengajuan_report_pdf' item.pk %}">Unduh PDF data lengkap</a>
+        <a class="text-link" href="{% url 'core:officer' %}">← Kembali</a>
+      </div>
     </div>
 
     <div class="detail-grid">
@@ -39,10 +73,10 @@
         <label>
           Status
           <select name="status">
-            <option value="menunggu">Menunggu</option>
-            <option value="disetujui">Disetujui</option>
-            <option value="ditolak">Ditolak</option>
-            <option value="perlu_perbaikan">Perlu perbaikan</option>
+            <option value="menunggu" {% if item.status == 'menunggu' %}selected{% endif %}>Menunggu</option>
+            <option value="disetujui" {% if item.status == 'disetujui' %}selected{% endif %}>Disetujui</option>
+            <option value="ditolak" {% if item.status == 'ditolak' %}selected{% endif %}>Ditolak</option>
+            <option value="perlu_perbaikan" {% if item.status == 'perlu_perbaikan' %}selected{% endif %}>Perlu perbaikan</option>
           </select>
         </label>
         <label>
@@ -60,11 +94,28 @@
         <h2>Dokumen pendukung</h2>
         <span>{{ documents|length }} berkas</span>
       </div>
+
+      <!-- Panduan Upload Foto KTP -->
+      <div class="upload-guide" style="margin-bottom: 20px; padding: 16px; background: #f0f7ff; border-left: 4px solid #2563eb; border-radius: 6px;">
+        <h3 style="margin: 0 0 12px 0; font-size: 15px; color: #1e40af;">📸 Tips Upload Foto KTP Agar OCR Akurat</h3>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px; line-height: 1.8; color: #334155;">
+          <li><strong>Fokus & Tajam:</strong> Pastikan foto tidak blur atau goyang. Ketuk layar HP untuk fokus sebelum memotret.</li>
+          <li><strong>Cahaya Merata:</strong> Hindari bayangan, silau, atau area gelap. Gunakan cahaya alami atau lampu terang dari depan.</li>
+          <li><strong>Angle Lurus:</strong> Pegang kamera sejajar dengan KTP (90°), jangan miring atau dari samping.</li>
+          <li><strong>Latar Belakang Kontras:</strong> Letakkan KTP di atas permukaan gelap/berwarna agar tepi kartu terlihat jelas.</li>
+          <li><strong>Resolusi Cukup:</strong> Minimal 800px lebar. Jangan zoom terlalu dekat — pastikan seluruh KTP masuk frame.</li>
+          <li><strong>Hindari Refleksi:</strong> KTP laminasi sering memantul cahaya. Miringkan sedikit sumber cahaya atau gunakan filter polarisasi.</li>
+        </ul>
+        <p style="margin: 12px 0 0 0; font-size: 13px; color: #64748b;"><em>Foto berkualitas baik meningkatkan akurasi ekstraksi data hingga 100%. Foto buram/miring dapat menurunkan akurasi hingga 40-50%.</em></p>
+      </div>
+
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th>Jenis</th>
               <th>Nama</th>
+              <th>Pratinjau</th>
               <th>Status</th>
               <th>Ukuran</th>
               <th>Aksi</th>
@@ -73,7 +124,17 @@
           <tbody>
             {% for document in documents %}
               <tr>
+                <td><strong>{{ document.get_jenis_display }}</strong></td>
                 <td>{{ document.nama }}</td>
+                <td>
+                  {% if document.dapat_dipratinjau %}
+                    <a class="doc-thumb-link" href="{% url 'core:document_file' document.pk %}" target="_blank" rel="noopener">
+                      <img src="{% url 'core:document_file' document.pk %}" alt="Pratinjau {{ document.get_jenis_display }}" class="doc-thumb" loading="lazy">
+                    </a>
+                  {% else %}
+                    <span class="doc-pdf">PDF</span>
+                  {% endif %}
+                </td>
                 <td>
                   <span class="status status-{{ document.status }}">
                     {{ document.get_status_display }}
@@ -91,12 +152,293 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="4" class="empty">Belum ada dokumen.</td>
+                <td colspan="6" class="empty">Belum ada dokumen.</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
     </section>
+
+    <!-- Panel OCR & AI Chatbot -->
+    <section class="table-section detail-docs" style="margin-top: 32px;">
+      <div class="section-label">
+        <h2>Hasil Analisis AI (OCR)</h2>
+        <span id="ocr-status">Memuat...</span>
+      </div>
+      
+      <div id="ocr-panel" style="display: none; background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+          <!-- Hasil OCR Kiri -->
+          <div>
+            <h3 style="margin-bottom: 12px; font-size: 16px;">Teks Hasil OCR</h3>
+            <div id="ocr-text-container" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px; line-height: 1.6;"></div>
+            <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+              <span style="font-size: 14px; color: #6b7280;">Confidence:</span>
+              <span id="ocr-confidence" style="font-weight: 600; color: #059669;"></span>
+            </div>
+            <button id="btn-reprocess-ocr" class="button button-green" style="margin-top: 12px; font-size: 13px; padding: 8px 16px;">Proses Ulang OCR</button>
+          </div>
+          
+          <!-- Data Terstruktur Kanan -->
+          <div>
+            <h3 style="margin-bottom: 12px; font-size: 16px;">Data Terstruktur</h3>
+            <div id="extracted-data-container" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px;"></div>
+            <div style="margin-top: 12px; padding: 12px; background: #ecfdf5; border-radius: 8px; border-left: 4px solid #059669;">
+              <strong>Status AI:</strong>
+              <span id="ai-verified-status"></span>
+            </div>
+            <div id="ai-notes" style="margin-top: 8px; font-size: 13px; color: #374151;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Panel Asisten Verifikasi: dijawab backend /api/chat/ (LLM Gemini + cadangan aturan lokal) -->
+      <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; color: white;">
+        <h3 style="margin-bottom: 4px; font-size: 16px;">🤖 Asisten Verifikasi Dokumen</h3>
+        <p style="margin: 0 0 14px; font-size: 12.5px; opacity: .85;">
+          Menjawab dari basis pengetahuan SIPPER dan data pengajuan ini. Bila <code>GEMINI_API_KEY</code> terpasang, jawaban disusun LLM Google Gemini — pertanyaan, 12 giliran percakapan terakhir, dan ringkasan data pengajuan ini ikut dikirim ke Google. Tanpa kunci, atau saat Gemini gagal, asisten jatuh ke mesin aturan yang jalan lokal di server. Label sumber jawaban tertera di tiap pesan.
+        </p>
+        <div id="chat-messages" class="chat-log" role="log" aria-live="polite" aria-relevant="additions"
+             style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; height: 260px; overflow-y: auto; margin-bottom: 12px;"></div>
+        <div id="chat-suggestions" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;"></div>
+        <form id="chat-form" autocomplete="off" style="display: flex; gap: 8px;">
+          <label class="sr-only" for="chat-input">Tulis pertanyaan untuk asisten verifikasi</label>
+          <input type="text" id="chat-input" name="pesan" maxlength="{{ CHAT_MAX_PANJANG }}"
+                 placeholder="Tanyakan status, confidence, NIK, atau kelengkapan dokumen…"
+                 style="flex: 1; padding: 10px 14px; border: none; border-radius: 8px; background: rgba(255,255,255,0.9); color: #1f2937; font-size: 14px;">
+          <button type="submit" id="btn-send-chat"
+                  style="padding: 10px 20px; border: none; border-radius: 8px; background: #fbbf24; color: #1f2937; font-weight: 600; cursor: pointer;">Kirim</button>
+        </form>
+        <p id="chat-error" role="status" style="display: none; margin: 10px 0 0; font-size: 13px; color: #fee2e2;"></p>
+        {{ CHAT_SARAN_AWAL|json_script:"chat-saran-awal" }}
+      </div>
+    </section>
   </div>
+
+  <script>
+    // ID dokumen yang dipakai panel OCR & tombol proses ulang (KTP diutamakan).
+    const ocrDocumentId = {% if ocr_document %}{{ ocr_document.pk }}{% else %}null{% endif %};
+
+    // Load OCR results on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      if (ocrDocumentId) {
+        fetch('/api/ocr-result/' + ocrDocumentId + '/')
+          .then(response => response.json())
+          .then(data => {
+            displayOCRResults(data);
+          })
+          .catch(error => {
+            console.error('Error loading OCR:', error);
+            document.getElementById('ocr-status').textContent = 'Gagal memuat';
+          });
+      } else {
+        document.getElementById('ocr-status').textContent = 'Tidak ada dokumen';
+      }
+    });
+
+    function displayOCRResults(data) {
+      const panel = document.getElementById('ocr-panel');
+      const statusEl = document.getElementById('ocr-status');
+      
+      if (!data.ocr_text) {
+        statusEl.textContent = 'Belum diproses';
+        return;
+      }
+      
+      panel.style.display = 'block';
+      statusEl.textContent = 'Selesai';
+      
+      // Display OCR text
+      document.getElementById('ocr-text-container').textContent = data.ocr_text || 'Tidak ada teks';
+      document.getElementById('ocr-confidence').textContent = (data.ocr_confidence || 0).toFixed(1) + '%';
+      
+      // Data terstruktur dibangun lewat DOM + textContent. Isinya berasal dari
+      // hasil baca OCR atas berkas yang diunggah warga, jadi tidak boleh
+      // disisipkan sebagai HTML mentah (celah XSS tersimpan).
+      const extractedContainer = document.getElementById('extracted-data-container');
+      extractedContainer.textContent = '';
+      const entries = Object.entries(data.extracted_data || {});
+      if (entries.length > 0) {
+        const table = document.createElement('table');
+        table.setAttribute('style', 'width: 100%; font-size: 13px;');
+        const tbody = document.createElement('tbody');
+        entries.forEach(function ([key, value]) {
+          const row = document.createElement('tr');
+          const label = document.createElement('td');
+          label.setAttribute('style', 'padding: 4px 0; color: #6b7280; width: 40%;');
+          label.textContent = key.replace(/_/g, ' ').toUpperCase();
+          const isi = document.createElement('td');
+          isi.setAttribute('style', 'padding: 4px 0; font-weight: 500;');
+          isi.textContent = teksNilai(value);
+          row.append(label, isi);
+          tbody.append(row);
+        });
+        table.append(tbody);
+        extractedContainer.append(table);
+      } else {
+        extractedContainer.textContent = 'Tidak ada data terstruktur';
+      }
+
+      // Display AI verification status
+      const verifiedEl = document.getElementById('ai-verified-status');
+      verifiedEl.textContent = data.ai_verified ? '✓ Terverifikasi' : '✗ Belum diverifikasi';
+      verifiedEl.style.color = data.ai_verified ? '#059669' : '#dc2626';
+
+      document.getElementById('ai-notes').textContent = data.ai_verification_notes || '';
+    }
+
+    function teksNilai(value) {
+      if (value === null || value === undefined || value === '') return '-';
+      if (typeof value === 'object') return JSON.stringify(value);
+      return String(value);
+    }
+
+    // Reprocess OCR button
+    document.getElementById('btn-reprocess-ocr')?.addEventListener('click', function() {
+      if (!ocrDocumentId) return;
+      fetch('/api/trigger-ocr/' + ocrDocumentId + '/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': '{{ csrf_token }}'}
+      })
+      .then(response => response.json())
+      .then(data => {
+        alert(data.message);
+        setTimeout(() => location.reload(), 2000);
+      });
+    });
+
+    // ---- Asisten Verifikasi Dokumen ----
+    // Jawaban datang dari POST /api/chat/. Mesin utamanya LLM Gemini saat
+    // GEMINI_API_KEY terisi; kalau gagal atau kunci kosong, server otomatis
+    // jatuh ke mesin aturan lokal (core.chatbot). Klien hanya mengirim pesan
+    // + 12 giliran terakhir dan menampilkan label mesin dari field `versi`.
+    const chatForm = document.getElementById('chat-form');
+    const chatInput = document.getElementById('chat-input');
+    const chatLog = document.getElementById('chat-messages');
+    const chatSend = document.getElementById('btn-send-chat');
+    const chatError = document.getElementById('chat-error');
+    const chatSuggestions = document.getElementById('chat-suggestions');
+    const chatCsrf = '{{ csrf_token }}';
+    const pengajuanId = {{ item.pk }};
+    let chatMenunggu = null;
+    const riwayatChat = [];
+
+    function tambahPesan(pengirim, teks, milikSendiri) {
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble' + (milikSendiri ? ' own' : '');
+      const who = document.createElement('span');
+      who.className = 'chat-who';
+      who.textContent = pengirim;
+      const body = document.createElement('span');
+      body.className = 'chat-text';
+      // textContent, bukan innerHTML: pesan petugas dan jawaban server tidak
+      // pernah boleh ditafsirkan sebagai HTML.
+      body.textContent = teks;
+      bubble.append(who, body);
+      chatLog.append(bubble);
+      chatLog.scrollTop = chatLog.scrollHeight;
+      return bubble;
+    }
+
+    function gambarSaran(daftar) {
+      chatSuggestions.textContent = '';
+      (daftar || []).forEach(function (teks) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chat-chip';
+        chip.textContent = teks;
+        chip.addEventListener('click', function () { kirimPesan(teks); });
+        chatSuggestions.append(chip);
+      });
+    }
+
+    function setChatError(pesan) {
+      chatError.textContent = pesan || '';
+      chatError.style.display = pesan ? 'block' : 'none';
+    }
+
+    function mulaiMengetik() {
+      hentikanMengetik();
+      chatMenunggu = tambahPesan('Asisten', 'Sedang menyiapkan jawaban…', false);
+      chatMenunggu.querySelector('.chat-text').classList.add('chat-typing');
+    }
+
+    function hentikanMengetik() {
+      if (chatMenunggu) {
+        chatMenunggu.remove();
+        chatMenunggu = null;
+      }
+    }
+
+    function kunciForm(terkunci) {
+      chatSend.disabled = terkunci;
+      chatInput.disabled = terkunci;
+    }
+
+    async function kirimPesan(pesan) {
+      const teks = String(pesan !== undefined ? pesan : chatInput.value).trim();
+      if (!teks || chatSend.disabled) return;
+      setChatError('');
+      chatInput.value = '';
+      tambahPesan('Anda', teks, true);
+      gambarSaran([]);
+      kunciForm(true);
+      mulaiMengetik();
+      // Riwayat dikirim sebagai konteks giliran sebelumnya (maks 12 entri,
+      // divalidasi ulang di server). Pesan yang sedang dijawab tidak ikut.
+      const riwayat = riwayatChat.slice(-12);
+      try {
+        const respons = await fetch('/api/chat/', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json', 'X-CSRFToken': chatCsrf},
+          body: JSON.stringify({pesan: teks, pengajuan_id: pengajuanId, riwayat: riwayat}),
+        });
+        let data = null;
+        try {
+          data = await respons.json();
+        } catch (galat) {
+          data = null;
+        }
+        hentikanMengetik();
+        if (!respons.ok) {
+          const alasan = (data && (data.error || data.detail)) || ('HTTP ' + respons.status);
+          setChatError('Asisten tidak dapat menjawab: ' + alasan);
+          tambahPesan('Asisten', 'Maaf, permintaan gagal diproses (' + alasan + ').', false);
+        } else {
+          const jawaban = data.jawaban || '(jawaban kosong)';
+          tambahPesan(data.versi === 'gemini' ? 'Asisten · Gemini' : 'Asisten · aturan', jawaban, false);
+          riwayatChat.push({peran: 'user', isi: teks});
+          riwayatChat.push({peran: 'model', isi: jawaban});
+          gambarSaran(data.saran);
+        }
+      } catch (galat) {
+        hentikanMengetik();
+        console.error('Asisten verifikasi gagal dihubungi:', galat);
+        setChatError('Server tidak dapat dihubungi. Periksa koneksi lalu coba lagi.');
+        tambahPesan('Asisten', 'Tidak bisa menghubungi server. Coba beberapa saat lagi.', false);
+      } finally {
+        kunciForm(false);
+        chatInput.focus();
+      }
+    }
+
+    if (chatForm) {
+      chatForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        kirimPesan();
+      });
+      tambahPesan('Asisten', 'Halo! Saya asisten verifikasi dokumen SIPPER. Tanyakan ringkasan pengajuan ini, arti confidence score, NIK, atau kelengkapan dokumen.', false);
+      let saranAwal = [];
+      const sumberSaran = document.getElementById('chat-saran-awal');
+      if (sumberSaran) {
+        try {
+          saranAwal = JSON.parse(sumberSaran.textContent) || [];
+        } catch (galat) {
+          saranAwal = [];
+        }
+      }
+      gambarSaran(saranAwal);
+    }
+  </script>
 {% endblock %}

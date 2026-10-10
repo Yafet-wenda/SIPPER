@@ -45,7 +45,7 @@ tabel versinya di baris 246–248 yang paling perlu dikoreksi.
 
 ---
 
-## ✅ Fakta terkini — diverifikasi 6 Oktober 2026
+## ✅ Fakta terkini — diverifikasi 7 Oktober 2026
 
 Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 
@@ -56,13 +56,17 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Basis data | MariaDB 10.4 bawaan XAMPP, *port* 3306 | `sipper/__init__.py` (gerbang versi diturunkan lewat *shim*) |
 | Arsitektur aplikasi | satu aplikasi Django bernama `core` | `sipper/settings.py` (`INSTALLED_APPS`) |
 | Model | 7 model: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole` | `core/models.py` |
-| Pengujian | 38 pengujian, seluruhnya lulus | `DB_ENGINE=sqlite python manage.py test` |
+| Pengujian | 52 pengujian, seluruhnya lulus | `DB_ENGINE=sqlite python manage.py test` |
 | CI | 3 *job* — `cek-cepat` pada Python 3.13 dan 3.14 (SQLite) serta `paritas-mariadb` (MariaDB 10.11) | `.github/workflows/ci.yml` |
 | Gaya | CSS tulisan sendiri: `static/css/style.css` dan `static/css/admin.css` | `static/`, `templates/base.html` |
 | Huruf | Google Fonts — DM Sans dan Space Grotesk | `templates/base.html` |
-| JavaScript | `static/js/admin-dashboard.js` dan `static/js/html5-qrcode.min.js` | `static/js/` |
+| JavaScript | `static/js/admin-dashboard.js`, `static/js/file-label.js`, dan `static/js/html5-qrcode.min.js` | `static/js/` |
 | Selang penyegaran dasbor petugas | 5 detik (`REFRESH_MS = 5000`) | `static/js/admin-dashboard.js:13` |
-| Batas unggah | 5 MB; jenis berkas dibatasi pada PDF, JPEG, dan PNG | `core/views.py:509` (`MAX_UPLOAD_BYTES`) |
+| Batas unggah | 5 MB *per berkas*, dua slot wajib (KTP dan KK); jenis dibatasi PDF, JPEG, PNG. Gerbang *middleware* mengikuti jumlah slot (2 × 5 MB + 3 MB) | `core/views.py:567` (`MAX_UPLOAD_BYTES`) dan `core/middleware.py` (`HARD_LIMIT_BYTES`) |
+| Kunci rahasia | `DJANGO_SECRET_KEY` wajib diisi saat `DJANGO_DEBUG=0`; *server* gagal saat *start* daripada berjalan dengan kunci bawaan yang terlihat di repositori | `sipper/settings.py` |
+| Isian formulir | Atribut `autocomplete` (`username`, `current-password`, `new-password`, `name`, `email`, `tel`) dipasang pada formulir masuk, daftar, ganti sandi, dan reset sandi lewat `core/forms.py`, supaya pengelola sandi dapat mengisi otomatis | `core/forms.py`, `templates/login.html`, `templates/register_v2.html` |
+| Teks antarmuka | Tidak ada nama atau surel pengembang yang tertinggal di *placeholder*, contoh pengisian, atau teks bantuan; penjaga statis `test_no_maintainer_pii_in_public_strings` menolak regenerasi | `core/tests.py` |
+| Navigasi layar kecil | *Breakpoint* 900 px memindahkan tautan petugas ke baris kedua yang bisa digeser (bukan `display: none`), dengan garis gulir tipis di tabel lebar | `static/css/style.css` |
 | Visibilitas repositori | privat — proyek ini menyimpan data turunan KTP | pengaturan repositori GitHub |
 
 ---

@@ -40,5 +40,11 @@
     </div>
     <a class="button button-green" href="{% url 'core:download_card' card.kode %}">Download PDF</a>
     <button class="button button-green" type="button" onclick="window.print()">Cetak kartu</button>
+    {% if pengajuan_id %}
+      <!-- Tautan ini hanya dikirim ke template bila yang memindai petugas yang
+          sudah login (lihat core.views.validate_card). Halaman tujuannya sendiri
+          juga dikunci is_officer, jadi link yang bocor tidak membuka data. -->
+      <a class="button button-dark" href="{% url 'core:application_detail' pengajuan_id %}">Lihat data lengkap (petugas)</a>
+    {% endif %}
   </div>
 {% endblock %}

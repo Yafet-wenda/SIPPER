@@ -35,11 +35,11 @@
         {% for row in by_status %}
           <div style="padding:12px 0;border-bottom:1px solid #cad8d0">
             <div style="display:flex;justify-content:space-between;font-size:13px">
-              <span>{{ row.status|title }}</span>
+              <span>{{ row.label }}</span>
               <strong>{{ row.total }}</strong>
             </div>
             <div style="height:8px;background:#e7f1e9;margin-top:8px">
-              <div style="height:8px;background:#1f6b58;width:{{ row.total }}0%;max-width:100%"></div>
+              <div style="height:8px;background:#1f6b58;width:{% widthratio row.total status_maksimum 100 %}%;max-width:100%"></div>
             </div>
           </div>
         {% empty %}
@@ -58,7 +58,7 @@
               <strong>{{ row.total }}</strong>
             </div>
             <div style="height:8px;background:#e7f1e9;margin-top:8px">
-              <div style="height:8px;background:#b57924;width:{% widthratio row.total maximum 100 %}%"></div>}
+              <div style="height:8px;background:#b57924;width:{% widthratio row.total maximum 100 %}%"></div>
             </div>
           </div>
         {% empty %}

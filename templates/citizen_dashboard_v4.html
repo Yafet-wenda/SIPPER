@@ -37,7 +37,14 @@
         <div class="flash">
           Catatan petugas: {{ person.pengajuan.catatan|default:'Pengajuan dapat dikirim ulang.' }}
           <form method="post" enctype="multipart/form-data" action="{% url 'core:resubmit_application' person.pengajuan.pk %}" style="margin-top:15px">
-            <input type="file" name="document" accept=".pdf,.jpg,.jpeg,.png">
+            <label class="full">
+              Ganti foto KTP <small>kosongkan bila sudah benar</small>
+              <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png">
+            </label>
+            <label class="full">
+              Ganti foto Kartu Keluarga <small>kosongkan bila sudah benar</small>
+              <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png">
+            </label>
             <button class="button button-green" type="submit">Kirim ulang</button>
             {% csrf_token %}
           </form>
@@ -74,6 +81,7 @@
           <table>
             <thead>
               <tr>
+                <th>Jenis</th>
                 <th>Nama</th>
                 <th>Status</th>
                 <th>Ukuran</th>
@@ -83,6 +91,7 @@
             <tbody>
               {% for document in person.dokumen.all %}
                 <tr>
+                  <td><strong>{{ document.get_jenis_display }}</strong></td>
                   <td>{{ document.nama }}</td>
                   <td>
                     <span class="status status-{{ document.status }}">
@@ -96,7 +105,7 @@
                 </tr>
               {% empty %}
                 <tr>
-                  <td colspan="4" class="empty">Belum ada dokumen pendukung.</td>
+                  <td colspan="5" class="empty">Belum ada dokumen pendukung.</td>
                 </tr>
               {% endfor %}
             </tbody>

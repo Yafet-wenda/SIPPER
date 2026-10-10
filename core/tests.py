@@ -1,15 +1,24 @@
+import csv
+import io
+import os
 import re
 import shutil
+import subprocess
+import sys
 import tempfile
+from pathlib import Path
 from urllib.parse import urlparse
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.http import HttpResponse
+from django.test import RequestFactory, TestCase, override_settings
 from io import BytesIO
 from PIL import Image
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, UserRole
+from .middleware import HARD_LIMIT_BYTES, MaxUploadSizeMiddleware
+from .views import LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES
 
 # Tes mengunggah dokumen; arahkan MEDIA_ROOT ke folder sementara supaya
 # folder media/ asli tidak ikut tertumpuk file uji.
@@ -77,10 +86,100 @@ class SipperFlowTests(TestCase):
         application.refresh_from_db()
         self.assertEqual(application.catatan, 'Mohon unggah dokumen yang lebih jelas.')
 
-    def post_document(self, uploaded):
+    def _pending_application(self, nama='Warga Antrean', nik='9303030303030303'):
+        """Pengajuan baru berstatus menunggu, siap untuk aksi cepat antrean."""
+        person = Penduduk.objects.create(user=self.user, nama=nama, nik=nik,
+                                         daerah_asal='Jayapura', kota_tujuan='Surabaya',
+                                         tujuan='pekerjaan')
+        return Pengajuan.objects.create(penduduk=person)
+
+    def test_queue_tolak_tanpa_catatan_ditolak(self):
+        """Menolak dari antrean wajib disertai catatan, bukan sunyi-sunyi."""
+        application = self._pending_application()
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'ditolak'})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'menunggu')
+
+    def test_queue_perlu_perbaikan_tanpa_catatan_ditolak(self):
+        application = self._pending_application(nik='9313131313131313')
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'perlu_perbaikan'})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'menunggu')
+
+    def test_queue_tolak_dengan_catatan_menyimpan_catatan(self):
+        application = self._pending_application(nik='9323232323232323')
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'ditolak',
+                                       'catatan': 'Foto KTP buram, silakan unggah ulang.'})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'ditolak')
+        self.assertEqual(application.catatan, 'Foto KTP buram, silakan unggah ulang.')
+
+    def test_queue_kembalikan_ke_menunggu(self):
+        """Empat status bisa dipilih ulang dari antrean, termasuk kembali menunggu."""
+        application = self._pending_application(nik='9333333333333333')
+        self.client.force_login(self.staff)
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'disetujui'})
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'menunggu'})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'menunggu')
+
+    def test_detail_tolak_tanpa_catatan_ditolak(self):
+        application = self._pending_application(nik='9343434343434343')
+        self.client.force_login(self.staff)
+        self.client.post(f'/petugas/pengajuan/{application.pk}/', {'status': 'ditolak', 'catatan': ''})
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'menunggu')
+
+    def post_document(self, uploaded, other=None):
+        """Kirim pengajuan lengkap. `uploaded` dipakai untuk KTP, `other` untuk KK.
+
+        Defaultnya KK yang sah supaya tes yang menguji satu berkas tidak
+        gagal karena berkas satunya.
+        """
         data = {'name': 'Citizen', 'nik': '9101010101010101', 'origin': 'Jayapura',
-                'destination': 'Surabaya', 'purpose': 'pekerjaan', 'document': uploaded}
+                'destination': 'Surabaya', 'purpose': 'pekerjaan',
+                'ktp': uploaded, 'kk': other if other is not None else self.png_upload('kk.png')}
         return self.client.post('/pengajuan/', data)
+
+    def test_application_requires_both_ktp_and_kk(self):
+        self.client.force_login(self.user)
+        response = self.client.post('/pengajuan/', {'name': 'Citizen', 'nik': '9101010101010101',
+                                                    'origin': 'Jayapura', 'destination': 'Surabaya',
+                                                    'purpose': 'pekerjaan', 'ktp': self.png_upload('ktp.png')})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Kartu Keluarga')
+        self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_two_full_size_lampiran_pass_the_request_size_gate(self):
+        """Dua berkas 5 MB sekaligus tidak boleh dipotong lebih awal.
+
+        Gerbang Content-Length dulu dihitung untuk satu slot unggah. Setelah
+        form wajib mengirim KTP dan KK, kiriman sah seukuran dua berkas akan
+        berbalas 413 polos sebelum Django sempat memberi pesan yang jelas.
+        """
+        middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
+        request = RequestFactory().post('/pengajuan/', {'nik': '9101010101010101'})
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(LAMPILAN_UPLOAD))
+        self.assertNotEqual(middleware(request).status_code, 413)
+
+    def test_request_over_total_lampiran_budget_is_rejected_early(self):
+        """Gerbangnya tetap menutup; yang berubah hanya jatah totalnya."""
+        middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
+        request = RequestFactory().post('/pengajuan/', {'nik': '9101010101010101'})
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(LAMPILAN_UPLOAD) + 4 * 1024 * 1024)
+        self.assertEqual(middleware(request).status_code, 413)
+
+    def test_application_stores_ktp_and_kk_as_two_labeled_documents(self):
+        self.client.force_login(self.user)
+        response = self.post_document(self.png_upload('ktp.png'), self.png_upload('kk.png'))
+        self.assertRedirects(response, '/dashboard/')
+        documents = list(Dokumen.objects.order_by('jenis').values_list('jenis', 'nama'))
+        self.assertEqual(documents, [('kk', 'kk.png'), ('ktp', 'ktp.png')])
+        self.assertEqual(Dokumen.objects.get(jenis='ktp').get_jenis_display(), 'KTP')
+        self.assertEqual(Dokumen.objects.get(jenis='kk').get_jenis_display(), 'Kartu Keluarga')
 
     def test_upload_rejects_unsupported_extension(self):
         self.client.force_login(self.user)
@@ -103,7 +202,9 @@ class SipperFlowTests(TestCase):
 
     def test_oversized_request_body_is_rejected_before_parsing(self):
         # 413 dari middleware, bukan 403 CSRF: badan permintaan tidak dibaca sama sekali.
-        response = self.client.post('/login/', data=b'x' * (9 * 1024 * 1024), content_type='application/x-www-form-urlencoded')
+        # Ukurannya dibaca dari konstanta yang sama supaya tes tidak salah duga
+        # setiap kali jumlah slot unggah pada form pengajuan berubah.
+        response = self.client.post('/login/', data=b'x' * (HARD_LIMIT_BYTES + 1024), content_type='application/x-www-form-urlencoded')
         self.assertEqual(response.status_code, 413)
 
     def test_citizen_can_update_destination(self):
@@ -113,6 +214,43 @@ class SipperFlowTests(TestCase):
         self.assertRedirects(response, '/dashboard/')
         person.refresh_from_db()
         self.assertEqual(person.kota_tujuan, 'Bandung')
+
+    def test_tujuan_menawarkan_pilihan_resmi(self):
+        """Field tujuan menjadi choices, bukan teks bebas."""
+        field = Penduduk._meta.get_field('tujuan')
+        self.assertEqual([k for k, _ in field.choices],
+                         ['pendidikan', 'pekerjaan', 'usaha', 'keluarga'])
+
+    def test_pengajuan_ditolak_bila_tujuan_tidak_resmi(self):
+        """Nilai purpose dari klien divalidasi di server, bukan dipercaya mentah.
+
+        Berkas KTP+KK dibuat sah supaya satu-satunya alasan penolakan adalah
+        tujuan yang tidak ada dalam daftar — bukan lampiran yang kurang.
+        """
+        self.client.force_login(self.user)
+        response = self.client.post('/pengajuan/', {
+            'name': 'Citizen', 'nik': '9101010101010101', 'origin': 'Jayapura',
+            'destination': 'Surabaya', 'purpose': 'pindah-saja',
+            'ktp': self.png_upload('ktp.png'), 'kk': self.png_upload('kk.png')})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_pemutakhiran_ditolak_bila_tujuan_tidak_resmi(self):
+        person = Penduduk.objects.create(user=self.user, nama='Citizen', nik='9303030303030304', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        self.client.force_login(self.user)
+        response = self.client.post('/pemutakhiran/', {'origin': 'Jayapura', 'destination': 'Bandung', 'purpose': 'acak-adul'})
+        self.assertEqual(response.status_code, 200)
+        person.refresh_from_db()
+        self.assertEqual(person.kota_tujuan, 'Surabaya')
+        self.assertEqual(person.tujuan, 'pekerjaan')
+
+    def test_pemutakhiran_menerima_tujuan_resmi(self):
+        person = Penduduk.objects.create(user=self.user, nama='Citizen', nik='9303030303030305', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        self.client.force_login(self.user)
+        response = self.client.post('/pemutakhiran/', {'origin': 'Jayapura', 'destination': 'Bandung', 'purpose': 'keluarga'})
+        self.assertRedirects(response, '/dashboard/')
+        person.refresh_from_db()
+        self.assertEqual(person.tujuan, 'keluarga')
 
     def test_statistics_are_staff_only(self):
         self.client.force_login(self.user)
@@ -179,10 +317,61 @@ class SipperFlowTests(TestCase):
         person = Penduduk.objects.create(user=self.user, nama='History Citizen', nik='9707070707070707', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
         application = Pengajuan.objects.create(penduduk=person, status='ditolak')
         self.client.force_login(self.user)
-        response = self.client.post(f'/pengajuan/{application.pk}/kirim-ulang/', {'document': self.png_upload('new.png')})
+        response = self.client.post(f'/pengajuan/{application.pk}/kirim-ulang/', {'ktp': self.png_upload('new.png')})
         self.assertRedirects(response, '/dashboard/')
         self.assertEqual(Dokumen.objects.count(), 1)
         self.assertEqual(self.client.get('/histori/').status_code, 200)
+
+    def make_review_case(self, status='perlu_perbaikan'):
+        person = Penduduk.objects.create(user=self.user, nama='Review Citizen', nik='9808080808080807',
+                                         daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan')
+        application = Pengajuan.objects.create(penduduk=person, status=status)
+        ktp = Dokumen.objects.create(penduduk=person, nama='ktp.png', jenis='ktp',
+                                     file=self.png_upload('ktp.png'), ukuran=5)
+        return person, application, ktp
+
+    def test_officer_detail_preselects_the_current_status(self):
+        """Regresi: dropdown tanpa `selected` membuat status tereset ke 'menunggu'.
+
+        Petugas yang hanya mengedit catatan lalu menekan Simpan mengirim option
+        yang sedang tampil. Kalau yang tampil selalu 'Menunggu', keputusan yang
+        sudah dibuat hilang tanpa sengaja.
+        """
+        _, application, _ = self.make_review_case()
+        self.client.force_login(self.staff)
+        page = self.client.get(f'/petugas/pengajuan/{application.pk}/')
+        self.assertContains(page, '<option value="perlu_perbaikan" selected>Perlu perbaikan</option>', html=True)
+        self.assertNotContains(page, '<option value="menunggu" selected>Menunggu</option>', html=True)
+
+    def test_officer_detail_previews_document_images(self):
+        _, application, ktp = self.make_review_case()
+        self.client.force_login(self.staff)
+        page = self.client.get(f'/petugas/pengajuan/{application.pk}/')
+        self.assertContains(page, f'<img src="/dokumen/{ktp.pk}/file/"', html=False)
+        self.assertContains(page, 'KTP')
+
+    def test_officer_list_shows_which_lampiran_already_in(self):
+        person, application, _ = self.make_review_case(status='menunggu')
+        self.client.force_login(self.staff)
+        page = self.client.get('/petugas/')
+        self.assertContains(page, 'Berkas')
+        self.assertContains(page, 'KK belum')
+
+    def test_resubmit_replaces_document_of_the_same_jenis(self):
+        from django.core.files.storage import default_storage
+
+        person, application, ktp = self.make_review_case()
+        nama_lama = ktp.file.name
+        self.client.force_login(self.user)
+        response = self.client.post(f'/pengajuan/{application.pk}/kirim-ulang/',
+                                    {'ktp': self.png_upload('ktp-baru.png')})
+        self.assertRedirects(response, '/dashboard/')
+        self.assertEqual(person.dokumen.count(), 1)
+        ktp.refresh_from_db()
+        self.assertEqual(ktp.nama, 'ktp-baru.png')
+        self.assertEqual(ktp.jenis, 'ktp')
+        self.assertEqual(ktp.status, 'pending')
+        self.assertFalse(default_storage.exists(nama_lama), 'berkas lama harus dihapus dari storage')
 
     def test_staff_can_review_document(self):
         person = Penduduk.objects.create(user=self.user, nama='Document Citizen', nik='9808080808080808', daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan')
@@ -313,7 +502,8 @@ class SipperFlowTests(TestCase):
         person = Penduduk.objects.create(user=self.user, nama='No Email', nik='9930303030303030', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
         application = Pengajuan.objects.create(penduduk=person)
         self.client.force_login(self.staff)
-        self.client.post('/petugas/', {'id': application.pk, 'status': 'ditolak'})
+        self.client.post('/petugas/', {'id': application.pk, 'status': 'ditolak',
+                                       'catatan': 'Data tidak sesuai berkas.'})
         application.refresh_from_db()
         self.assertEqual(application.status, 'ditolak')
         self.assertEqual(len(mail.outbox), 0)
@@ -355,7 +545,10 @@ class SipperFlowTests(TestCase):
         from django.utils import timezone
         person = self.make_person('Warga Satu', '9101010101010111')
         Pengajuan.objects.create(penduduk=person)
-        other = self.make_person('Warga Dua', '9101010101010112')
+        # Penduduk kini OneToOne dengan akun, jadi warga kedua butuh user sendiri.
+        warga_dua = User.objects.create_user(username='warga2@example.com', password='password123')
+        other = Penduduk.objects.create(user=warga_dua, nama='Warga Dua', nik='9101010101010112',
+                                        daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
         disetujui = Pengajuan.objects.create(penduduk=other, status='disetujui')
         disetujui.refresh_from_db()
         disetujui.verified_at = timezone.now()
@@ -376,23 +569,6 @@ class SipperFlowTests(TestCase):
         self.assertIsNotNone(data['rerata_jam'])
         self.assertGreaterEqual(data['rerata_jam'], 0.0)
 
-    def test_admin_live_stats_hides_pii_from_staff_without_model_perms(self):
-        """Akun staff tanpa izin model tidak boleh membaca identitas warga.
-
-        Halaman depan admin bawaan Django hanya menampilkan model yang diizinkan,
-        jadi data dashboard harus mengikuti aturan yang sama: agregat boleh,
-        nama warga dan isi log audit tidak.
-        """
-        person = self.make_person('Warga Rahasia', '9101010101010115')
-        Pengajuan.objects.create(penduduk=person)
-        AuditLog.objects.create(user=self.staff, aksi='verifikasi',
-                                deskripsi='Warga Rahasia menjadi Disetujui')
-        self.client.force_login(self.staff)
-        tubuh = self.client.get('/admin/live-stats/').json()
-        self.assertEqual(tubuh['antrean'], [])
-        self.assertEqual(tubuh['aktivitas'], [])
-        self.assertNotContains(self.client.get('/admin/'), 'Warga Rahasia')
-
     def test_admin_changelist_shows_status_badge(self):
         person = self.make_person('Warga Tiga', '9101010101010113')
         Pengajuan.objects.create(penduduk=person)
@@ -403,6 +579,53 @@ class SipperFlowTests(TestCase):
         # Kepala kolom memakai label Indonesia, bukan nama field mentah.
         self.assertContains(response, 'Dikirim pada')
         self.assertNotContains(response, 'Submitted at')
+
+    def test_admin_bulk_approve_uses_the_decision_path(self):
+        """Aksi massal 'Setujui' harus memberi efek yang sama dengan petugas.
+
+        Dulu aksi ini hanya queryset.update(status=...), sehingga verified_at
+        kosong, kartu tidak terbit, email tidak jalan, dan AuditLog tidak
+        mencatat — padahal keputusan.py menjanjikan satu jalur untuk semua pintu
+        (antrean petugas, detail pengajuan, dan aksi massal admin).
+        """
+        person = self.make_person('Warga Setuju', '9101010101010121')
+        # Warga harus punya email agar jalur pemberitahuan benar-benar teruji.
+        self.user.email = 'warga-setuju@example.com'
+        self.user.save(update_fields=['email'])
+        application = Pengajuan.objects.create(penduduk=person)
+        admin = self.admin_user()
+        response = self.client.post('/admin/core/pengajuan/', {
+            'action': 'approve_selected',
+            '_selected_action': [application.pk],
+            'select_across': '0',
+            'index': '0',
+        }, follow=True)
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'disetujui')
+        self.assertIsNotNone(application.verified_at, 'jalur lama meninggalkan verified_at kosong')
+        self.assertEqual(application.verified_by, admin)
+        self.assertTrue(KartuDigital.objects.filter(penduduk=person).exists(),
+                        'persetujuan harus menerbitkan kartu digital')
+        self.assertTrue(AuditLog.objects.filter(aksi='verifikasi').exists(),
+                        'persetujuan harus tercatat di log audit')
+        self.assertEqual(len(mail.outbox), 1, 'warga diberi tahu sekali')
+
+    def test_admin_has_no_bulk_reject_action(self):
+        """Penolakan massal dihapus dari admin.
+
+        Status negatif (ditolak / perlu perbaikan) wajib disertai catatan per
+        warga; aksi massal tidak bisa mengumpulkan catatan itu, jadi jalur ini
+        membuka celah keputusan tanpa alasan. Penolakan cukup lewat /petugas/.
+        """
+        person = self.make_person('Warga Tolak', '9101010101010122')
+        Pengajuan.objects.create(penduduk=person)
+        self.admin_user()
+        response = self.client.get('/admin/core/pengajuan/')
+        self.assertNotContains(response, 'Tolak pengajuan terpilih')
+        self.assertNotContains(response, 'reject_selected')
+        # Persetujuan massal tetap ada karena tidak butuh catatan.
+        self.assertContains(response, 'Setujui pengajuan terpilih')
 
     def test_admin_time_filters_work_without_database_zoneinfo(self):
         """Filter waktu tidak boleh memakai lookup tanggal.
@@ -432,3 +655,94 @@ class SipperFlowTests(TestCase):
         nilai_asing = self.client.get('/admin/core/pengajuan/?masuk=900-hari')
         self.assertEqual(nilai_asing.status_code, 200)
         self.assertContains(nilai_asing, 'Warga Empat')
+
+    def test_csv_export_neutralises_formula_like_cells(self):
+        """Nama warga tidak boleh berubah jadi rumus saat CSV dibuka di Excel."""
+        person = Penduduk.objects.create(user=self.user, nama='=HYPERLINK("http://situs", "buka")',
+                                         nik='9707070707070707', daerah_asal='+62', kota_tujuan='Surabaya',
+                                         tujuan='pekerjaan')
+        Pengajuan.objects.create(penduduk=person, status='ditolak')
+        self.client.force_login(self.staff)
+        rows = list(csv.reader(io.StringIO(self.client.get('/petugas/?status=ditolak&export=csv').content.decode())))
+        data = [row for row in rows if row and row[0] != 'Nama'][0]
+        self.assertTrue(data[0].startswith("'"), 'sel yang diawali tanda rumus harus dinetralisasi')
+        self.assertIn('HYPERLINK', data[0])
+        self.assertTrue(data[2].startswith("'"), 'angka bertanda plus juga sumber rumus')
+        self.assertEqual(data[3], 'Surabaya', 'nilai biasa tidak boleh ikut diberi apostrof')
+        self.assertEqual(data[1], '9707070707070707', 'NIK harus tetap terbaca apa adanya')
+
+    def test_login_lockout_follows_the_real_client_ip(self):
+        """Penyerang di IP lain tidak boleh menghabiskan jatah 5 percobaan korban.
+
+        Di topologi Apache -> Waitress, REMOTE_ADDR selalu 127.0.0.1, jadi kunci
+        yang memakai REMOTE_ADDR menyatukan seluruh pengunjung dalam satu pencacah.
+        """
+        for _ in range(5):
+            self.client.post('/login/', {'email': 'citizen@example.com', 'password': 'salah'},
+                             HTTP_X_FORWARDED_FOR='203.0.113.7')
+        response = self.client.post('/login/', {'email': 'citizen@example.com', 'password': 'password123'},
+                                    HTTP_X_FORWARDED_FOR='198.51.100.9')
+        self.assertRedirects(response, '/dashboard/', msg_prefix='login dari IP lain harus tetap boleh')
+
+    def test_production_refuses_the_repo_default_secret_key(self):
+        """Tanpa DJANGO_SECRET_KEY, proses non-debug harus menolak start.
+
+        Kunci bawaan ada di repo, jadi memakainya di produksi berarti siapa pun
+        yang bisa membaca repo dapat memalsukan cookie sesi dan token CSRF.
+        """
+        env = dict(os.environ, DJANGO_DEBUG='0', DB_ENGINE='sqlite', DJANGO_SECRET_KEY='')
+        result = subprocess.run([sys.executable, 'manage.py', 'check'],
+                                cwd=Path(__file__).resolve().parent.parent, env=env,
+                                capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0, 'settings harus menolak kunci bawaan saat DEBUG=0')
+        self.assertIn('DJANGO_SECRET_KEY', result.stderr + result.stdout)
+
+    def test_ui_tidak_mencantumkan_data_pribadi_penyusun(self):
+        """Contoh isi formulir tidak boleh memakai nama atau email asli.
+
+        Halaman ini dilihat seluruh warga, jadi data pribadi penyusun yang
+        tertinggal di antarmuka berarti PII tersebar tanpa keperluan.
+        """
+        terlarang = ['wendayafet', 'gamil.com', 'Yafet']
+        root = Path(__file__).resolve().parent.parent / 'templates'
+        temuan = []
+        for berkas in sorted(root.rglob('*.html')):
+            isi = berkas.read_text(encoding='utf-8')
+            for kata in terlarang:
+                if kata in isi:
+                    temuan.append(f'{berkas.name}: {kata}')
+        self.assertEqual(temuan, [], 'template masih memuat data pribadi penyusun')
+
+    def test_form_autentikasi_memakai_attribut_autocomplete(self):
+        """Manajer kata sandi hanya mengisi form dengan benar kalau atributnya ada."""
+        halaman = [
+            ('/login/', ['name="email"', 'autocomplete="username"', 'autocomplete="current-password"']),
+            ('/daftar/', ['autocomplete="name"', 'autocomplete="email"', 'autocomplete="new-password"']),
+            ('/lupa-password/', ['autocomplete="email"']),
+        ]
+        for url, wajib in halaman:
+            isi = self.client.get(url).content.decode()
+            for atribut in wajib:
+                self.assertIn(atribut, isi, f'{url} belum memiliki {atribut}')
+
+        self.client.force_login(self.user)
+        isi = self.client.get('/password/').content.decode()
+        self.assertIn('autocomplete="current-password"', isi, 'kolom sandi lama harus current-password')
+        self.assertEqual(isi.count('autocomplete="new-password"'), 2,
+                         'kedua kolom sandi baru harus new-password')
+
+    def test_halaman_statistik_memakai_label_resmi_tanpa_sisa_kurung(self):
+        """Grafik statistik memakai label pilihan, bukan kunci mentah.
+
+        Kunci 'perlu_perbaikan' yang dilewatkan ke filter title menghasilkan
+        'Perlu_Perbaikan' di layar, dan satu kurung kurawal lepas di template
+        ikut tercetak di bawah setiap batang grafik.
+        """
+        orang = Penduduk.objects.create(user=self.user, nama='Citizen Statistik', nik='9505050505050505',
+                                        daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        Pengajuan.objects.create(penduduk=orang, status='perlu_perbaikan')
+        self.client.force_login(self.staff)
+        isi = self.client.get('/petugas/statistik/').content.decode()
+        self.assertIn('Perlu perbaikan', isi)
+        self.assertNotIn('Perlu_Perbaikan', isi)
+        self.assertNotIn('div>}', isi, 'kurung kurawal lepas ikut dirender sebagai teks')

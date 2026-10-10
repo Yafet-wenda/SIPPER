@@ -19,15 +19,15 @@
       {% csrf_token %}
       <label>
         Nama lengkap
-        <input name="name" required placeholder="Contoh: Yafet">
+        <input name="name" required autocomplete="name" placeholder="Contoh: Nama Lengkap">
       </label>
       <label>
         Email aktif
-        <input type="email" name="email" required placeholder="wendayafet@gamil.com">
+        <input type="email" name="email" required autocomplete="email" placeholder="nama@email.com">
       </label>
       <label>
         Password
-        <input type="password" name="password" minlength="8" required placeholder="Minimal 8 karakter">
+        <input type="password" name="password" minlength="8" required autocomplete="new-password" placeholder="Minimal 8 karakter">
       </label>
       <button class="button button-dark" type="submit">
         Lanjutkan pendataan <span>→</span>
