@@ -1,6 +1,9 @@
 import csv
+import os
+import threading
 from datetime import timedelta
 
+from django import forms
 from django.contrib import admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
@@ -334,8 +337,22 @@ class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
         return format_html('<span class="sip-status sip-status--{}">{}</span>', obj.status, obj.get_status_display())
 
 
+class DokumenAdminForm(forms.ModelForm):
+    """Form admin Dokumen: nama berkas boleh kosong, diturunkan otomatis dari file."""
+
+    class Meta:
+        model = Dokumen
+        fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Admin boleh mengosongkan nama; save_model menurunkannya dari nama berkas.
+        self.fields['nama'].required = False
+
+
 @admin.register(Dokumen, site=sipper_admin)
 class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
+    form = DokumenAdminForm
     list_display = ('nama', 'penduduk', 'jenis', 'status', 'ukuran', 'uploaded_at', 'file_link')
     list_filter = ('status', 'jenis', DokumenMasukFilter)
     search_fields = ('nama', 'penduduk__nama', 'penduduk__nik')
@@ -343,6 +360,11 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
     actions = (mark_documents_valid,)
     readonly_fields = ('uploaded_at', 'ukuran', 'file_link')
     list_select_related = ('penduduk',)
+    # Keluaran mesin (core/ocr_processor.py): hanya dibaca, tidak diketik tangan.
+    FIELD_MESIN = (
+        'ocr_text', 'ocr_confidence', 'extracted_nik', 'extracted_data',
+        'ai_verified', 'ai_verification_notes', 'ocr_processed_at',
+    )
     csv_columns = (
         ('Nama', 'nama'),
         ('Warga', lambda o: o.penduduk.nama),
@@ -360,6 +382,55 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
             '<a href="{}" target="_blank" rel="noopener">Buka</a>',
             reverse('core:document_file', args=[obj.pk]),
         )
+
+    def get_fieldsets(self, request, obj=None):
+        """Form tambah hanya berisi field manusia; keluaran mesin muncul saat ubah."""
+        if obj is None:
+            return ((None, {
+                'fields': ('penduduk', 'nama', 'jenis', 'file', 'status'),
+                'description': (
+                    'Jalur manual untuk input berkas fisik atau koreksi. Berkas hasil '
+                    'pendaftaran warga sudah masuk otomatis — cek di daftar Dokumen. '
+                    'Nama berkas boleh dikosongkan; akan diambil dari nama file. '
+                    'Dokumen KTP/KK baru akan diproses OCR secara otomatis setelah disimpan.'
+                ),
+            }),)
+        identitas = (None, {'fields': ('penduduk', 'nama', 'jenis', 'file', 'status')})
+        return (
+            identitas,
+            ('Hasil OCR & verifikasi AI (diisi otomatis)', {
+                'classes': ('collapse',),
+                'fields': self.FIELD_MESIN,
+            }),
+            ('Metadata berkas', {'fields': ('uploaded_at', 'ukuran', 'file_link')}),
+        )
+
+    def get_readonly_fields(self, request, obj=None):
+        readonly = list(super().get_readonly_fields(request, obj))
+        if obj is not None:
+            readonly += list(self.FIELD_MESIN)
+        return readonly
+
+    def save_model(self, request, obj, form, change):
+        """Menyamakan jalur admin dengan jalur unggah warga.
+
+        Ukuran dihitung dari berkas dan nama berkas diturunkan otomatis bila kosong.
+        Dokumen KTP/KK baru memicu OCR di latar belakang, persis seperti core/views.py.
+        """
+        berkas_baru = obj.file and (not change or 'file' in form.changed_data)
+        if berkas_baru:
+            try:
+                obj.ukuran = obj.file.size
+            except (OSError, ValueError):
+                pass
+        if not obj.nama and obj.file:
+            obj.nama = os.path.basename(obj.file.name)[:100]
+        super().save_model(request, obj, form, change)
+        if not change and obj.jenis in ('ktp', 'kk') and obj.file:
+            from .views import _trigger_ocr_async
+            threading.Thread(
+                target=_trigger_ocr_async, args=(obj.pk,), daemon=True,
+            ).start()
 
 
 @admin.register(KartuDigital, site=sipper_admin)

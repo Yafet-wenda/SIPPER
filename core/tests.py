@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from unittest import mock
 from urllib.parse import urlparse
 from django.contrib.auth.models import User
 from django.core import mail
@@ -816,3 +817,141 @@ class AdminExportCSVTests(TestCase):
         isi = self.rows(response)
         self.assertEqual(len(isi), 1, 'filter tak cocok harus menghasilkan CSV tanpa baris data')
         self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
+
+
+class _SyncThread:
+    """Tiruan threading.Thread yang langsung menjalankan target agar tes deterministik."""
+
+    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
+        self._target, self._args, self._kwargs = target, args, kwargs or {}
+
+    def start(self):
+        if self._target is not None:
+            self._target(*self._args, **self._kwargs)
+
+
+class AdminDokumenFormTests(TestCase):
+    """Form admin Dokumen hanya menampilkan field yang perlu diisi manusia.
+
+    Field hasil OCR/AI adalah keluaran mesin (core/ocr_processor.py), jadi tidak
+    boleh diketik tangan: disembunyikan dari form tambah dan read-only di form
+    ubah. Ukuran berkas ikut dihitung otomatis saat admin menyimpan.
+    """
+
+    LABEL_MESIN = (
+        'Teks hasil OCR', 'Confidence OCR', 'NIK dari OCR',
+        'Data terstruktur dari OCR', 'Diverifikasi AI',
+        'Catatan verifikasi AI', 'Diproses OCR pada',
+    )
+
+    def setUp(self):
+        cache.clear()
+        self.superuser = User.objects.create_superuser(
+            username='boss2@example.com', email='boss2@example.com', password='password123')
+        warga_user = User.objects.create_user(
+            username='warga2@example.com', password='password123')
+        self.warga = Penduduk.objects.create(
+            user=warga_user, nama='Budi Santoso', nik='9202020202020202',
+            daerah_asal='Sentani', kota_tujuan='Surabaya', tujuan='pekerjaan')
+
+    def test_add_form_hides_machine_fields(self):
+        self.client.force_login(self.superuser)
+        isi = self.client.get('/admin/core/dokumen/add/').content.decode()
+        self.assertIn('Jenis dokumen', isi, 'field identitas tetap tersedia')
+        for label in self.LABEL_MESIN:
+            self.assertNotIn(label, isi, f'{label} tidak boleh muncul di form tambah')
+
+    def test_change_form_shows_machine_fields_readonly(self):
+        doc = Dokumen.objects.create(
+            penduduk=self.warga, nama='ktp-lama.png', jenis='ktp', status='valid',
+            file='dokumen/2026/01/ktp-lama.png', ocr_text='HASIL MESIN',
+            ocr_confidence=88.0, extracted_nik='9202020202020202')
+        self.client.force_login(self.superuser)
+        isi = self.client.get(f'/admin/core/dokumen/{doc.pk}/change/').content.decode()
+        self.assertIn('Teks hasil OCR', isi, 'field mesin tampil (hanya-baca) saat mengedit')
+        self.assertNotIn('name="ocr_text"', isi, 'field mesin tidak boleh berupa input')
+        self.assertNotIn('name="extracted_data"', isi)
+
+    def test_admin_save_fills_ukuran_from_file(self):
+        self.client.force_login(self.superuser)
+        isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 1234
+        response = self.client.post('/admin/core/dokumen/add/', {
+            'penduduk': self.warga.pk, 'nama': 'scan.png', 'jenis': 'ktp',
+            'status': 'pending', 'file': SimpleUploadedFile('scan.png', isi_file,
+                                                             content_type='image/png'),
+        })
+        self.assertEqual(response.status_code, 302, 'form harus menerima data')
+        doc = Dokumen.objects.get(nama='scan.png')
+        self.assertEqual(doc.ukuran, len(isi_file), 'ukuran dihitung dari berkas unggahan')
+        doc.file.delete(save=False)
+
+    def test_add_form_shows_manual_path_description(self):
+        """Form tambah menjelaskan bahwa ini jalur manual, bukan satu-satunya sumber berkas."""
+        self.client.force_login(self.superuser)
+        isi = self.client.get('/admin/core/dokumen/add/').content.decode()
+        self.assertIn('Jalur manual', isi, 'form tambah harus memberi konteks jalur manual')
+
+    def test_admin_save_derives_nama_from_file_when_blank(self):
+        """Nama berkas diturunkan otomatis dari nama file bila dibiarkan kosong."""
+        self.client.force_login(self.superuser)
+        isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 600
+        response = self.client.post('/admin/core/dokumen/add/', {
+            'penduduk': self.warga.pk, 'nama': '', 'jenis': 'ktp',
+            'status': 'pending',
+            'file': SimpleUploadedFile('ktp-budi.png', isi_file, content_type='image/png'),
+        })
+        self.assertEqual(response.status_code, 302, 'nama kosong harus tetap diterima')
+        doc = Dokumen.objects.get(penduduk=self.warga)
+        self.assertEqual(doc.nama, 'ktp-budi.png', 'nama diturunkan dari nama berkas')
+        doc.file.delete(save=False)
+
+    def test_admin_save_triggers_ocr_for_new_ktp(self):
+        """Simpan KTP baru dari admin memicu OCR, sama seperti jalur warga."""
+        self.client.force_login(self.superuser)
+        isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 600
+        with mock.patch('core.views._trigger_ocr_async') as ocr, \
+                mock.patch('core.admin_site.threading.Thread', _SyncThread):
+            response = self.client.post('/admin/core/dokumen/add/', {
+                'penduduk': self.warga.pk, 'nama': 'ktp-ocr.png', 'jenis': 'ktp',
+                'status': 'pending',
+                'file': SimpleUploadedFile('ktp-ocr.png', isi_file, content_type='image/png'),
+            })
+        self.assertEqual(response.status_code, 302)
+        doc = Dokumen.objects.get(nama='ktp-ocr.png')
+        ocr.assert_called_once_with(doc.pk)
+        doc.file.delete(save=False)
+
+    def test_admin_edit_does_not_trigger_ocr(self):
+        """Mengubah dokumen yang sudah ada tidak memicu ulang OCR."""
+        doc = Dokumen.objects.create(
+            penduduk=self.warga, nama='ktp-sudah.png', jenis='ktp', status='pending',
+            file='dokumen/2026/01/ktp-sudah.png')
+        self.client.force_login(self.superuser)
+        isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 300
+        with mock.patch('core.views._trigger_ocr_async') as ocr, \
+                mock.patch('core.admin_site.threading.Thread', _SyncThread):
+            response = self.client.post(f'/admin/core/dokumen/{doc.pk}/change/', {
+                'penduduk': self.warga.pk, 'nama': 'ktp-diedit.png', 'jenis': 'ktp',
+                'status': 'valid', '_save': 'Simpan',
+                'file': SimpleUploadedFile('ktp-diedit.png', isi_file, content_type='image/png'),
+            })
+        self.assertEqual(response.status_code, 302)
+        doc.refresh_from_db()
+        self.assertEqual(doc.nama, 'ktp-diedit.png')
+        ocr.assert_not_called()
+        doc.file.delete(save=False)
+
+    def test_admin_edit_blank_nama_uses_existing_file(self):
+        """Edit yang mengosongkan nama (tanpa berkas baru) memakai nama berkas tersimpan."""
+        doc = Dokumen.objects.create(
+            penduduk=self.warga, nama='kk-warga.png', jenis='kk', status='pending',
+            file='dokumen/2026/01/kk-warga.png')
+        self.client.force_login(self.superuser)
+        response = self.client.post(f'/admin/core/dokumen/{doc.pk}/change/', {
+            'penduduk': self.warga.pk, 'nama': '', 'jenis': 'kk', 'status': 'valid',
+            '_save': 'Simpan',
+        })
+        self.assertEqual(response.status_code, 302, 'kosongkan nama harus tetap tersimpan')
+        doc.refresh_from_db()
+        self.assertEqual(doc.nama, 'kk-warga.png', 'nama diturunkan dari berkas yang ada')
+        doc.file.delete(save=False)
