@@ -941,6 +941,72 @@ class AdminDokumenFormTests(TestCase):
         ocr.assert_not_called()
         doc.file.delete(save=False)
 
+
+class PengajuanAdminKeputusanTests(TestCase):
+    """Halaman 'Ubah pengajuan' admin harus memberi efek yang sama dengan /petugas/.
+
+    Mengubah status di sini wajib mengisi Diverifikasi oleh/pada, menulis Log
+    Audit, dan menerbitkan kartu saat disetujui (semua lewat terapkan_status).
+    Mengoreksi catatan tanpa ganti status tidak boleh memicu efek-efek itu.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.superuser = User.objects.create_superuser(
+            username='boss3@example.com', email='boss3@example.com', password='password123')
+        warga_user = User.objects.create_user(
+            username='warga3@example.com', email='warga3@example.com', password='password123')
+        self.warga = Penduduk.objects.create(
+            user=warga_user, nama='Budi Santoso', nik='9202020202020303',
+            daerah_asal='Sentani', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        self.pengajuan = Pengajuan.objects.create(
+            penduduk=self.warga, status='menunggu')
+
+    def _post(self, status, catatan=''):
+        return self.client.post(
+            f'/admin/core/pengajuan/{self.pengajuan.pk}/change/',
+            {'penduduk': self.warga.pk, 'status': status, 'catatan': catatan, '_save': 'Simpan'})
+
+    def test_field_verifikasi_hanya_baca(self):
+        self.client.force_login(self.superuser)
+        isi = self.client.get(f'/admin/core/pengajuan/{self.pengajuan.pk}/change/').content.decode()
+        self.assertNotIn('name="verified_by"', isi, 'verified_by diisi otomatis, bukan diketik')
+        self.assertNotIn('name="verified_at"', isi, 'verified_at diisi otomatis, bukan diketik')
+
+    def test_ganti_status_mengisi_verifikasi_dan_audit(self):
+        self.client.force_login(self.superuser)
+        with mock.patch('core.keputusan.notify_status', return_value=(False, 'test')):
+            response = self._post('ditolak', catatan='dokumen kurang jelas')
+        self.assertEqual(response.status_code, 302)
+        self.pengajuan.refresh_from_db()
+        self.assertEqual(self.pengajuan.status, 'ditolak')
+        self.assertEqual(self.pengajuan.verified_by, self.superuser)
+        self.assertIsNotNone(self.pengajuan.verified_at)
+        self.assertTrue(
+            AuditLog.objects.filter(aksi='verifikasi', deskripsi__contains='lewat admin').exists(),
+            'keputusan admin harus tercatat di Log Audit')
+
+    def test_disetujui_menerbitkan_kartu(self):
+        self.client.force_login(self.superuser)
+        with mock.patch('core.keputusan.notify_status', return_value=(False, 'test')):
+            response = self._post('disetujui', catatan='lengkap')
+        self.assertEqual(response.status_code, 302)
+        self.pengajuan.refresh_from_db()
+        self.assertEqual(self.pengajuan.status, 'disetujui')
+        self.assertTrue(KartuDigital.objects.filter(penduduk=self.warga).exists(),
+                        'status disetujui harus menerbitkan kartu digital')
+
+    def test_koreksi_catatan_tanpa_ganti_status_tanpa_efek(self):
+        self.client.force_login(self.superuser)
+        sebelum = AuditLog.objects.count()
+        response = self._post('menunggu', catatan='sedang ditinjau')
+        self.assertEqual(response.status_code, 302)
+        self.pengajuan.refresh_from_db()
+        self.assertEqual(self.pengajuan.catatan, 'sedang ditinjau')
+        self.assertIsNone(self.pengajuan.verified_by, 'tanpa perubahan status, verifikasi tidak diisi')
+        self.assertEqual(AuditLog.objects.count(), sebelum, 'tidak ada log verifikasi baru')
+
+
     def test_admin_edit_blank_nama_uses_existing_file(self):
         """Edit yang mengosongkan nama (tanpa berkas baru) memakai nama berkas tersimpan."""
         doc = Dokumen.objects.create(

@@ -317,12 +317,13 @@ class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
     list_display = ('penduduk', 'status_badge', 'submitted_at', 'verified_by', 'verified_at')
     list_filter = ('status', 'penduduk__kota_tujuan', PengajuanMasukFilter)
     search_fields = ('penduduk__nama', 'penduduk__nik', 'catatan')
-    autocomplete_fields = ('penduduk', 'verified_by')
+    autocomplete_fields = ('penduduk',)
     list_per_page = 25
     # Hanya 'Setujui' yang massal: status negatif butuh catatan per warga, dan
     # aksi massal tak bisa mengumpulkannya — penolakan cukup di /petugas/.
     actions = (approve_selected,)
-    readonly_fields = ('submitted_at',)
+    # Diverifikasi oleh/pada diisi otomatis oleh terapkan_status, bukan diketik tangan.
+    readonly_fields = ('submitted_at', 'verified_by', 'verified_at')
     list_select_related = ('penduduk', 'verified_by')
     csv_columns = (
         ('Warga', lambda o: o.penduduk.nama),
@@ -335,6 +336,21 @@ class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
     @admin.display(description='Status', ordering='status', boolean=False)
     def status_badge(self, obj):
         return format_html('<span class="sip-status sip-status--{}">{}</span>', obj.status, obj.get_status_display())
+
+    def save_model(self, request, obj, form, change):
+        """Keputusan status dari halaman ini memakai jalur resmi yang sama dengan /petugas/.
+
+        Hanya status yang benar-benar berubah yang memicu verifikasi otomatis,
+        Log Audit, penerbitan kartu, dan email (semua di dalam terapkan_status).
+        Koreksi catatan/warga tanpa ganti status disimpan apa adanya.
+        """
+        status_baru = obj.status
+        status_lama = form.initial.get('status') if change else 'menunggu'
+        super().save_model(request, obj, form, change)
+        if status_baru != status_lama:
+            # Putar balik status di memori agar terapkan_status mendeteksi perubahan.
+            obj.status = status_lama
+            terapkan_status(obj, status_baru, request.user, request, sumber='admin')
 
 
 class DokumenAdminForm(forms.ModelForm):
