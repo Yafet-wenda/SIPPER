@@ -1,0 +1,15 @@
+{% extends "admin/change_list_export.html" %}
+
+{% block result_list %}
+  {# Angka ambang datang dari view (core.ai_verifikasi.AMBAT_VALID), tidak ditulis #}
+  {# ulang di sini, supaya perubahan rumus tidak meninggalkan teks lama di layar. #}
+  <p class="sip-ai-keterangan">
+    Prapemilahan AI membandingkan teks hasil OCR berkas KTP dengan isian formulir warga:
+    NIK berbobot 45%, Nama 30%, dan keterbacaan teks 25%. Skor di atas
+    {{ ai_ambang|floatformat:0 }}% ditandai <strong>Valid</strong>; sisanya
+    <strong>Perlu review manual</strong> oleh petugas. Berkas non-KTP dan PDF berstatus
+    <strong>Belum dinilai</strong> karena tidak ada padanan field-nya di formulir.
+    Mesin tidak pernah mengubah status dokumen — keputusan tetap di tangan petugas.
+  </p>
+  {{ block.super }}
+{% endblock %}

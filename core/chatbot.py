@@ -19,8 +19,8 @@ karena pemanggil yang memformatnya):
       'penduduk': {'nama', 'nik', 'daerah_asal', 'kota_tujuan', 'tujuan',
                    'tanggal_mulai', 'perkiraan_kembali', 'nomor_telepon'},
       'dokumen': [{'nama', 'jenis', 'jenis_label', 'status_label', 'confidence',
-                   'extracted_nik', 'ai_verified', 'ai_verification_notes',
-                   'diproses'}],
+                   'extracted_nik', 'ai_verified', 'ai_score', 'ai_prescreen',
+                   'ai_verification_notes', 'diproses'}],
       'ktp': {...} | None,
       'kk': {...} | None,
       'kartu': {'kode', 'berlaku_sampai', 'status', 'valid'} | None,
@@ -29,6 +29,8 @@ karena pemanggil yang memformatnya):
 """
 import os
 import re
+
+from .ai_verifikasi import AMBAT_VALID
 
 MAX_PANJANG_PESAN = 500
 
@@ -253,15 +255,21 @@ def _jawab_nik(konteks):
 def _jawab_verifikasi_otomatis(konteks):
     teks = [
         'Yang disebut "verifikasi AI" di SIPPER adalah aturan pembanding, bukan model machine learning.',
-        'Aturannya satu: kalau NIK hasil OCR sama persis (string identik) dengan NIK penduduk terdaftar, dokumen ditandai ai_verified dengan catatan "NIK cocok"; '
-        'kalau tidak, catatannya "Menunggu verifikasi manual petugas".',
-        'Artinya tanda centang hijau hanya membuktikan nomor NIK-nya sama. Nama, alamat, dan keaslian berkas tetap keputusan petugas.',
+        'Aturannya: hasil OCR KTP dibandingkan dengan isian formulir warga dan menghasilkan skor kecocokan 0-100. '
+        'Bobotnya NIK 45% (harus persis digit per digit), Nama 30% (kemiripan kata, urutan boleh berbeda), '
+        'dan keterbacaan teks OCR 25%.',
+        f'Skor di atas {AMBAT_VALID:.0f}% ditandai "Valid"; di bawah itu ditandai "Perlu review manual". '
+        'Berkas non-KTP atau PDF berstatus "Belum dinilai" karena tidak ada padanan field-nya.',
+        'Prapemilahan hanya memilah antrean. Status dokumen, nama, alamat, dan keaslian berkas tetap keputusan petugas, '
+        'dan tidak ada satu pun field hasil yang mengubah status pengajuan secara otomatis.',
         'OCR itu sendiri (Tesseract) berjalan lokal di server ini; yang bisa keluar ke layanan cloud hanya percakapan asisten bila GEMINI_API_KEY diisi.',
     ]
     ktp = _cari_dokumen(konteks, 'ktp')
     if ktp:
+        skor = ktp.get('ai_score')
+        skor_teks = f'{skor}%' if isinstance(skor, (int, float)) else 'belum dinilai'
         teks.append('')
-        teks.append(f"Status pada pengajuan ini: {'terverifikasi otomatis' if ktp.get('ai_verified') else 'belum terverifikasi otomatis'}. "
+        teks.append(f"Status pada pengajuan ini: {ktp.get('ai_prescreen') or 'belum diproses'} (skor {skor_teks}). "
                     f"Catatan sistem: {ktp.get('ai_verification_notes') or '-'}")
     return '\n'.join(teks)
 

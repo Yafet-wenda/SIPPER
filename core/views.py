@@ -1,5 +1,6 @@
 from datetime import timedelta
 from datetime import datetime
+import io
 import json
 import mimetypes
 import os
@@ -21,7 +22,7 @@ from django.core.files.storage import default_storage
 from django.db.models import Count, Q
 from django.db import connection
 from django.core.cache import cache
-from django.utils import timezone
+from django.utils import formats, timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
@@ -51,7 +52,19 @@ def _trigger_ocr_async(dokumen_id):
             if result['success']:
                 AuditLog.objects.create(
                     aksi='ocr_processed',
-                    deskripsi=f'OCR berhasil pada {dokumen.nama} (confidence: {result["confidence"]}%)',
+                    deskripsi=(
+                        f'OCR berhasil pada {dokumen.nama} '
+                        f'(confidence: {result["confidence"]}%, '
+                        f'skor kecocokan: {result["skor"]}%, '
+                        f'prapemilahan: {result["prescreen"]})'
+                    ),
+                )
+            elif result.get('skipped'):
+                # Bukan kegagalan: berkas jenis ini memang tidak dinilai mesin.
+                # Dicatat terpisah supaya log "ocr_failed" tetap berarti rusak.
+                AuditLog.objects.create(
+                    aksi='ocr_dilewati',
+                    deskripsi=f'OCR dilewati pada {dokumen.nama}: {result["error"]}',
                 )
     except Exception as e:
         # Log error tapi jangan crash thread utama
@@ -235,6 +248,14 @@ def profile(request):
 
 
 LAMPILAN_UPLOAD = [('ktp', 'KTP'), ('kk', 'Kartu Keluarga')]
+# Pasfoto ikut di form yang sama, tetapi aturannya berbeda: hanya gambar (tanpa
+# PDF) dan tidak wajib. Kartu warga tanpa pasfoto tetap terbit, dengan inisial
+# nama sebagai pengganti fotonya. Karena itu pasfoto masuk SEMUA_LAMPILAN (untuk
+# pemeriksaan berkas dan jatah ukuran permintaan) tapi tidak LAMPILAN_UPLOAD
+# (daftar berkas yang harus ada).
+LAMPILAN_PILIHAN = [('pasfoto', 'Pasfoto')]
+SEMUA_LAMPILAN = LAMPILAN_UPLOAD + LAMPILAN_PILIHAN
+GAMBAR_SAJA = frozenset(field for field, _ in LAMPILAN_PILIHAN)
 
 
 def _validate_lampiran(request, files):
@@ -243,15 +264,17 @@ def _validate_lampiran(request, files):
     Pemeriksaan dilakukan sebelum data warga ditulis ke database, jadi pengajuan
     yang ditolak tidak meninggalkan baris yatim yang harus dihapus manual.
     """
-    for field, label in LAMPILAN_UPLOAD:
+    for field, label in SEMUA_LAMPILAN:
         uploaded = files.get(field)
         if not uploaded:
             continue
+        hanya_gambar = field in GAMBAR_SAJA
         if uploaded.size > MAX_UPLOAD_BYTES:
             messages.error(request, f'Ukuran {label.lower()} maksimal 5 MB.')
             return label
-        if not _valid_upload(uploaded):
-            messages.error(request, f'{label} harus berformat PDF, JPG, atau PNG.')
+        if not _valid_upload(uploaded, hanya_gambar=hanya_gambar):
+            format_sah = 'JPG atau PNG' if hanya_gambar else 'PDF, JPG, atau PNG'
+            messages.error(request, f'{label} harus berformat {format_sah}.')
             return label
     return None
 
@@ -260,7 +283,7 @@ def _validate_lampiran(request, files):
 def application(request):
     if request.method == 'POST':
         data = {key: request.POST.get(key, '').strip() for key in ('name', 'nik', 'origin', 'destination', 'purpose', 'phone', 'tanggal_mulai', 'perkiraan_kembali')}
-        files = {field: request.FILES.get(field) for field, _ in LAMPILAN_UPLOAD}
+        files = {field: request.FILES.get(field) for field, _ in SEMUA_LAMPILAN}
         kurang = [label for field, label in LAMPILAN_UPLOAD if not files[field]]
         rejected = _validate_lampiran(request, files)
         if len(data['nik']) != 16 or not data['nik'].isdigit():
@@ -283,14 +306,15 @@ def application(request):
             messages.error(request, 'NIK tersebut sudah terdaftar.')
         else:
             try:
-                person = Penduduk.objects.create(user=request.user, nama=data['name'], nik=data['nik'], nomor_telepon=data['phone'], tanggal_mulai=_parse_date(data['tanggal_mulai']), perkiraan_kembali=_parse_date(data['perkiraan_kembali']), daerah_asal=data['origin'], kota_tujuan=data['destination'], tujuan=data['purpose'])
+                person = Penduduk.objects.create(user=request.user, nama=data['name'], nik=data['nik'], nomor_telepon=data['phone'], tanggal_mulai=_parse_date(data['tanggal_mulai']), perkiraan_kembali=_parse_date(data['perkiraan_kembali']), daerah_asal=data['origin'], kota_tujuan=data['destination'], tujuan=data['purpose'], foto=files['pasfoto'])
                 Pengajuan.objects.create(penduduk=person)
                 for field, _ in LAMPILAN_UPLOAD:
                     uploaded = files[field]
                     doc = Dokumen.objects.create(penduduk=person, jenis=field, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
                     # Trigger OCR processing di background
                     threading.Thread(target=_trigger_ocr_async, args=(doc.id,), daemon=True).start()
-                AuditLog.objects.create(user=request.user, aksi='pengajuan', deskripsi=f'Pengajuan dibuat untuk {person.nama} dengan {len(LAMPILAN_UPLOAD)} lampiran.')
+                jumlah_lampiran = len(LAMPILAN_UPLOAD) + (1 if files['pasfoto'] else 0)
+                AuditLog.objects.create(user=request.user, aksi='pengajuan', deskripsi=f'Pengajuan dibuat untuk {person.nama} dengan {jumlah_lampiran} lampiran.')
             except IntegrityError:
                 messages.error(request, 'NIK tersebut sudah terdaftar.')
                 return render(request, 'application_v3.html', {'name': request.user.first_name, 'tujuan_pilihan': Penduduk.TUJUAN})
@@ -307,7 +331,7 @@ def resubmit_application(request, pk):
     if item.status not in {'perlu_perbaikan', 'ditolak'}:
         messages.error(request, 'Pengajuan ini belum dapat dikirim ulang.')
     else:
-        files = {field: request.FILES.get(field) for field, _ in LAMPILAN_UPLOAD}
+        files = {field: request.FILES.get(field) for field, _ in SEMUA_LAMPILAN}
         if _validate_lampiran(request, files):
             return redirect('core:dashboard')
         item.status = 'menunggu'
@@ -334,6 +358,14 @@ def resubmit_application(request, pk):
             else:
                 doc = Dokumen.objects.create(penduduk=item.penduduk, jenis=field, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
                 threading.Thread(target=_trigger_ocr_async, args=(doc.id,), daemon=True).start()
+        if files['pasfoto']:
+            nama_lama = item.penduduk.foto.name
+            item.penduduk.foto = files['pasfoto']
+            item.penduduk.save(update_fields=['foto'])
+            # Sama seperti dokumen: berkas foto lama dihapus sendiri supaya
+            # media/ tidak menumpuk pasfoto yang sudah diganti warga.
+            if nama_lama:
+                default_storage.delete(nama_lama)
         AuditLog.objects.create(user=request.user, aksi='kirim_ulang', deskripsi=f'Pengajuan {item.penduduk.nama} dikirim ulang.')
         messages.success(request, 'Pengajuan berhasil dikirim ulang untuk ditinjau.')
     return redirect('core:dashboard')
@@ -486,6 +518,24 @@ def document_file(request, pk):
     return _serve_file(document.file)
 
 
+@login_required(login_url='/login/')
+def penduduk_foto(request, pk):
+    """Pasfoto warga, hanya untuk pemilik akunnya dan petugas.
+
+    Kartu digital bisa dibuka publik lewat tautan QR, jadi wajah warga tidak
+    boleh diambil hanya dengan menebak URL. Template kartu sudah tidak
+    menyisipkan <img> untuk pengunjung anonim; ini lapis keduanya, dan warga
+    lain yang menebak id tetap mendapat 404 alih-alih 403 supaya keberadaan
+    id tidak bisa dipetakan dari luar.
+    """
+    person = get_object_or_404(Penduduk, pk=pk)
+    if not is_officer(request.user) and person.user_id != request.user.id:
+        raise Http404('File tidak ditemukan.')
+    if not person.foto:
+        raise Http404('File tidak ditemukan.')
+    return _serve_file(person.foto)
+
+
 @throttle_public(limit=120)
 def card_qr(request, code):
     """Gambar QR kartu. Isinya hanya URL validasi yang memang sudah publik di halaman kartu."""
@@ -535,7 +585,11 @@ def validate_card(request, code):
     pengajuan_id = None
     if is_officer(request.user):
         pengajuan_id = Pengajuan.objects.filter(penduduk=card.penduduk).values_list('id', flat=True).first()
-    return render(request, 'card_v2.html', {'card': card, 'valid': card.is_valid(), 'pengajuan_id': pengajuan_id})
+    # Pasfoto hanya dikirim ke template bila yang membuka kartu berhak melihat
+    # wajahnya (pemilik atau petugas). Pengunjung anonim tetap melihat kartu
+    # lengkap dengan NIK tersamar, tanpa foto.
+    boleh_lihat_foto = is_officer(request.user) or (request.user.is_authenticated and card.penduduk.user_id == request.user.id)
+    return render(request, 'card_v2.html', {'card': card, 'valid': card.is_valid(), 'pengajuan_id': pengajuan_id, 'boleh_lihat_foto': boleh_lihat_foto, 'batasan': KARTU_BATASAN})
 
 
 @throttle_public
@@ -546,6 +600,114 @@ def card_lookup(request):
     return redirect('core:validate_card', code=code)
 
 
+# Batasan operasional yang tercetak di kartu, baik versi layar maupun PDF.
+# Teksnya dijaga di satu tempat supaya kartu web dan hasil unduhan tidak pernah
+# berbeda pernyataan.
+KARTU_BATASAN = [
+    'SIPPER bukan pengganti dokumen seperti KTP, KK, atau SKPWRI.',
+    'SIPPER tidak melakukan integrasi atau sinkronisasi langsung ke database nasional Dukcapil.',
+    'Verifikasi dan kartu digital SIPPER hanya berlaku secara internal di dalam ekosistem aplikasi SIPPER.',
+]
+MERAH_KARTU = '#c8102e'
+
+# Ukuran kartu identitas standar ID-1 — 85,60 × 53,98 mm, dipakai KTP, KK digital,
+# BPJS, dan ATM. Poin PDF (72 poin = 1 inci) membuat kartu tercetak 1:1 ketika
+# halaman dikeluarkan pada skala 100%, jadi hasil unduhan bisa langsung dipotong
+# sebesar kartu asli. Rasio yang sama juga dipakai kartu layar (aspect-ratio di
+# templates/card_v2.html) supaya bentuk keduanya tidak pernah berbeda.
+POIN_PER_MM = 72 / 25.4
+KARTU_ID1_MM = (85.6, 53.98)
+KARTU_ID1_PT = (KARTU_ID1_MM[0] * POIN_PER_MM, KARTU_ID1_MM[1] * POIN_PER_MM)
+
+
+def _tanggal_kartu(tanggal):
+    """Nama bulan gaya Indonesia untuk kartu PDF.
+
+    strftime di server ini ikut locale C, jadi "%d %B %Y" mencetak
+    "09 October 2027" sementara kartu layar sudah "09 Okt 2027". Formatter
+    Django mengikuti LANGUAGE_CODE sehingga kedua tampilan selalu sama.
+    """
+    return formats.date_format(tanggal, 'd M Y')
+
+
+def _nik_samar(nik):
+    """NIK berformat 16 digit dengan 12 angka pertama ditutupi."""
+    return '*' * max(len(nik) - 4, 0) + nik[-4:]
+
+
+def _potong_kata(kata, nama_font, ukuran, lebar_maks, document):
+    """Iris satu kata yang lebih lebar dari kolomnya jadi beberapa potongan.
+
+    Tanpa ini, nama 150 karakter tanpa spasi (batas kolom di basis data) jadi
+    satu baris utuh selebar lebih dari dua halaman A4 dan menembus kartu.
+    """
+    if not kata or document.stringWidth(kata, nama_font, ukuran) <= lebar_maks:
+        return [kata]
+    potongan = []
+    sisa = kata
+    while sisa:
+        ambil = 1
+        while ambil < len(sisa) and document.stringWidth(sisa[:ambil + 1], nama_font, ukuran) <= lebar_maks:
+            ambil += 1
+        potongan.append(sisa[:ambil])
+        sisa = sisa[ambil:]
+    return potongan
+
+
+def _baris_teks(teks, nama_font, ukuran, lebar_maks, document):
+    """Pecah kalimat jadi baris yang muat lebar kolom tanpa memotong kata."""
+    baris, sekarang = [], ''
+    kata_panjang = []
+    for kata in teks.split():
+        kata_panjang += _potong_kata(kata, nama_font, ukuran, lebar_maks, document)
+    for kata in kata_panjang:
+        calon = f'{sekarang} {kata}'.strip()
+        if not sekarang or document.stringWidth(calon, nama_font, ukuran) <= lebar_maks:
+            sekarang = calon
+        else:
+            baris.append(sekarang)
+            sekarang = kata
+    if sekarang:
+        baris.append(sekarang)
+    return baris
+
+
+def _potret_pasfoto(field):
+    """Pasfoto siap cetak dengan rasio 3:4, terpotong dari tengah.
+
+    reportlab tidak memotong gambar, jadi foto lanskap akan mendorong isi kartu
+    keluar bila digambar apa adanya. Berkas yang rusak atau tidak terbaca
+    dikembalikan None supaya kartu tetap terbit dengan blok inisial.
+    """
+    try:
+        from PIL import Image
+        with Image.open(field) as gambar:
+            gambar = gambar.convert('RGB')  # paksa decode sebelum file ditutup
+            lebar, tinggi = gambar.size
+            target = 3 / 4
+            if lebar / tinggi > target:
+                baru = int(tinggi * target)
+                kiri = (lebar - baru) // 2
+                gambar = gambar.crop((kiri, 0, kiri + baru, tinggi))
+            elif lebar / tinggi < target:
+                baru = int(lebar / target)
+                atas = (tinggi - baru) // 2
+                gambar = gambar.crop((0, atas, lebar, atas + baru))
+            # Kotak foto di kartu hanya 54x72 poin (19 x 25 mm). Tanpa pembatasan
+            # ini, pasfoto 5 MB ikut tertempel utuh ke PDF dan ukuran berkasnya
+            # membengkak; 600 piksel sudah lebih dari tajam untuk cetak 300 dpi.
+            gambar.thumbnail((600, 800))
+            # Dikemas ulang jadi JPEG. Objek PIL RGB dikirim reportlab sebagai
+            # data mentah (~1 MB per foto), sedangkan berkas JPEG ditempel apa
+            # adanya sehingga PDF kartu tetap ringan.
+            buffer = io.BytesIO()
+            gambar.save(buffer, format='JPEG', quality=82, optimize=True)
+            buffer.seek(0)
+            return buffer
+    except Exception:
+        return None
+
+
 @throttle_public(limit=20)
 def download_card(request, code):
     card = get_object_or_404(KartuDigital.objects.select_related('penduduk'), kode=code)
@@ -554,31 +716,152 @@ def download_card(request, code):
     from reportlab.lib.pagesizes import A4
     from reportlab.pdfgen import canvas
     from reportlab.lib import colors
+    from reportlab.lib.utils import ImageReader
     from django.http import HttpResponse
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="kartu-{card.kode}.pdf"'
+    merah = colors.HexColor(MERAH_KARTU)
+    tua = colors.HexColor('#17392b')
+    redup = colors.HexColor('#5b6f66')
     document = canvas.Canvas(response, pagesize=A4)
-    document.setFillColor(colors.HexColor('#1f6b58'))
-    document.roundRect(70, 570, 455, 170, 12, fill=1, stroke=0)
+    lebar_halaman, tinggi_halaman = A4
+
+    # Isi blok batasan diukur lebih dulu karena tinggi bingkainya mengikuti
+    # jumlah baris. Blok ini dicetak di bawah kartu, bukan di dalamnya: tiga
+    # kalimat keteraturan tidak muat di kartu 54 mm dengan huruf yang masih
+    # terbaca, persis seperti KTP asli yang juga tidak memuatnya.
+    lebar_teks = 475
+    baris_batasan = []
+    for nomor, teks in enumerate(KARTU_BATASAN, start=1):
+        baris_batasan += _baris_teks(f'{nomor}. {teks}', 'Helvetica', 7.5, lebar_teks - 30, document)
+
+    # ---- Kartu ukuran asli (ID-1) ----
+    k_lebar, k_tinggi = KARTU_ID1_PT
+    x0 = (lebar_halaman - k_lebar) / 2
+    y_atas = tinggi_halaman - 88
+    x1 = x0 + k_lebar
+    y_bawah = y_atas - k_tinggi
+    dalam = 7           # margin isi di dalam kartu
+    head = 26           # pita judul merah
+    pita = 22           # pita masa berlaku + kode validasi
+    f_lebar, f_tinggi = 54, 72            # kotak foto 3:4, sebangun dengan kartu layar
+    qr_sisi = 54
+    atas_badan = y_atas - head - 7
+    bawah_pita = y_bawah + dalam
+    x_identitas = x0 + dalam + f_lebar + 8
+    lebar_identitas = (x1 - dalam - qr_sisi - 8) - x_identitas
+
+    # Bingkai kartu.
     document.setFillColor(colors.white)
-    document.setFont('Helvetica-Bold', 18)
-    document.drawString(95, 700, 'SIPPER')
-    document.setFont('Helvetica', 9)
-    document.drawString(95, 680, 'IDENTITAS PENDUDUK PERANTAUAN')
-    document.setFont('Helvetica-Bold', 20)
-    document.drawString(95, 635, card.penduduk.nama)
-    document.setFont('Helvetica', 10)
-    document.drawString(95, 612, f'NIK  {card.penduduk.nik}')
-    document.drawString(95, 592, f'Domisili  {card.penduduk.kota_tujuan}')
-    document.setFillColor(colors.HexColor('#18312b'))
+    document.setStrokeColor(colors.HexColor('#d7dcd3'))
+    document.setLineWidth(.8)
+    document.roundRect(x0, y_bawah, k_lebar, k_tinggi, 5, fill=1, stroke=1)
+
+    # Header merah. reportlab tidak bisa membulatkan dua sudut saja, jadi sudut
+    # bawah ditutup persegi panjang yang warnanya sama.
+    document.setFillColor(merah)
+    document.roundRect(x0, y_atas - head, k_lebar, head, 5, fill=1, stroke=0)
+    document.rect(x0, y_atas - head, k_lebar, head / 2, fill=1, stroke=0)
+    document.setFillColor(colors.white)
     document.setFont('Helvetica-Bold', 11)
-    document.drawString(95, 530, f'Kode validasi: {card.kode}')
-    document.setFont('Helvetica', 10)
-    document.drawString(95, 510, f'Berlaku sampai: {card.berlaku_sampai.strftime("%d %B %Y")}')
+    document.drawString(x0 + dalam, y_atas - 12, 'Kartu SIPPER')
+    document.setFont('Helvetica', 5.2)
+    document.drawString(x0 + dalam, y_atas - 19.5, 'Sistem Informasi Penduduk Perantauan')
+    document.setFont('Helvetica-Bold', 5.6)
+    document.drawRightString(x1 - dalam, y_atas - 12, 'TERVERIFIKASI' if card.is_valid() else 'TIDAK AKTIF')
+
+    # Pasfoto di kiri, blok inisial bila warga belum mengunggah foto.
+    document.setFillColor(colors.HexColor('#eef0df'))
+    document.roundRect(x0 + dalam, atas_badan - f_tinggi, f_lebar, f_tinggi, 3, fill=1, stroke=0)
+    potret = _potret_pasfoto(card.penduduk.foto) if card.penduduk.foto else None
+    if potret is not None:
+        try:
+            document.drawImage(ImageReader(potret), x0 + dalam, atas_badan - f_tinggi,
+                               width=f_lebar, height=f_tinggi, preserveAspectRatio=True, mask='auto')
+        except Exception:
+            potret = None
+    if potret is None:
+        # Sama seperti kartu layar: blok merah muda mengisi kotak foto, bukan
+        # lingkaran mengambang di tengahnya.
+        document.setFillColor(colors.HexColor('#f6d9dc'))
+        document.roundRect(x0 + dalam, atas_badan - f_tinggi, f_lebar, f_tinggi, 3, fill=1, stroke=0)
+        document.setFillColor(merah)
+        document.setFont('Helvetica-Bold', 20)
+        document.drawCentredString(x0 + dalam + f_lebar / 2, atas_badan - f_tinggi / 2 - 5.5,
+                                   card.penduduk.inisial or '?')
+
+    # QR di kanan atas, sejajar dengan kepala kolom identitas.
     if card.qr_code and card.qr_code.path:
-        from reportlab.lib.utils import ImageReader
-        document.drawImage(ImageReader(card.qr_code.path), 405, 590, width=95, height=95, preserveAspectRatio=True, mask='auto')
-    document.drawString(95, 480, 'Kartu digital ini bukan pengganti dokumen kependudukan resmi.')
+        document.drawImage(ImageReader(card.qr_code.path), x1 - dalam - qr_sisi,
+                           atas_badan - qr_sisi, width=qr_sisi, height=qr_sisi,
+                           preserveAspectRatio=True, mask='auto')
+
+    # Identitas: nama, NIK tersamar, domisili. NIK tidak dicetak utuh, sama
+    # seperti kartu di layar, karena berkas PDF bisa menyebar lewat ponsel.
+    # Semua nilai dipecah per baris selebar kolomnya supaya nama atau kota tujuan
+    # yang panjang tidak menimpa QR di sebelah kanan.
+    y_teks = atas_badan
+    document.setFont('Helvetica-Bold', 12)
+    document.setFillColor(tua)
+    for baris in _baris_teks(card.penduduk.nama, 'Helvetica-Bold', 12, lebar_identitas, document)[:2]:
+        y_teks -= 14
+        document.drawString(x_identitas, y_teks, baris)
+    for label, nilai in (('NIK', _nik_samar(card.penduduk.nik)),
+                         ('DOMISILI TUJUAN', card.penduduk.kota_tujuan)):
+        y_teks -= 13
+        document.setFont('Helvetica', 4.8)
+        document.setFillColor(redup)
+        document.drawString(x_identitas, y_teks, label)
+        document.setFont('Helvetica-Bold', 8.5)
+        document.setFillColor(tua)
+        for baris in _baris_teks(nilai, 'Helvetica-Bold', 8.5, lebar_identitas, document)[:2]:
+            y_teks -= 10
+            document.drawString(x_identitas, y_teks, baris)
+
+    # Petunjuk kecil di bawah kolom identitas; QR adalah satu-satunya jalan
+    # memeriksa status kartu setelah berkas PDF dicetak dan difotokopi.
+    document.setFont('Helvetica', 4.6)
+    document.setFillColor(redup)
+    document.drawString(x0 + dalam, bawah_pita + pita + 7,
+                        'Pindai QR untuk memeriksa status kartu ini.')
+
+    # Pita masa berlaku + kode validasi di dasar kartu.
+    document.setFillColor(colors.HexColor('#f4f6f2'))
+    document.roundRect(x0 + dalam, bawah_pita, k_lebar - 2 * dalam, pita, 3, fill=1, stroke=0)
+    for x, label, nilai, ukuran in ((x0 + dalam + 5, 'BERLAKU SAMPAI', _tanggal_kartu(card.berlaku_sampai), 8),
+                                     (x0 + 118, 'KODE VALIDASI', card.kode, 6.6)):
+        document.setFont('Helvetica', 4.4)
+        document.setFillColor(redup)
+        document.drawString(x, bawah_pita + pita - 7, label)
+        document.setFont('Helvetica-Bold', ukuran)
+        document.setFillColor(tua)
+        document.drawString(x, bawah_pita + 4, nilai)
+
+    # ---- Keterangan di luar kartu, tetap pada ukuran baca normal ----
+    y_petunjuk = y_bawah - 20
+    document.setFont('Helvetica-Oblique', 7.5)
+    document.setFillColor(redup)
+    document.drawString(60, y_petunjuk,
+                        'Format kartu mengikuti standar ID-1 (85,60 × 53,98 mm). '
+                        'Cetak pada skala 100% lalu potong mengikuti bingkai.')
+
+    atas_batasan = y_petunjuk - 14
+    bawah_batasan = atas_batasan - (34 + len(baris_batasan) * 10)
+    document.setFillColor(colors.white)
+    document.setStrokeColor(colors.HexColor('#e3e7e0'))
+    document.roundRect(60, bawah_batasan, lebar_teks, atas_batasan - bawah_batasan, 8, fill=1, stroke=1)
+    document.setFont('Helvetica-Bold', 9)
+    document.setFillColor(merah)
+    document.drawString(75, atas_batasan - 20, 'Batasan & operasional sistem')
+    document.setFont('Helvetica', 7.5)
+    document.setFillColor(colors.HexColor('#3f4a44'))
+    tinggi_teks = atas_batasan - 36
+    for baris in baris_batasan:
+        document.drawString(75, tinggi_teks, baris)
+        tinggi_teks -= 10
+    document.setFont('Helvetica', 7)
+    document.setFillColor(redup)
+    document.drawString(60, bawah_batasan - 15, 'Kartu dibuat otomatis oleh SIPPER. Status dapat diperiksa ulang dengan memindai QR.')
     document.save()
     return response
 
@@ -657,18 +940,23 @@ MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 MAX_IMAGE_PIXELS = 40_000_000
 
 
-def _valid_upload(uploaded, max_bytes=MAX_UPLOAD_BYTES):
+def _valid_upload(uploaded, max_bytes=MAX_UPLOAD_BYTES, *, hanya_gambar=False):
     """Ukuran + ekstensi + isi file harus cocok, dan ClamAV harus bersih.
 
     Batas ukuran sengaja ada di sini juga (bukan hanya di pemanggil) supaya
-    jalur unggah baru tidak lupa memeriksanya. Saat CLAMAV_ENABLED aktif tapi
-    server ClamAV tidak bisa dihubungi, hasilya ditolak (fail closed) - lebih
-    baik unggahan gagal daripada lolos tanpa pemindaian.
+    jalur unggah baru tidak lupa memeriksanya. `hanya_gambar` dipakai pasfoto:
+    PDF adalah dokumen yang sah untuk KTP/KK, tapi bukan foto. Saat
+    CLAMAV_ENABLED aktif tapi server ClamAV tidak bisa dihubungi, hasilya
+    ditolak (fail closed) - lebih baik unggahan gagal daripada lolos tanpa
+    pemindaian.
     """
     if uploaded.size > max_bytes:
         return False
     name = os.path.basename(uploaded.name or '').lower()
-    if not name.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
+    if hanya_gambar:
+        if not name.endswith(('.jpg', '.jpeg', '.png')):
+            return False
+    elif not name.endswith(('.pdf', '.jpg', '.jpeg', '.png')):
         return False
     uploaded.seek(0)
     header = uploaded.read(8)
@@ -730,6 +1018,9 @@ def api_ocr_result(request, pk):
         'extracted_nik': dokumen.extracted_nik,
         'extracted_data': dokumen.extracted_data,
         'ai_verified': dokumen.ai_verified,
+        'ai_score': dokumen.ai_score,
+        'ai_prescreen': dokumen.ai_prescreen,
+        'ai_prescreen_label': dokumen.get_ai_prescreen_display(),
         'ai_verification_notes': dokumen.ai_verification_notes,
         'processed_at': dokumen.ocr_processed_at.isoformat() if dokumen.ocr_processed_at else None,
     }
@@ -786,6 +1077,8 @@ def _konteks_pengajuan(item):
             'extracted_nik': berkas.extracted_nik,
             'extracted_data': berkas.extracted_data or {},
             'ai_verified': berkas.ai_verified,
+            'ai_score': berkas.ai_score,
+            'ai_prescreen': berkas.ai_prescreen,
             'ai_verification_notes': berkas.ai_verification_notes,
             # ocr_text terisi hanya setelah proses berjalan, jadi ini penanda
             # "sudah pernah di-OCR" tanpa perlu kolom tambahan.

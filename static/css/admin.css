@@ -614,6 +614,158 @@ html[data-theme="dark"] .sip-status--perlu_perbaikan {
   background: #17293a;
 }
 
+/* ------------------------------------------- prapemilahan AI (modul ai_ocr) */
+
+/* Tiga hasil prapemilahan: lolos ambang, di bawah ambang, dan berkas yang tidak
+   bisa dinilai mesin (non-KTP / PDF). Yang terakhir sengaja netral — bukan
+   kegagalan, bukan pula restu. */
+.sip-status--valid {
+  color: #16513f;
+  background: #e2f1e6;
+}
+
+.sip-status--review {
+  color: #9c3a24;
+  background: #fbe6e0;
+}
+
+.sip-status--belum_dinilai {
+  color: #4b5a55;
+  background: #eef1ee;
+}
+
+html[data-theme="dark"] .sip-status--valid {
+  color: #9ad9bd;
+  background: #1c3529;
+}
+
+html[data-theme="dark"] .sip-status--review {
+  color: #f4a892;
+  background: #40211c;
+}
+
+html[data-theme="dark"] .sip-status--belum_dinilai {
+  color: #b3bdb8;
+  background: #2a312e;
+}
+
+.sip-ai {
+  display: inline-block;
+  font-family: var(--sip-display);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.sip-ai--lolos {
+  color: #16513f;
+  background: #e2f1e6;
+}
+
+.sip-ai--rendah {
+  color: #8a5d10;
+  background: #fbf0d8;
+}
+
+.sip-ai--kosong {
+  color: var(--sip-quiet);
+  background: transparent;
+  font-weight: 500;
+  font-style: italic;
+}
+
+.sip-ai-keterangan {
+  max-width: 68ch;
+  margin: 0 0 14px;
+  padding: 11px 14px;
+  border-left: 3px solid var(--sip-green);
+  background: var(--sip-card);
+  border-radius: 0 var(--sip-radius) var(--sip-radius) 0;
+  font-size: .84rem;
+  line-height: 1.55;
+  color: var(--body-quiet-color);
+}
+
+/* Tabel Tinjauan berkas punya sembilan kolom data; padding 10px tiap sisi x
+   9 kolom memaksa antrean review digeser ke samping di layar 1440px.
+   #changelist ikut ditulis karena aturan di atasnya memakai dua id, dan
+   specificity id dibandingkan lebih dulu daripada kelas. */
+body.app-ai_ocr.model-tinjauanocr.change-list #changelist #result_list th,
+body.app-ai_ocr.model-tinjauanocr.change-list #changelist #result_list td {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
+/* Pembungkus tabel di form review: di layar sempel tabel lima kolom tidak
+   muat, jadi digulir sendiri daripada memotong kolom "Keterangan". */
+.sip-ai-gulung {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sip-ai-tabel {
+  width: 100%;
+  max-width: 760px;
+  border-collapse: collapse;
+  font-size: .82rem;
+}
+
+.sip-ai-tabel th,
+.sip-ai-tabel td {
+  text-align: left;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--hairline-color);
+  vertical-align: top;
+  /* Isi sel datang dari teks OCR atas berkas unggahan warga: angka dan nama
+     panjang tidak boleh merobek tata letak form. */
+  overflow-wrap: anywhere;
+}
+
+.sip-ai-tabel thead th {
+  font-family: var(--sip-display);
+  font-size: .7rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--sip-quiet);
+  border-bottom-width: 2px;
+  /* Judul kolom ditulis aplikasi, bukan hasil OCR, jadi boleh dipaksa satu
+     baris — tanpa ini "KECOCOKAN" pecah menjadi "KECOCOK AN". */
+  white-space: nowrap;
+}
+
+.sip-ai-tabel tbody th {
+  font-weight: 600;
+  width: 22%;
+}
+
+.sip-ai-tabel tfoot th,
+.sip-ai-tabel tfoot td {
+  border-bottom: 0;
+  border-top: 2px solid var(--hairline-color);
+  padding-top: 10px;
+}
+
+/* Kotak teks hasil OCR di form review. Isinya panjang dan datang dari berkas
+   warga, jadi dibatasi tingginya dan digulir di dalam dirinya sendiri —
+   halaman form tidak ikut memanjang ratusan baris. */
+.sip-ai-teks {
+  max-width: 900px;
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--sip-hairline);
+  border-radius: var(--sip-radius);
+  background: var(--sip-paper);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: .82rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ==================================================== dashboard SIPPER */
 
 /* base.css memaksa dashboard selebar 600px dan menyisakan 300px untuk modul
@@ -741,14 +893,12 @@ button.sipper-pause:hover {
 
 .sipper-metrics {
   display: grid;
-  /* Tujuh kartu dibuka 4 + (3 dengan kartu penutup melebar), jadi tidak ada
-     ruang kosong di kanan saat layar lebar. */
+  /* Delapan kartu = 4 + 4, jadi tidak ada ruang kosong di kanan pada layar
+     lebar maupun pada grid dua kolom di layar sempit. Dulu tujuh kartu dengan
+     kartu penutup melebar; jumlah itu berubah setelah kartu prapemilahan AI
+     ditambahkan. */
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-}
-
-.sipper-metrics a:last-child {
-  grid-column: span 2;
 }
 
 .sipper-metrics a {

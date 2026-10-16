@@ -4,6 +4,8 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.models import User
 
+from .ai_verifikasi import PRESCREEN
+
 
 class Penduduk(models.Model):
     STATUS = [('aktif', 'Aktif'), ('pindah', 'Pindah'), ('nonaktif', 'Nonaktif')]
@@ -16,6 +18,11 @@ class Penduduk(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='penduduk', verbose_name='akun pengguna')
     nama = models.CharField(max_length=150, verbose_name='nama')
     nik = models.CharField(max_length=16, unique=True, validators=[RegexValidator(r'^\d{16}$', 'NIK harus 16 digit angka.')], verbose_name='NIK')
+    # Pasfoto untuk kartu digital. Sengaja boleh kosong: warga yang mendaftar
+    # sebelum kolom ini ada tetap memakai kartunya, dan halaman kartu jatuh ke
+    # inisial nama (lihat properti `inisial`), bukan gagal tampil.
+    foto = models.ImageField(upload_to='pasfoto/%Y/%m/', blank=True, verbose_name='pasfoto',
+                             validators=[FileExtensionValidator(['jpg', 'jpeg', 'png'], message='Pasfoto harus berformat JPG atau PNG.')])
     daerah_asal = models.CharField(max_length=100, verbose_name='daerah asal')
     kota_tujuan = models.CharField(max_length=100, verbose_name='kota tujuan')
     tujuan = models.CharField(max_length=50, choices=TUJUAN, verbose_name='tujuan berpindah')
@@ -27,6 +34,21 @@ class Penduduk(models.Model):
 
     def __str__(self):
         return self.nama
+
+    @property
+    def inisial(self):
+        """Dua huruf awal nama, dipakai sebagai pengganti pasfoto di kartu.
+
+        Kartu digital harus tetap bisa dicetak warga yang belum mengunggah
+        foto, jadi lingkaran inisial ini bagian dari desain kartu, bukan
+        kondisi error.
+        """
+        bagian = [kata for kata in self.nama.split() if kata]
+        if not bagian:
+            return ''
+        if len(bagian) == 1:
+            return bagian[0][0].upper()
+        return (bagian[0][0] + bagian[1][0]).upper()
 
     class Meta:
         verbose_name = 'penduduk'
@@ -86,9 +108,25 @@ class Dokumen(models.Model):
     ai_verification_notes = models.TextField(blank=True, verbose_name='catatan verifikasi AI')
     ocr_processed_at = models.DateTimeField(null=True, blank=True, verbose_name='diproses OCR pada')
 
+    # Prapemilahan AI (laporan "Validasi agentik AI"): skor 0-100 hasil
+    # perbandingan teks OCR dengan isian formulir, dan keputusan ambang 85%.
+    # Keduanya disimpan sebagai kolom, bukan dihitung ulang setiap kali halaman
+    # dibuka, supaya petugas bisa menyaring dan mengurutkan antrean berdasar
+    # skor dan angka yang dilihatnya identik dengan yang dihitung mesin saat
+    # berkas masuk.
+    ai_score = models.FloatField(null=True, blank=True, verbose_name='skor kecocokan AI')
+    ai_prescreen = models.CharField(
+        max_length=14, choices=PRESCREEN, default='belum_dinilai',
+        verbose_name='hasil prapemilahan AI',
+    )
+
     class Meta:
         verbose_name = 'dokumen'
         verbose_name_plural = 'dokumen'
+
+    def __str__(self):
+        # Tanpa ini setiap judul halaman admin berbunyi "Dokumen object (23)".
+        return self.nama
 
 
 class AuditLog(models.Model):

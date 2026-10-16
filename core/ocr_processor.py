@@ -23,6 +23,12 @@ if platform.system() == 'Windows':
             break
 
 
+# Confidence di bawah angka ini menandakan berkas bukan tangkapan layar bersih.
+# Angkanya dari pengujian laporan: gambar digital selalu > 90%, foto KTP asli
+# berkisar 40-70% -> hanya kelompok kedua yang perlu praproses agresif.
+AMBAT_PREPROCESS = 70.0
+
+
 def preprocess_image(image_path, aggressive=False):
     """
     Preprocessing gambar untuk meningkatkan akurasi OCR:
@@ -154,82 +160,6 @@ def _build_result(data):
     }
 
 
-def parse_ktp_data(ocr_result):
-    """
-    Parse data spesifik dari hasil OCR KTP Indonesia.
-    Mengekstrak: NIK, Nama, Tempat/Tgl Lahir, Alamat, RT/RW, Kel/Desa, Kecamatan, Agama, Status, Pekerjaan.
-    """
-    text = ocr_result.get('text', '')
-    extracted = {}
-    
-    # Pattern untuk NIK (16 digit angka, mungkin dengan spasi atau titik)
-    # Handle berbagai separator: :, >, -, atau whitespace
-    nik_pattern = r'NIK[:>\-\s]+([\d\s\.]{16,20})'
-    nik_match = re.search(nik_pattern, text, re.IGNORECASE)
-    if nik_match:
-        nik_raw = nik_match.group(1).replace(' ', '').replace('.', '')
-        # Ambil hanya 16 digit pertama yang valid
-        nik_digits = re.findall(r'\d', nik_raw)
-        if len(nik_digits) >= 16:
-            extracted['nik'] = ''.join(nik_digits)[:16]
-    
-    # Fallback: cari 16 digit berurutan di seluruh text jika pattern NIK tidak ketemu
-    if 'nik' not in extracted:
-        all_digits = re.findall(r'\b\d{16}\b', text.replace(' ', '').replace('.', ''))
-        if all_digits:
-            extracted['nik'] = all_digits[0]
-    
-    # Pattern untuk Nama (setelah label "Nama")
-    # Handle berbagai separator dan format, termasuk karakter noise dari OCR
-    nama_pattern = r'Nama[:>\-\s]+([A-Z][A-Za-z\s\.\-]+?)(?:Tempat|Tgl|\d{2}-\d{2}-\d{4}|JAKARTA|\n|$)'
-    nama_match = re.search(nama_pattern, text, re.IGNORECASE)
-    if nama_match:
-        extracted['nama'] = nama_match.group(1).strip()
-    
-    # Fallback: jika nama belum ketemu, cari setelah "Nama:" sampai akhir baris atau angka tanggal
-    if 'nama' not in extracted:
-        simple_nama = re.search(r'Nama[:>\-\s]+([A-Z][A-Z\s]+)', text)
-        if simple_nama:
-            extracted['nama'] = simple_nama.group(1).strip()
-    
-    # Pattern untuk Tempat/Tgl Lahir
-    # Handle variasi OCR: Tgl, Tal, Tanggal
-    ttl_pattern = r'Tempat[/\\s]*(?:Tgl|Tal|Tanggal)\s*Lahir[:>\-\s]+(.+?)(?:Jenis|Kelamin|\n|$)'
-    ttl_match = re.search(ttl_pattern, text, re.IGNORECASE)
-    if ttl_match:
-        ttl_raw = ttl_match.group(1).strip()
-        # Bersihkan noise: hapus kata acak setelah tanggal (DD-MM-YYYY atau DD/MM/YYYY)
-        # Ambil hanya bagian sampai pola tanggal
-        ttl_clean = re.sub(r'(\d{2}[-/]\d{2}[-/]\d{4}).*$', r'\1', ttl_raw)
-        extracted['tempat_tgl_lahir'] = ttl_clean.strip()
-    
-    # Pattern untuk Alamat
-    alamat_pattern = r'Alamat[:\s]+(.+?)(?:RT/RW|\n|$)'
-    alamat_match = re.search(alamat_pattern, text, re.IGNORECASE)
-    if alamat_match:
-        extracted['alamat'] = alamat_match.group(1).strip()
-    
-    # Pattern untuk RT/RW
-    rt_rw_pattern = r'RT/RW[:\s]*(\d{3}/\d{3})'
-    rt_rw_match = re.search(rt_rw_pattern, text)
-    if rt_rw_match:
-        extracted['rt_rw'] = rt_rw_match.group(1)
-    
-    # Pattern untuk Kel/Desa
-    kel_pattern = r'Kel/Desa[:\s]+(.+?)(?:Kecamatan|\n|$)'
-    kel_match = re.search(kel_pattern, text, re.IGNORECASE)
-    if kel_match:
-        extracted['kel_desa'] = kel_match.group(1).strip()
-    
-    # Pattern untuk Kecamatan
-    kec_pattern = r'Kecamatan[:\s]+(.+?)(?:Agama|\n|$)'
-    kec_match = re.search(kec_pattern, text, re.IGNORECASE)
-    if kec_match:
-        extracted['kecamatan'] = kec_match.group(1).strip()
-    
-    return extracted
-
-
 def parse_kk_data(ocr_result):
     """
     Parse data spesifik dari hasil OCR Kartu Keluarga.
@@ -267,72 +197,135 @@ def parse_kk_data(ocr_result):
     return extracted
 
 
-def process_document(dokumen_obj):
+def _tandai_belum_dinilai(dokumen_obj, catatan):
+    """Simpan alasan mesin tidak bisa menilai berkas.
+
+    Tanpa ini panel review hanya menampilkan baris kosong dan petugas tidak tahu
+    apakah berkasnya belum diproses, gagal dibaca, atau memang tidak dinilai.
     """
-    Proses lengkap: ekstrak teks dari file dokumen, parse data spesifik,
-    dan simpan hasil ke model Dokumen.
-    
+    dokumen_obj.ai_score = None
+    dokumen_obj.ai_prescreen = 'belum_dinilai'
+    dokumen_obj.ai_verified = False
+    dokumen_obj.ai_verification_notes = catatan
+    dokumen_obj.save(update_fields=[
+        'ai_score', 'ai_prescreen', 'ai_verified', 'ai_verification_notes',
+    ])
+
+
+def ekstrak_dengan_pilihan_praproses(file_path, lang='ind+eng'):
+    """Pilih jalur OCR berdasarkan hasil, bukan berdasarkan nama berkas.
+
+    Laporan menjanjikan "conditional preprocessing": gambar digital cukup dibaca
+    polos, foto hasil pindai perlu thresholding. Jenis berkas tidak bisa dipercaya
+    dari ekstensi, jadi pemilihannya berbasis hasil: confidence rendah diulang
+    lewat jalur agresif, dan yang teksnya lebih meyakinkan yang dipakai.
+    """
+    polos = extract_text_from_image(file_path, lang=lang)
+    if polos.get('error') or polos.get('confidence', 0) >= AMBAT_PREPROCESS:
+        return polos
+    praproses = extract_text_from_image(file_path, lang=lang, aggressive_preprocess=True)
+    if not praproses.get('error') and praproses.get('confidence', 0) > polos.get('confidence', 0):
+        return praproses
+    return polos
+
+
+def process_document(dokumen_obj):
+    """Proses lengkap: ekstrak teks, parse field KTP/KK, lalu nilai kecocokannya.
+
     Args:
         dokumen_obj: Instance model Dokumen
-    
+
     Returns:
-        dict dengan hasil pemrosesan
+        dict hasil pemrosesan. ``skipped`` True berarti berkas sengaja tidak
+        dinilai mesin (mis. PDF), bukan kegagalan yang perlu diulang.
     """
-    from django.conf import settings
     import os
-    
+
+    from .ai_verifikasi import nilai_berkas
+
     # Dapatkan path file absolut
-    file_path = dokumen_obj.file.path
-    
+    try:
+        file_path = dokumen_obj.file.path
+    except (ValueError, OSError):
+        _tandai_belum_dinilai(dokumen_obj, 'Berkas tidak terdaftar di penyimpanan, OCR tidak bisa jalan.')
+        return {'success': False, 'error': 'Berkas tidak terdaftar di penyimpanan.'}
+
     # Cek apakah file ada
     if not os.path.exists(file_path):
-        return {
-            'success': False,
-            'error': f'File tidak ditemukan: {file_path}',
-        }
-    
+        _tandai_belum_dinilai(dokumen_obj, f'Berkas hilang dari penyimpanan: {os.path.basename(file_path)}')
+        return {'success': False, 'error': f'File tidak ditemukan: {file_path}'}
+
+    # Tesseract hanya menerima gambar. PDF dulunya gagal dengan pesan error PIL
+    # yang tidak menjelaskan apa pun di log; sekarang sebabnya ditulis terang.
+    if file_path.lower().endswith('.pdf'):
+        catatan = (
+            'Berkas PDF belum bisa dibaca OCR: Tesseract menerima gambar, '
+            'ekstraksi halaman PDF belum dipasang. Unggah ulang halaman terkait '
+            'sebagai JPG/PNG bila ingin dinilai mesin.'
+        )
+        _tandai_belum_dinilai(dokumen_obj, catatan)
+        return {'success': False, 'skipped': True, 'error': catatan}
+
     # Tentukan jenis dokumen
     jenis = dokumen_obj.jenis
-    
+
     # Ekstrak teks
-    ocr_result = extract_text_from_image(file_path)
-    
+    ocr_result = ekstrak_dengan_pilihan_praproses(file_path)
+
     if ocr_result.get('error'):
+        _tandai_belum_dinilai(dokumen_obj, f'Teks berkas gagal dibaca mesin: {ocr_result["error"]}')
         return {
             'success': False,
             'error': f'OCR gagal: {ocr_result["error"]}',
         }
-    
-    # Parse data berdasarkan jenis
+
+    # Parse data berdasarkan jenis. parse_ktp_data diambil dari core/ktp_parser.py:
+    # satu-satunya versi yang mengenal format kolom. File ini dulu mendefinisikan
+    # ulang nama yang sama sehingga parser lengkap itu tidak pernah terpakai.
     if jenis == 'ktp':
         parsed_data = parse_ktp_data(ocr_result)
     elif jenis == 'kk':
         parsed_data = parse_kk_data(ocr_result)
     else:
         parsed_data = {}
-    
+
     # Update model
     dokumen_obj.ocr_text = ocr_result['text']
     dokumen_obj.ocr_confidence = ocr_result['confidence']
     dokumen_obj.extracted_nik = parsed_data.get('nik')
     dokumen_obj.extracted_data = parsed_data
     dokumen_obj.ocr_processed_at = timezone.now()
-    
-    # Auto-verifikasi sederhana: jika NIK dari OCR cocok dengan NIK penduduk
-    if parsed_data.get('nik') and dokumen_obj.penduduk.nik == parsed_data['nik']:
-        dokumen_obj.ai_verified = True
-        dokumen_obj.ai_verification_notes = f'NIK cocok: {parsed_data["nik"]}'
-    else:
-        dokumen_obj.ai_verified = False
-        dokumen_obj.ai_verification_notes = 'Menunggu verifikasi manual petugas'
-    
-    dokumen_obj.save()
-    
+
+    # Prapemilahan AI (laporan "Validasi agentik AI"): bandingkan hasil OCR
+    # dengan isian formulir, lalu tentukan Valid / Perlu review manual dari
+    # ambang 85%.
+    hasil = nilai_berkas(
+        dokumen_obj.penduduk, parsed_data, ocr_result['confidence'], jenis,
+    )
+    dokumen_obj.ai_score = hasil['skor']
+    dokumen_obj.ai_prescreen = hasil['prescreen']
+    dokumen_obj.ai_verified = hasil['prescreen'] == 'valid'
+    dokumen_obj.ai_verification_notes = hasil['catatan']
+
+    # Hanya kolom hasil OCR/AI yang ditulis. Simpan penuh akan menimpa kolom lain
+    # dengan isi salinan yang dibaca thread ini sebelum Tesseract jalan — prosesnya
+    # bisa sampai puluhan detik — sehingga keputusan petugas yang baru masuk di tab
+    # lain hilang tanpa jejak. Panel review berjanji "mesin tidak pernah
+    # mengubah status dokumen"; janji itu hanya benar kalau status tidak ikut
+    # ditulis kembali, walaupun nilainya basi.
+    dokumen_obj.save(update_fields=[
+        'ocr_text', 'ocr_confidence', 'extracted_nik', 'extracted_data',
+        'ocr_processed_at', 'ai_score', 'ai_prescreen', 'ai_verified',
+        'ai_verification_notes',
+    ])
+
     return {
         'success': True,
         'ocr_text': ocr_result['text'],
         'confidence': ocr_result['confidence'],
         'parsed_data': parsed_data,
         'ai_verified': dokumen_obj.ai_verified,
+        'skor': dokumen_obj.ai_score,
+        'prescreen': dokumen_obj.ai_prescreen,
         'notes': dokumen_obj.ai_verification_notes,
     }

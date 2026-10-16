@@ -7,12 +7,13 @@ singgah ke disk. Middleware ini memotong lebih awal lewat Content-Length.
 
 from django.http import HttpResponse
 
-from .views import LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES
+from .views import MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
 
 # Sedikit di atas batas aplikasi supaya pengguna masih mendapat pesan "maksimal
 # 5 MB per berkas", bukan 413 kosong dari server. Jatahnya dikalikan jumlah slot
-# unggah pada form pengajuan (KTP dan KK dikirim bersamaan), bukan satu berkas.
-HARD_LIMIT_BYTES = MAX_UPLOAD_BYTES * len(LAMPILAN_UPLOAD) + 3 * 1024 * 1024
+# unggah pada form pengajuan (KTP, KK, dan pasfoto bisa dikirim bersamaan),
+# bukan satu berkas.
+HARD_LIMIT_BYTES = MAX_UPLOAD_BYTES * len(SEMUA_LAMPILAN) + 3 * 1024 * 1024
 
 
 class MaxUploadSizeMiddleware:

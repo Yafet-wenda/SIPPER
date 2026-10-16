@@ -1,0 +1,1 @@
+"""Migrasi aplikasi AI OCR."""

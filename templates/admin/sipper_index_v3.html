@@ -55,6 +55,11 @@
         <strong id="sip-m-dokumen">{{ live_stats.dokumen_pending }}</strong>
         <em>dari {{ live_stats.dokumen_total }} berkas</em>
       </a>
+      <a href="{% url 'sipper_admin:ai_ocr_tinjauanocr_changelist' %}?ai_prescreen=review">
+        <small>Prapemilahan AI</small>
+        <strong id="sip-m-ai-review">{{ live_stats.ai_review }}</strong>
+        <em id="sip-m-ai-note">{{ live_stats.ai_valid }} berkas lolos ambang {{ live_stats.ai_ambang|floatformat:0 }}%</em>
+      </a>
       <a href="{% url 'sipper_admin:core_kartudigital_changelist' %}">
         <small>Kartu berlaku</small>
         <strong id="sip-m-kartu">{{ live_stats.kartu_berlaku }}</strong>
@@ -160,5 +165,5 @@
 
 {% block extrabody %}
   {{ block.super }}
-  <script src="{% static 'js/admin-dashboard.js' %}?v=1" defer></script>
+  <script src="{% static 'js/admin-dashboard.js' %}?v=2" defer></script>
 {% endblock %}

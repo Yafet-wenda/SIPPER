@@ -116,6 +116,16 @@
     setText('sip-m-kartu', number(data.kartu_berlaku));
     setText('sip-m-warga', number(data.warga));
 
+    /* Prapemilahan AI: angka besar = antrean yang masih harus dibaca manusia,
+       keterangan = berapa berkas yang sudah lolos ambang mesin. Ambangnya ikut
+       dari server supaya label tidak pernah menyebut angka lain. */
+    setText('sip-m-ai-review', number(data.ai_review));
+    var aiNote = document.getElementById('sip-m-ai-note');
+    if (aiNote && data.ai_valid !== undefined) {
+      aiNote.textContent = number(data.ai_valid) + ' berkas lolos ambang '
+        + number(Math.round(data.ai_ambang)) + '%';
+    }
+
     var dokumen = document.querySelector('#sip-m-dokumen + em');
     if (dokumen) dokumen.textContent = 'dari ' + number(data.dokumen_total) + ' berkas';
     var kartu = document.querySelector('#sip-m-kartu + em');

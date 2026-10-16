@@ -16,6 +16,7 @@ from django.utils.html import format_html
 from django.urls import path, reverse
 from django.db.models import Count
 from .csv_utils import sel_aman
+from .ai_verifikasi import AMBAT_VALID
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
 from .keputusan import terapkan_status
 
@@ -115,6 +116,12 @@ class SipperAdminSite(admin.AdminSite):
             'warga': Penduduk.objects.count(),
             'dokumen_pending': Dokumen.objects.filter(status='pending').count(),
             'dokumen_total': Dokumen.objects.count(),
+            # Dua angka prapemilahan AI: yang masih harus dibaca manusia dan yang
+            # sudah lolos ambang. Ambangnya ikut dikirim supaya label di layar
+            # tidak pernah menyebut angka lain selain yang dipakai mesin.
+            'ai_review': Dokumen.objects.filter(ai_prescreen='review').count(),
+            'ai_valid': Dokumen.objects.filter(ai_prescreen='valid').count(),
+            'ai_ambang': AMBAT_VALID,
             'kartu_berlaku': kartu_berlaku,
             'kartu_habis': KartuDigital.objects.count() - kartu_berlaku,
             'rerata_jam': rerata_jam,
@@ -299,8 +306,28 @@ class PendudukAdmin(EksporCSVMixin, admin.ModelAdmin):
     list_filter = ('status', 'tujuan', 'kota_tujuan', PendudukWaktuFilter)
     search_fields = ('nama', 'nik', 'daerah_asal', 'kota_tujuan', 'user__email')
     list_per_page = 25
-    readonly_fields = ('created_at',)
+    # Pasfoto sengaja tidak bisa diubah dari admin: sumbernya unggahan warga di
+    # form pengajuan / kirim ulang. Yang ditampilkan hanya pratinjau.
+    fields = ('foto_preview', 'user', 'nama', 'nik', 'daerah_asal', 'kota_tujuan',
+              'tujuan', 'nomor_telepon', 'tanggal_mulai', 'perkiraan_kembali', 'status', 'created_at')
+    readonly_fields = ('created_at', 'foto_preview')
     list_select_related = ('user',)
+
+    def foto_preview(self, obj):
+        """Kotak pasfoto di halaman ubah warga.
+
+        Gambar diambil lewat rute berpendaptasi (core.views.penduduk_foto), bukan
+        MEDIA_URL, karena berkas media tidak dilayani saat DEBUG=False dan rute
+        itu sudah menolak warga yang bukan pemilik serta pengunjung anonim.
+        """
+        if not obj or not obj.pk or not obj.foto:
+            return 'Belum ada pasfoto. Warga dapat mengunggahnya lewat form pengajuan atau kirim ulang.'
+        return format_html(
+            '<img src="{}" alt="Pasfoto {}" style="width:96px;height:128px;object-fit:cover;border-radius:10px;border:1px solid #d7dcd3">',
+            reverse('core:penduduk_foto', args=[obj.pk]),
+            obj.nama,
+        )
+    foto_preview.short_description = 'pasfoto'
     csv_columns = (
         ('Nama', 'nama'),
         ('NIK', 'nik'),
@@ -351,6 +378,21 @@ class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
             # Putar balik status di memori agar terapkan_status mendeteksi perubahan.
             obj.status = status_lama
             terapkan_status(obj, status_baru, request.user, request, sumber='admin')
+
+    # Setiap warga punya tepat satu pengajuan (OneToOne), jadi 'Simpan dan
+    # tambahkan lagi' tidak pernah bermakna di sini. 'Simpan dan terus mengedit'
+    # juga dibuang: keputusan langsung tersimpan dan memberi efek (email, kartu,
+    # audit) begitu status berubah, tidak ada tahap simpan-sementara. Yang tersisa
+    # hanya Simpan (+ tautan Hapus di halaman ubah). Cakupan per-model — model
+    # lain tetap memakai tombol bawaan Django.
+    Tombol_minimal = {'show_save_and_add_another': False, 'show_save_and_continue': False}
+
+    def add_view(self, request, form_url='', extra_context=None):
+        return super().add_view(request, form_url, {**self.Tombol_minimal, **(extra_context or {})})
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        return super().change_view(request, object_id, form_url,
+                                   {**self.Tombol_minimal, **(extra_context or {})})
 
 
 class DokumenAdminForm(forms.ModelForm):

@@ -267,8 +267,14 @@
       }
 
       // Display AI verification status
+      // Prapemilahan AI = skor kecocokan hasil OCR dengan isian formulir
+      // (core/ai_verifikasi.py). Hanya label yang ditampilkan, keputusan
+      // status tetap di tangan petugas.
       const verifiedEl = document.getElementById('ai-verified-status');
-      verifiedEl.textContent = data.ai_verified ? '✓ Terverifikasi' : '✗ Belum diverifikasi';
+      const skor = (typeof data.ai_score === 'number') ? data.ai_score : null;
+      const label = data.ai_prescreen_label || (data.ai_verified ? 'Terverifikasi' : 'Belum diverifikasi');
+      verifiedEl.textContent = (data.ai_prescreen === 'valid' ? '✓ ' : '✗ ') + label
+        + (skor === null ? '' : ' — skor ' + skor.toFixed(1) + '%');
       verifiedEl.style.color = data.ai_verified ? '#059669' : '#dc2626';
 
       document.getElementById('ai-notes').textContent = data.ai_verification_notes || '';

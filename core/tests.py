@@ -19,7 +19,7 @@ from io import BytesIO
 from PIL import Image
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, UserRole
 from .middleware import HARD_LIMIT_BYTES, MaxUploadSizeMiddleware
-from .views import LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES
+from .views import LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
 
 # Tes mengunggah dokumen; arahkan MEDIA_ROOT ke folder sementara supaya
 # folder media/ asli tidak ikut tertumpuk file uji.
@@ -155,22 +155,24 @@ class SipperFlowTests(TestCase):
         self.assertEqual(Penduduk.objects.count(), 0)
 
     def test_two_full_size_lampiran_pass_the_request_size_gate(self):
-        """Dua berkas 5 MB sekaligus tidak boleh dipotong lebih awal.
+        """Semua slot unggah 5 MB sekaligus tidak boleh dipotong lebih awal.
 
         Gerbang Content-Length dulu dihitung untuk satu slot unggah. Setelah
         form wajib mengirim KTP dan KK, kiriman sah seukuran dua berkas akan
         berbalas 413 polos sebelum Django sempat memberi pesan yang jelas.
+        Sekarang pasfoto menambah slot ketiga, jadi jatah dihitung dari
+        SEMUA_LAMPILAN, bukan hanya berkas yang wajib.
         """
         middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
         request = RequestFactory().post('/pengajuan/', {'nik': '9101010101010101'})
-        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(LAMPILAN_UPLOAD))
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(SEMUA_LAMPILAN))
         self.assertNotEqual(middleware(request).status_code, 413)
 
     def test_request_over_total_lampiran_budget_is_rejected_early(self):
         """Gerbangnya tetap menutup; yang berubah hanya jatah totalnya."""
         middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
         request = RequestFactory().post('/pengajuan/', {'nik': '9101010101010101'})
-        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(LAMPILAN_UPLOAD) + 4 * 1024 * 1024)
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(SEMUA_LAMPILAN) + 4 * 1024 * 1024)
         self.assertEqual(middleware(request).status_code, 413)
 
     def test_application_stores_ktp_and_kk_as_two_labeled_documents(self):
@@ -1021,3 +1023,305 @@ class PengajuanAdminKeputusanTests(TestCase):
         doc.refresh_from_db()
         self.assertEqual(doc.nama, 'kk-warga.png', 'nama diturunkan dari berkas yang ada')
         doc.file.delete(save=False)
+
+
+class PengajuanAdminSubmitLineTests(TestCase):
+    """Halaman pengajuan hanya boleh punya tombol Simpan (+ Hapus), tanpa yang lain.
+
+    Setiap warga punya tepat satu pengajuan (relasi OneToOne), jadi 'Simpan dan
+    tambahkan lagi' tidak pernah bermakna di sini. 'Simpan dan terus mengedit'
+    juga dibuang karena keputusan langsung tersimpan dan memberi efek (email,
+    kartu, audit) saat status berubah — tidak ada tahap 'simpan sementara'.
+    Cakupan harus per-model: model lain (Penduduk) tetap memakai tombol bawaan.
+    """
+
+    def setUp(self):
+        cache.clear()
+        self.superuser = User.objects.create_superuser(
+            username='boss4@example.com', email='boss4@example.com', password='password123')
+        warga_user = User.objects.create_user(
+            username='warga4@example.com', email='warga4@example.com', password='password123')
+        self.warga = Penduduk.objects.create(
+            user=warga_user, nama='Citra Permata', nik='9303030303030404',
+            daerah_asal='Jayapura', kota_tujuan='Jakarta', tujuan='kuliah')
+        self.pengajuan = Pengajuan.objects.create(penduduk=self.warga, status='menunggu')
+
+    def _isi(self, path):
+        self.client.force_login(self.superuser)
+        return self.client.get(path).content.decode()
+
+    def test_ubah_pengajuan_tanpa_tombol_tambahan(self):
+        isi = self._isi(f'/admin/core/pengajuan/{self.pengajuan.pk}/change/')
+        self.assertIn('name="_save"', isi, 'tombol Simpan tetap ada')
+        self.assertNotIn('name="_addanother"', isi, 'tanpa Simpan dan tambahkan lagi')
+        self.assertNotIn('name="_continue"', isi, 'tanpa Simpan dan terus mengedit')
+        self.assertIn('deletelink', isi, 'tautan Hapus tetap tersedia')
+
+    def test_tambah_pengajuan_tanpa_tombol_tambahan(self):
+        isi = self._isi('/admin/core/pengajuan/add/')
+        self.assertIn('name="_save"', isi)
+        self.assertNotIn('name="_addanother"', isi)
+        self.assertNotIn('name="_continue"', isi)
+
+    def test_model_lain_tetap_pakai_tombol_bawaan(self):
+        """Pengurangan tombol hanya untuk Pengajuan, bukan seluruh admin."""
+        isi = self._isi(f'/admin/core/penduduk/{self.warga.pk}/change/')
+        self.assertIn('name="_addanother"', isi, 'Penduduk tetap punya Simpan dan tambahkan lagi')
+        self.assertIn('name="_continue"', isi, 'Penduduk tetap punya Simpan dan terus mengedit')
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class PasfotoKartuTests(TestCase):
+    """Kartu digital warga ditata seperti kartu pada landing page: pasfoto di kiri,
+    nama + NIK tersamar, QR di kanan, lalu blok "Batasan & operasional sistem".
+
+    Dua aturan yang mengikat seluruh tes di kelas ini:
+    1. Pasfoto bersifat opsional. Warga yang mendaftar sebelum kolomnya ada harus
+       tetap bisa memakai kartunya, jadi setiap tampilan kartu butuh fallback
+       inisial dan jalur unggah tidak boleh menolaknya karena kosong.
+    2. Wajah warga adalah data pribadi. Halaman kartu bisa dibuka publik lewat
+       tautan QR, jadi foto hanya dikirim ke pemilik kartu dan petugas.
+    """
+
+    def setUp(self):
+        cache.clear()
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+        self.user = User.objects.create_user(username='pemilik@example.com', email='pemilik@example.com', password='password123', first_name='Yafet')
+        self.staff = User.objects.create_user(username='petugasfoto@example.com', email='petugasfoto@example.com', password='password123', is_staff=True)
+
+    def tearDown(self):
+        shutil.rmtree(TEST_MEDIA_ROOT, ignore_errors=True)
+
+    def jpg_upload(self, name='pasfoto.jpg'):
+        output = BytesIO()
+        Image.new('RGB', (200, 260), 'salmon').save(output, format='JPEG')
+        return SimpleUploadedFile(name, output.getvalue(), content_type='image/jpeg')
+
+    def png_upload(self, name='dokumen.png'):
+        output = BytesIO()
+        Image.new('RGB', (1, 1), 'white').save(output, format='PNG')
+        return SimpleUploadedFile(name, output.getvalue(), content_type='image/png')
+
+    def _kirim_pengajuan(self, **tambahan):
+        data = {'name': 'Yafet Wenda', 'nik': '9707070707070707', 'origin': 'Jayapura',
+                'destination': 'Surabaya', 'purpose': 'pekerjaan',
+                'ktp': self.png_upload('ktp.png'), 'kk': self.png_upload('kk.png')}
+        data.update(tambahan)
+        self.client.force_login(self.user)
+        return self.client.post('/pengajuan/', data)
+
+    def _warga_dengan_kartu(self, foto=None, kode='SPR-FOTO-0001'):
+        """Warga punya kartu; `foto` berupa berkas unggah bila kartu perlu pasfoto."""
+        person = Penduduk.objects.create(user=self.user, nama='Yafet Wenda', nik='9808080808080808',
+                                         daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        if foto is not None:
+            person.foto.save('pasfoto.jpg', foto, save=True)
+        return KartuDigital.objects.create(penduduk=person, kode=kode, berlaku_sampai='2027-10-09')
+
+    def test_penduduk_punya_foto_yang_boleh_kosong(self):
+        field = Penduduk._meta.get_field('foto')
+        self.assertTrue(field.blank, 'pasfoto tidak boleh memaksa warga yang sudah terdaftar')
+        person = Penduduk.objects.create(user=self.user, nama='Tanpa Foto', nik='9909090909090909',
+                                         daerah_asal='Jayapura', kota_tujuan='Manokwari', tujuan='keluarga')
+        self.assertFalse(bool(person.foto))
+
+    def test_inisial_nama_untuk_fallback_kartu(self):
+        person = Penduduk(nama='Yafet Wenda')
+        self.assertEqual(person.inisial, 'YW')
+        self.assertEqual(Penduduk(nama='Yafet').inisial, 'Y')
+        self.assertEqual(Penduduk(nama='Maria Christina Klambu').inisial, 'MC')
+
+    def test_form_pengajuan_menawarkan_isian_pasfoto(self):
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get('/pengajuan/'), 'name="pasfoto"')
+
+    def test_pengajuan_menyimpan_pasfoto(self):
+        response = self._kirim_pengajuan(pasfoto=self.jpg_upload())
+        self.assertRedirects(response, '/dashboard/')
+        person = Penduduk.objects.get(nik='9707070707070707')
+        self.assertTrue(bool(person.foto), 'pasfoto tersimpan pada data warga')
+        self.assertTrue(os.path.exists(person.foto.path))
+
+    def test_pengajuan_tetap_sah_tanpa_pasfoto(self):
+        response = self._kirim_pengajuan()
+        self.assertRedirects(response, '/dashboard/')
+        self.assertFalse(bool(Penduduk.objects.get(nik='9707070707070707').foto))
+
+    def test_pasfoto_bukan_gambar_ditolak(self):
+        response = self._kirim_pengajuan(pasfoto=SimpleUploadedFile('pasfoto.pdf', b'%PDF-1.4 bukan gambar', content_type='application/pdf'))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Pasfoto')
+        self.assertEqual(Penduduk.objects.count(), 0, 'pengajuan ditolak sebelum data warga ditulis')
+
+    def test_pasfoto_terlalu_besar_ditolak(self):
+        bongsor = SimpleUploadedFile('pasfoto.jpg', self.jpg_upload().read() + b'x' * (6 * 1024 * 1024))
+        response = self._kirim_pengajuan(pasfoto=bongsor)
+        self.assertContains(response, 'Pasfoto')
+        self.assertEqual(Penduduk.objects.count(), 0)
+
+    def test_kirim_ulang_mengganti_pasfoto(self):
+        person = Penduduk.objects.create(user=self.user, nama='Retry Foto', nik='9111111111111111',
+                                         daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        aplikasi = Pengajuan.objects.create(penduduk=person, status='perlu_perbaikan', catatan='Ganti pasfoto.')
+        person.foto.save('pasfoto.jpg', self.jpg_upload(), save=True)
+        path_lama = person.foto.path
+        self.client.force_login(self.user)
+        response = self.client.post(f'/pengajuan/{aplikasi.pk}/kirim-ulang/', {'pasfoto': self.jpg_upload('pengganti.jpg')})
+        self.assertRedirects(response, '/dashboard/')
+        person.refresh_from_db()
+        self.assertIn('pengganti', os.path.basename(person.foto.name))
+        self.assertFalse(os.path.exists(path_lama), 'pasfoto lama dibersihkan dari media/')
+
+    def test_halaman_kartu_pemilik_menampilkan_foto(self):
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        self.client.force_login(self.user)
+        self.assertContains(self.client.get(f'/kartu/{card.kode}/'), f'/penduduk/{card.penduduk_id}/pasfoto/')
+
+    def test_halaman_kartu_petugas_menampilkan_foto(self):
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        self.client.force_login(self.staff)
+        self.assertContains(self.client.get(f'/kartu/{card.kode}/'), f'/penduduk/{card.penduduk_id}/pasfoto/')
+
+    def test_halaman_kartu_anonim_tidak_menampilkan_foto(self):
+        """Pemindai QR yang belum login tetap melihat kartu, tanpa wajah warga."""
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        isi = self.client.get(f'/kartu/{card.kode}/').content.decode()
+        self.assertNotIn('/pasfoto/', isi)
+        self.assertIn('Yafet Wenda', isi, 'nama dan kartu tetap ditampilkan seperti sebelumnya')
+
+    def test_rute_pasfoto_terkunci_pemilik_dan_petugas(self):
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        url = f'/penduduk/{card.penduduk_id}/pasfoto/'
+        self.assertEqual(self.client.get(url).status_code, 302, 'anonim diarahkan ke login')
+        orang_lain = User.objects.create_user(username='oranglain@example.com', email='oranglain@example.com', password='password123')
+        self.client.force_login(orang_lain)
+        self.assertEqual(self.client.get(url).status_code, 404, 'warga lain tidak bisa menebak id')
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(url).status_code, 200)
+        self.client.force_login(self.staff)
+        self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_rute_pasfoto_warga_tanpa_foto_404(self):
+        card = self._warga_dengan_kartu()
+        self.client.force_login(self.user)
+        self.assertEqual(self.client.get(f'/penduduk/{card.penduduk_id}/pasfoto/').status_code, 404)
+
+    def test_halaman_kartu_tanpa_foto_pakai_inisial(self):
+        card = self._warga_dengan_kartu()
+        self.client.force_login(self.user)
+        isi = self.client.get(f'/kartu/{card.kode}/').content.decode()
+        self.assertNotIn('/pasfoto/', isi)
+        self.assertIn('YW', isi)
+
+    def test_halaman_kartu_memuat_blok_batasan(self):
+        card = self._warga_dengan_kartu()
+        isi = self.client.get(f'/kartu/{card.kode}/').content.decode()
+        self.assertIn('Kartu SIPPER', isi)
+        self.assertIn('Batasan & operasional sistem', isi)
+        self.assertIn('bukan pengganti dokumen', isi)
+        self.assertIn('Dukcapil', isi)
+        self.assertIn(card.penduduk.nik[-4:], isi, 'NIK tetap tampil sebagian')
+        self.assertNotIn(card.penduduk.nik, isi, 'NIK tidak boleh utuh di halaman kartu')
+
+    def test_unduh_kartu_pdf_tanpa_foto_sukses(self):
+        card = self._warga_dengan_kartu()
+        self.client.force_login(self.user)
+        response = self.client.get(f'/kartu/{card.kode}/download/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_unduh_kartu_pdf_dengan_foto_sukses(self):
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        self.client.force_login(self.user)
+        response = self.client.get(f'/kartu/{card.kode}/download/')
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_geometri_kartu_ikut_proporsi_id1(self):
+        """Kartu harus seukuran KTP/BPJS, bukan blok kotak.
+
+        ID-1 (85,60 × 53,98 mm, rasio ±1,586) adalah ukuran fisik KTP, KK digital,
+        dan ATM. PDF memakainya sebagai ukuran gambar kartu supaya hasil cetak
+        100% bisa langsung dipotong sebesar kartu asli.
+        """
+        from .views import KARTU_ID1_MM, KARTU_ID1_PT
+        self.assertEqual(KARTU_ID1_MM, (85.6, 53.98))
+        self.assertAlmostEqual(KARTU_ID1_PT[0], 242.6457, places=3, msg='lebar kartu = 85,6 mm dalam poin')
+        self.assertAlmostEqual(KARTU_ID1_PT[0] / KARTU_ID1_PT[1], 85.6 / 53.98, places=4, msg='rasio wajib ID-1')
+
+    def test_potret_pasfoto_dikemas_jpeg_terbatas(self):
+        """PDF kartu tidak boleh membengkak karena satu pasfoto.
+
+        reportlab menempel objek PIL sebagai piksel mentah (~1 MB per foto),
+        jadi potret harus diperkecil lalu dikemas ulang jadi JPEG. Kotak foto di
+        kartu ID-1 hanya 54x72 poin, sehingga 600 piksel sudah cukup untuk cetak.
+        """
+        import io
+        from PIL import Image
+        from .views import _potret_pasfoto
+        sumber = io.BytesIO()
+        Image.new('RGB', (2000, 2000), 'white').save(sumber, format='PNG')
+        sumber.seek(0)
+        hasil = _potret_pasfoto(sumber)
+        self.assertIsNotNone(hasil)
+        self.assertEqual(hasil.read(2), b'\xff\xd8', 'hasil harus berkas JPEG, bukan objek PIL')
+        self.assertLess(len(hasil.getvalue()), 200_000, 'satu pasfoto tidak boleh menambah ~1 MB')
+        hasil.seek(0)
+        lebar, tinggi = Image.open(hasil).size
+        self.assertLessEqual(max(lebar, tinggi), 800, 'resolusi potret harus dibatasi')
+        self.assertAlmostEqual(lebar / tinggi, 3 / 4, places=2, msg='potret wajib berasio 3:4')
+
+    def test_baris_teks_memotong_kata_yang_lebih_lebar_dari_kolom(self):
+        """Satu kata tanpa spasi tidak boleh menembus tepi kartu PDF.
+
+        Kolom nama di basis data menerima 150 karakter dan tidak mewajibkan
+        spasi, jadi pemenggal baris harus memotong kata yang lebih lebar dari
+        kolomnya, bukan menggambarnya apa adanya.
+        """
+        import io
+        from reportlab.pdfgen import canvas
+        from .views import _baris_teks
+        dokumen = canvas.Canvas(io.BytesIO())
+        kolom = 104.6  # lebar kolom identitas kartu ID-1
+        hasil = _baris_teks('A' * 150, 'Helvetica-Bold', 12, kolom, dokumen)
+        self.assertGreater(len(hasil), 1, 'kata sepanjang 150 karakter harus dipecah')
+        for baris in hasil:
+            self.assertLessEqual(dokumen.stringWidth(baris, 'Helvetica-Bold', 12), kolom,
+                                 f'baris {baris!r} melebar dari kolom')
+        self.assertEqual(''.join(hasil), 'A' * 150, 'pemotongan tidak boleh menghapus karakter')
+
+    def test_baris_teks_tetap_menghormati_batas_baris_tanpa_memotong_kata(self):
+        """Kata yang muat kolom tetap utuh; hanya barisnya yang dihitung."""
+        import io
+        from reportlab.pdfgen import canvas
+        from .views import _baris_teks
+        dokumen = canvas.Canvas(io.BytesIO())
+        hasil = _baris_teks('Sistem Informasi Penduduk Perantauan', 'Helvetica', 5, 60, dokumen)
+        self.assertEqual(' '.join(hasil), 'Sistem Informasi Penduduk Perantauan')
+
+    def test_nama_bulan_pada_kartu_bergaya_indonesia(self):
+        """PDF memakai formatter Django, bukan strftime yang ikut locale C."""
+        from datetime import date
+        from .views import _tanggal_kartu
+        self.assertEqual(_tanggal_kartu(date(2027, 10, 9)), '09 Okt 2027')
+
+    def test_gerbang_ukuran_menampung_slot_pasfoto(self):
+        """Form pengajuan punya tiga slot unggah; jatah CONTENT_LENGTH ikut jumlah itu."""
+        self.assertEqual(len(SEMUA_LAMPILAN), 3)
+        middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
+        request = RequestFactory().post('/pengajuan/', {'nik': '9121212121212121'})
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(SEMUA_LAMPILAN))
+        self.assertNotEqual(middleware(request).status_code, 413)
+
+    def test_gerbang_ukuran_tetap_memotong_kiriman_berlebih(self):
+        middleware = MaxUploadSizeMiddleware(lambda request: HttpResponse(status=200))
+        request = RequestFactory().post('/pengajuan/', {'nik': '9131313131313131'})
+        request.META['CONTENT_LENGTH'] = str(MAX_UPLOAD_BYTES * len(SEMUA_LAMPILAN) + 4 * 1024 * 1024)
+        self.assertEqual(middleware(request).status_code, 413)
+
+    def test_admin_penduduk_menampilkan_pratinjau_pasfoto(self):
+        boss = User.objects.create_superuser(username='bosfoto@example.com', email='bosfoto@example.com', password='password123')
+        card = self._warga_dengan_kartu(foto=self.jpg_upload())
+        self.client.force_login(boss)
+        isi = self.client.get(f'/admin/core/penduduk/{card.penduduk_id}/change/').content.decode()
+        self.assertIn(f'/penduduk/{card.penduduk_id}/pasfoto/', isi)

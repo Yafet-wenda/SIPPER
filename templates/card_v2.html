@@ -1,50 +1,349 @@
 {% extends 'base.html' %}
 
 {% block title %}
-  Validasi kartu / SIPPER
+  Kartu SIPPER / Validasi
+{% endblock %}
+
+{% block extra_head %}
+  <style>
+    /* Gaya kartu digital dibuat di sini, bukan di style.css, karena kartu punya
+        tata letak sendiri (header merah, pasfoto kiri, QR kanan) dan tidak
+        memakai ulang .identity-panel yang sudah punya aturan responsif sendiri. */
+
+    /* Semua ukuran di dalam kartu memakai em dan diturunkan dari satu
+        font-size dasar (--ks). Lebar kartu dibuat 41,3 × --ks supaya perbandingan
+        85,6 : 54 (standar ID-1, ukuran KTP/BPJS/ATM) tetap terjaga berapa pun
+        ukuran layarnya: memperbesar tulisan berarti memperbesar kartu, bukan
+        membuat kartunya jadi kotak. */
+    .kartu-sipper {
+      --ks: min(15px, max(11.2px, calc((100vw - 34px) / 41.3)));
+      font-size: var(--ks);
+      width: calc(41.3 * var(--ks));
+      aspect-ratio: 85.6 / 54;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border: 1px solid #d7dcd3;
+      border-radius: 1.1em;
+      overflow: hidden;
+      box-shadow: 0 1.2em 2.6em rgba(23, 57, 43, .14);
+    }
+
+    /* Di layar sempit kartu tidak boleh dipecah jadi kotak; ia dipertahankan
+        seukuran kartu dan digeser mendatar lewat panggung ini. */
+    .ks-layar {
+      position: relative;
+      width: min(100%, 620px);
+      margin: 0 auto;
+    }
+
+    /* Bayangan tipis di tepi kanan: isyarat bahwa kartu masih berlanjut dan bisa
+        digeser, bukan kartunya yang terpotong. */
+    .ks-layar::after {
+      content: '';
+      display: none;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 26px;
+      border-radius: 0 1.1em 1.1em 0;
+      background: linear-gradient(90deg, rgba(247, 248, 244, 0), #f7f8f4);
+      pointer-events: none;
+    }
+
+    .ks-stage {
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: thin;
+    }
+
+    .ks-gerak {
+      display: none;
+      margin: .6rem 0 0;
+      font-size: 12px;
+      color: #7b8c84;
+      text-align: center;
+    }
+
+    .ks-head {
+      flex: none;
+      background: #c8102e;
+      color: #fff;
+      padding: .75em 1.3em;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: .8em;
+    }
+
+    .ks-head h2 {
+      margin: 0;
+      font-size: 2.05em;
+      line-height: 1.08;
+      letter-spacing: .01em;
+    }
+
+    .ks-head p {
+      margin: .28em 0 0;
+      font-size: 1em;
+      line-height: 1.2;
+      opacity: .86;
+    }
+
+    .ks-status {
+      font-size: .8em;
+      font-weight: 700;
+      letter-spacing: .08em;
+      white-space: nowrap;
+      padding: .38em .7em;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .18);
+      border: 1px solid rgba(255, 255, 255, .4);
+    }
+
+    .ks-status.tidak-aktif {
+      background: #6b1119;
+      border-color: rgba(255, 255, 255, .25);
+    }
+
+    .ks-body {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 8.6em 1fr 10.8em;
+      gap: 1.3em;
+      padding: .85em 1.3em;
+      align-items: center;
+      align-content: center;
+      min-height: 0;
+    }
+
+    .ks-foto {
+      width: 8.6em;
+      height: 11.47em;
+      border-radius: .55em;
+      overflow: hidden;
+      background: #eef0df;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ks-foto img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Warga yang mendaftar sebelum pasfoto tersedia tetap dapat kartu:
+        blok merah muda berisi inisial namanya, bukan ruang kosong. */
+    .ks-inisial {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.6em;
+      font-weight: 700;
+      color: #c8102e;
+      background: #f6d9dc;
+    }
+
+    .ks-nama {
+      font-size: 1.85em;
+      font-weight: 700;
+      line-height: 1.12;
+      color: #17392b;
+      word-break: break-word;
+    }
+
+    .ks-label {
+      display: block;
+      margin-top: .62em;
+      font-size: .82em;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #7b8c84;
+    }
+
+    .ks-nilai {
+      display: block;
+      font-size: 1.28em;
+      font-weight: 600;
+      color: #22463a;
+      /* NIK tersamar 16 karakter dan kode validasi 26 karakter; tanpa aturan ini
+          teksnya mendorong kolom dan terpotong oleh overflow kartu. */
+      overflow-wrap: anywhere;
+    }
+
+    .ks-qr {
+      text-align: center;
+    }
+
+    .ks-qr img {
+      width: 10.8em;
+      height: 10.8em;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .ks-strip {
+      flex: none;
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 1em;
+      margin: 0 1.3em .95em;
+      padding: .55em .9em .65em;
+      background: #f4f6f2;
+      border-radius: .6em;
+    }
+
+    .ks-strip .ks-label {
+      margin-top: 0;
+      font-size: .8em;
+    }
+
+    .ks-strip .ks-nilai {
+      font-size: 1.12em;
+    }
+
+    /* Kartu fisik tidak memuat tiga kalimat batasan; keterangannya jadi panel
+        tersendiri di bawah kartu, tetap tercetak dan tetap terbaca. */
+    .ks-batasan {
+      max-width: 620px;
+      margin: 18px auto 0;
+      padding: 14px 16px;
+      border: 1px solid #e3e7e0;
+      border-radius: 12px;
+      background: #fff;
+    }
+
+    .ks-batasan h3 {
+      margin: 0 0 8px;
+      font-size: 12.5px;
+      letter-spacing: .3px;
+      color: #c8102e;
+    }
+
+    .ks-batasan ol {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .ks-batasan li {
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: #3f4a44;
+    }
+
+    .ks-aksi {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      max-width: 620px;
+      margin: 22px auto 0;
+    }
+
+    @media (max-width: 660px) {
+      .ks-gerak {
+        display: block;
+      }
+
+      .ks-layar::after {
+        display: block;
+      }
+    }
+
+    @media print {
+      .kartu-sipper {
+        --ks: 12px;
+        box-shadow: none;
+        border-color: #cfd4cd;
+      }
+
+      .ks-layar {
+        width: 500px;
+      }
+
+      .ks-layar::after {
+        display: none;
+      }
+
+      .ks-stage {
+        overflow: visible;
+      }
+    }
+  </style>
 {% endblock %}
 
 {% block content %}
   <div class="validation-page">
-    <div class="validation-badge {% if not valid %}invalid{% endif %}">
-      {% if valid %}
-        KARTU TERVERIFIKASI
-      {% else %}
-        KARTU TIDAK AKTIF
-      {% endif %}
-    </div>
-    <h1>{{ card.penduduk.nama }}</h1>
-    <p class="muted">Identitas perantau terdaftar di SIPPER</p>
-    <div class="identity-panel">
-      <div>
-        <small>NIK</small>
-        <strong>************{{ card.penduduk.nik|slice:'-4:' }}</strong>
-      </div>
-      <div>
-        <small>DOMISILI TUJUAN</small>
-        <strong>{{ card.penduduk.kota_tujuan }}</strong>
-      </div>
-      <div>
-        <small>BERLAKU SAMPAI</small>
-        <strong>{{ card.berlaku_sampai|date:'d M Y' }}</strong>
-      </div>
-      <div>
-        <small>KODE VALIDASI</small>
-        <strong>{{ card.kode }}</strong>
-      </div>
-      {% if card.qr_code %}
-        <div class="qr-wrap">
-          <img src="{% url 'core:card_qr' card.kode %}" alt="QR {{ card.kode }}">
+    <div class="ks-layar">
+      <div class="ks-stage" tabindex="0" role="group" aria-label="Kartu SIPPER; geser ke samping untuk melihat seluruh isi kartu">
+        <div class="kartu-sipper">
+          <div class="ks-head">
+            <div>
+              <h2>Kartu SIPPER</h2>
+              <p>Sistem Informasi Penduduk Perantauan</p>
+            </div>
+            <span class="ks-status {% if not valid %}tidak-aktif{% endif %}">
+              {% if valid %}KARTU TERVERIFIKASI{% else %}KARTU TIDAK AKTIF{% endif %}
+            </span>
+          </div>
+          <div class="ks-body">
+            <div class="ks-foto">
+              {% if card.penduduk.foto and boleh_lihat_foto %}
+                <img src="{% url 'core:penduduk_foto' card.penduduk.id %}" alt="Pasfoto {{ card.penduduk.nama }}">
+              {% else %}
+                <span class="ks-inisial" aria-hidden="true">{{ card.penduduk.inisial }}</span>
+              {% endif %}
+            </div>
+            <div>
+              <div class="ks-nama">{{ card.penduduk.nama }}</div>
+              <span class="ks-label">NIK</span>
+              <span class="ks-nilai">************{{ card.penduduk.nik|slice:'-4:' }}</span>
+              <span class="ks-label">Domisili tujuan</span>
+              <span class="ks-nilai">{{ card.penduduk.kota_tujuan }}</span>
+            </div>
+            <div class="ks-qr">
+              {% if card.qr_code %}
+                <img src="{% url 'core:card_qr' card.kode %}" alt="QR {{ card.kode }}">
+              {% endif %}
+            </div>
+          </div>
+          <div class="ks-strip">
+            <div>
+              <span class="ks-label">Berlaku sampai</span>
+              <span class="ks-nilai">{{ card.berlaku_sampai|date:'d M Y' }}</span>
+            </div>
+            <div>
+              <span class="ks-label">Kode validasi</span>
+              <span class="ks-nilai">{{ card.kode }}</span>
+            </div>
+          </div>
         </div>
+      </div>
+    </div>
+    <p class="ks-gerak">Geser kartu ke samping untuk melihat seluruh isinya.</p>
+    <div class="ks-batasan">
+      <h3>Batasan & operasional sistem</h3>
+      <ol>
+        {% for butir in batasan %}
+          <li>{{ butir }}</li>
+        {% endfor %}
+      </ol>
+    </div>
+    <div class="ks-aksi">
+      <a class="button button-green" href="{% url 'core:download_card' card.kode %}">Download PDF</a>
+      <button class="button button-green" type="button" onclick="window.print()">Cetak kartu</button>
+      {% if pengajuan_id %}
+        <!-- Tautan ini hanya dikirim ke template bila yang memindai petugas yang
+            sudah login (lihat core.views.validate_card). Halaman tujuannya sendiri
+            juga dikunci is_officer, jadi link yang bocor tidak membuka data. -->
+        <a class="button button-dark" href="{% url 'core:application_detail' pengajuan_id %}">Lihat data lengkap (petugas)</a>
       {% endif %}
     </div>
-    <a class="button button-green" href="{% url 'core:download_card' card.kode %}">Download PDF</a>
-    <button class="button button-green" type="button" onclick="window.print()">Cetak kartu</button>
-    {% if pengajuan_id %}
-      <!-- Tautan ini hanya dikirim ke template bila yang memindai petugas yang
-          sudah login (lihat core.views.validate_card). Halaman tujuannya sendiri
-          juga dikunci is_officer, jadi link yang bocor tidak membuka data. -->
-      <a class="button button-dark" href="{% url 'core:application_detail' pengajuan_id %}">Lihat data lengkap (petugas)</a>
-    {% endif %}
   </div>
 {% endblock %}
