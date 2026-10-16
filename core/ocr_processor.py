@@ -1,6 +1,7 @@
 """
 OCR Processor untuk SIPPER - Ekstraksi data dari KTP dan KK menggunakan Tesseract OCR
 """
+import os
 import re
 import cv2
 import numpy as np
@@ -17,7 +18,6 @@ if platform.system() == 'Windows':
         r'C:\Program Files (x86)\Tesseract-OCR\tesseract.exe',
     ]
     for path in tesseract_paths:
-        import os
         if os.path.exists(path):
             pytesseract.pytesseract.tesseract_cmd = path
             break
@@ -132,7 +132,10 @@ def _extract_with_best_psm(img, lang):
             if result['confidence'] > best_confidence and len(result['text']) > 50:
                 best_confidence = result['confidence']
                 best_result = result
-        except:
+        except Exception:
+            # Satu PSM boleh gagal tanpa menjatuhkan seluruh percobaan. Dipilih
+            # except Exception, bukan except polos, supaya KeyboardInterrupt dan
+            # SystemExit tetap naik ke atas alih-alih ditelan sebagai "mode gagal".
             continue
     
     return best_result or {'text': '', 'confidence': 0, 'error': 'All PSM modes failed'}
@@ -239,8 +242,6 @@ def process_document(dokumen_obj):
         dict hasil pemrosesan. ``skipped`` True berarti berkas sengaja tidak
         dinilai mesin (mis. PDF), bukan kegagalan yang perlu diulang.
     """
-    import os
-
     from .ai_verifikasi import nilai_berkas
 
     # Dapatkan path file absolut
