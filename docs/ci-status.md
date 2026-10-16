@@ -1,7 +1,7 @@
 # Status CI SIPPER
 
 Dokumen ini mencatat apa yang dijaga GitHub Actions, hasil terakhir yang benar-benar
-terverifikasi di server, dan temuan review atas workflow-nya. Diperbarui 2026-10-06.
+terverifikasi di server, dan temuan review atas workflow-nya. Diperbarui 2026-10-16.
 
 Berkas: `.github/workflows/ci.yml` (nama workflow: `CI`).
 Pemicu: `push` ke `master`, `pull_request` ke `master`, dan `workflow_dispatch`.
@@ -28,10 +28,11 @@ berbasis test client gagal, jadi CI tidak boleh memakai setelan keamanan berbent
 ## Hasil terverifikasi
 
 Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub.
-Verifikasi manual terakhir dilakukan 2026-10-06 dan mencakup seluruh run sampai #10. Run
-yang dipicu oleh commit dokumen ini sendiri tidak dicatat satu per satu — lencana CI di
-`README.md` akar selalu menunjuk hasil terbaru. Seluruh run di tabel ini dipicu `push` ke
-`master`.
+Verifikasi manual terakhir dilakukan 2026-10-16. Run sampai #10 dibuka sampai tingkat
+langkah (tabel pertama di bawah); run #11–#22 hanya dibaca pada tingkat run, jadi yang
+dijamin di sana adalah kesimpulannya, bukan isi tiap langkah. Run yang dipicu oleh commit
+dokumen ini sendiri tidak dicatat satu per satu — lencana CI di `README.md` akar selalu
+menunjuk hasil terbaru. Seluruh run di tabel ini dipicu `push` ke `master`.
 
 | Run | Commit | Event | Kesimpulan | Detail |
 |---|---|---|---|---|
@@ -55,6 +56,29 @@ terakhir dimulai pada detik yang sama), lalu blok `concurrency` dengan
 yang diharapkan dari `cancel-in-progress`, bukan kegagalan. Keduanya tetap tidak dicatat
 sebagai hasil karena tidak ada satu pun langkah yang selesai.
 
+### Run #11–#22 — dibaca pada tingkat run (16 Oktober 2026)
+
+Kesimpulan di bawah diambil dari field `conclusion` API GitHub untuk setiap `run_number`.
+Langkah di dalam job tidak dibuka satu per satu, jadi kolom Detail sengaja kosong; kalau
+nanti ada yang merah, tabel inilah yang perlu dilengkapi. Tidak ada satu pun run dengan
+kesimpulan `failure`. Run #16 `cancelled` karena sebab yang sama seperti #7 dan #8:
+`push` berikutnya pada cabang yang sama membatalkan run lama lewat `concurrency`.
+
+| Run | Commit | Event | Kesimpulan | Tanggal (UTC) |
+|---|---|---|---|---|
+| [#22](https://github.com/Yafet-wenda/SIPPER/actions/runs/38875178351) | `e547e96` | push | **success** | 2026-10-16 |
+| [#21](https://github.com/Yafet-wenda/SIPPER/actions/runs/38866919067) | `f02e8a9` | push | **success** | 2026-10-16 |
+| [#20](https://github.com/Yafet-wenda/SIPPER/actions/runs/38115176812) | `a042bbe` | push | **success** | 2026-10-11 |
+| [#19](https://github.com/Yafet-wenda/SIPPER/actions/runs/38113547166) | `5f15766` | push | **success** | 2026-10-11 |
+| [#18](https://github.com/Yafet-wenda/SIPPER/actions/runs/38077011410) | `af38a68` | push | **success** | 2026-10-10 |
+| [#17](https://github.com/Yafet-wenda/SIPPER/actions/runs/38075369467) | `5f792bb` | push | **success** | 2026-10-10 |
+| [#16](https://github.com/Yafet-wenda/SIPPER/actions/runs/38075259801) | `6104a51` | push | `cancelled` | 2026-10-10 |
+| [#15](https://github.com/Yafet-wenda/SIPPER/actions/runs/38074898457) | `08f85d1` | push | **success** | 2026-10-10 |
+| [#14](https://github.com/Yafet-wenda/SIPPER/actions/runs/38073973280) | `c296e16` | push | **success** | 2026-10-10 |
+| [#13](https://github.com/Yafet-wenda/SIPPER/actions/runs/38072746589) | `ab71c7b` | push | **success** | 2026-10-10 |
+| [#12](https://github.com/Yafet-wenda/SIPPER/actions/runs/37486107724) | `243910b` | push | **success** | 2026-10-06 |
+| [#11](https://github.com/Yafet-wenda/SIPPER/actions/runs/37476819473) | `2335652` | push | **success** | 2026-10-06 |
+
 Durasi job pada run #4–#6 serta #9 dan #10: `cek-cepat` 32–52 detik, `paritas-mariadb`
 54–67 detik. Satu run penuh selesai dalam 59–83 detik, dihitung sejak event `push` sampai
 langkah terakhir, jadi masih di bawah 1,5 menit.
@@ -68,7 +92,9 @@ Job `paritas-mariadb` juga memiliki 13 langkah, tetapi isinya berbeda: job ini m
 `Initialize containers` dan `Stop containers`, serta tidak memiliki langkah guard `.env`
 maupun `collectstatic` karena aset static tidak dipakai di jalur itu.
 
-Jumlah 38 pengujian terverifikasi ulang di log run #6 dan #9, pada ketiga job. Dua job
+Jumlah 38 pengujian terverifikasi ulang di log run #6 dan #9, pada ketiga job; pada
+2026-10-16 suite-nya sudah tumbuh jadi 162 (`Ran 162 tests ... OK`, dibacakan ulang di
+log run #21 dan #22). Dua job
 SQLite membuat basis data uji in-memory (`file:memorydb_default`), sedangkan job MariaDB
 membuat `test_sipper_db` di server sungguhan. Langkah
 `Test suite (MySQL backend lewat PyMySQL)`

@@ -18,9 +18,9 @@
 | Mata kuliah | Workshop Pemrograman Framework, PENS |
 | Dosen pengampu | Evianita Dewi Fajrianti, S.Tr.T., M.Tr.T |
 | Penyusun | Yafet Wenda (NRP 3125521058), Muhammad Ai Nur Haaq (NRP 3125521052) |
-| Rerangka | Django 5.2 dengan satu aplikasi utama, `core` |
+| Rerangka | Django 5.2 dengan aplikasi utama `core` dan aplikasi penunjang `ai_ocr` (tinjauan hasil OCR) |
 | Basis data | MariaDB 10.4 (bawaan XAMPP) melalui PyMySQL; SQLite tersedia sebagai jalur uji cepat |
-| Pengujian | 135 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
+| Pengujian | 162 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
 | Integrasi berkelanjutan | GitHub Actions — lihat [Pengujian dan CI](#-pengujian-dan-ci) dan [`docs/ci-status.md`](docs/ci-status.md) |
 | Visibilitas | Repo privat, karena sistem memuat data turunan KTP warga |
 
@@ -105,8 +105,15 @@ SIPPER/
 │   ├── tests.py                    # Pengujian alur utama
 │   ├── chatbot.py                  # Mesin aturan asisten verifikasi
 │   ├── llm.py                      # Klien Gemini (opsional, via .env)
+│   ├── ocr_processor.py            # Ekstraksi teks KTP/KK via Tesseract
+│   ├── ai_verifikasi.py            # Rumus skor kecocokan OCR vs isian formulir
 │   ├── tests_llm.py                # Test router LLM + fallback
 │   └── management/commands/        # backup_db, promote_officer, send_test_email
+│
+├── ai_ocr/                         # Aplikasi penunjang: panel tinjauan hasil OCR
+│   ├── models.py                   # Proxy model TinjauanOcr atas core.Dokumen
+│   ├── admin.py                    # Changelist + form review berfilter skor
+│   └── tests.py                    # Pengujian rumus skor, parser, dan panel
 │
 ├── sipper/                         # Konfigurasi proyek
 │   ├── settings.py                 # Pengaturan inti dan koneksi basis data
@@ -236,7 +243,7 @@ python manage.py test
 DB_ENGINE=sqlite python manage.py test
 ```
 
-Sebanyak 84 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
+Sebanyak 162 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), prapemilahan AI (rumus skor NIK 45% / nama 30% / keterbacaan 25% dan ambang 85% yang ketat, parser KTP, jalur OCR, serta panel tinjauan `ai_ocr` termasuk penolakan akses warga dan jaminan mesin tidak pernah mengubah status berkas), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
 
 GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pull request* ke `master`, dan dapat dipicu manual lewat `workflow_dispatch`. Ada tiga *job*:
 
@@ -252,7 +259,7 @@ GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pu
 
 ## 🚀 Arsitektur dan Status Implementasi
 
-Implementasi aktif memakai satu aplikasi Django `core` dengan **MariaDB bawaan XAMPP (10.4)** pada port 3306. Django 5.2 resmi mensyaratkan MariaDB 10.5, sehingga `sipper/__init__.py` memuat *shim* kompatibilitas kecil: menurunkan gerbang versi minimum dan mematikan dukungan `INSERT ... RETURNING` yang belum tersedia di 10.4. Fitur yang sudah berjalan mencakup akun masyarakat dan petugas, pengajuan, unggah dokumen maksimal 5 MB, peninjauan dokumen, riwayat pemutakhiran, kartu QR, kartu PDF, statistik, ekspor CSV, reset sandi, pencadangan, dan pemindai QR.
+Implementasi aktif memakai aplikasi Django `core` plus aplikasi penunjang `ai_ocr` (hanya proxy model dan tampilan admin, tanpa tabel baru) dengan **MariaDB bawaan XAMPP (10.4)** pada port 3306. Django 5.2 resmi mensyaratkan MariaDB 10.5, sehingga `sipper/__init__.py` memuat *shim* kompatibilitas kecil: menurunkan gerbang versi minimum dan mematikan dukungan `INSERT ... RETURNING` yang belum tersedia di 10.4. Fitur yang sudah berjalan mencakup akun masyarakat dan petugas, pengajuan, unggah dokumen maksimal 5 MB, prapemilahan berkas oleh mesin (OCR KTP lalu skor kecocokan terhadap isian formulir; hasil di bawah ambang 85% ditandai *Perlu review manual*, tanpa pernah mengubah status berkas), peninjauan dokumen, riwayat pemutakhiran, kartu QR, kartu PDF, statistik, ekspor CSV, reset sandi, pencadangan, dan pemindai QR.
 
 Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** → *reverse proxy* → **waitress (:8099)**. Aset `/static/` dilayani Alias Apache dengan *fallback* WhiteNoise sehingga tetap tampil baik pada `runserver` maupun waitress. Berkas `/media/` **tidak pernah** dilayani secara langsung: unggahan warga hanya dapat diunduh melalui `/dokumen/<pk>/file/` yang memeriksa status masuk dan kepemilikan, sambil menulis catatan audit.
 

@@ -19,6 +19,7 @@ dokumen paling mutakhir. Folder ini berisi uraian yang lebih panjang.
 | 3. Pahami alur kerja harian | [`SIPPER_QUICK_REFERENCE.md`](SIPPER_QUICK_REFERENCE.md) | 10 menit |
 | 4. Dalami rancangan teknis | [`SIPPER_FULLSTACK_GUIDE.md`](SIPPER_FULLSTACK_GUIDE.md) | 1–2 jam |
 | 5. Kerjakan tampilan | [`SIPPER_FRONTEND_TEMPLATES.md`](SIPPER_FRONTEND_TEMPLATES.md) | 1 jam |
+| 6. Dalami pipeline OCR | [`laporan-implementasi-ocr.md`](laporan-implementasi-ocr.md) | 45 menit |
 | Kapan saja | [`ci-status.md`](ci-status.md) | 5 menit |
 
 ---
@@ -27,12 +28,14 @@ dokumen paling mutakhir. Folder ini berisi uraian yang lebih panjang.
 
 | Berkas | Isi | Status |
 | :--- | :--- | :--- |
-| `README.md` | Halaman yang sedang dibaca ini — indeks dokumentasi dan daftar selisih dengan kode. | **Aktual** (6 Oktober 2026) |
+| `README.md` | Halaman yang sedang dibaca ini — indeks dokumentasi dan daftar selisih dengan kode. | **Aktual** (16 Oktober 2026) |
 | `SIPPER_SETUP_DEPLOYMENT.md` | Langkah pemasangan lingkungan, konfigurasi basis data, migrasi, pengujian, sampai *deploy*. Paruh pertama sudah disesuaikan dengan kondisi *workspace* sekarang. | **Sebagian aktual** — lihat catatan di bawah |
 | `SIPPER_QUICK_REFERENCE.md` | Kumpulan perintah singkat untuk Django, *git*, dan MySQL/MariaDB, serta peta struktur berkas dan palet warna. | **Sebagian usang** — tabel versinya lama |
 | `SIPPER_FULLSTACK_GUIDE.md` | Rancangan *fullstack* paling lengkap: arsitektur, model, *view*, *form*, API, keamanan, dan tema UI. Panjangnya 2.445 baris. | **Rujukan historis** — menguraikan rencana multi-*app*, bukan implementasi yang berjalan |
 | `SIPPER_FRONTEND_TEMPLATES.md` | Contoh kerangka HTML dan komponen JavaScript beserta palet warna. | **Rujukan historis** — nama *template* di dalamnya memakai struktur lama |
-| `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual** (verifikasi manual terakhir sampai *run* #10, 6 Oktober 2026) |
+| `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual untuk penjelasannya**; tabel per-*run*-nya berhenti di #10 (*run* #11–#22 baru dirangkum di halaman ini) |
+| `laporan-implementasi-ocr.md` (+ `.docx`, `.pdf`) | Laporan implementasi OCR: pipeline Tesseract, parser format KTP, pra-proses, pemrosesan di latar, dan catatan keamanan. Versi `.docx` dan `.pdf` dihasilkan dari berkas `.md`. | **Sebagian aktual** — terbit 7 Oktober 2026 (v1.0), jadi belum memuat skor kecocokan NIK/nama dan panel tinjauan `ai_ocr` yang baru selesai 16 Oktober; keduanya dijelaskan di `README.md` akar. Catatan *"Rate limiting — belum diimplementasikan"* pada baris 318 masih benar sampai hari ini. |
+| `create-docx.js` dan `convert-to-pdf.ps1` | Penghasil `.docx` (paket npm `docx`) dan pengonversi `.docx` → `.pdf` (Word lewat COM) untuk laporan di atas. Jalur ini yang dipakai karena mesin tidak punya pandoc/LibreOffice. | **Aktual** — alat bantu, bukan dokumentasi |
 
 Panduan *fullstack* dan referensi singkat masih menuliskan **Last Updated: 2024**, dan
 tidak ditulis ulang ketika implementasi berpindah dari rencana multi-*app* ke satu
@@ -45,7 +48,7 @@ tabel versinya di baris 246–248 yang paling perlu dikoreksi.
 
 ---
 
-## ✅ Fakta terkini — diverifikasi 7 Oktober 2026
+## ✅ Fakta terkini — diverifikasi 16 Oktober 2026
 
 Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 
@@ -54,9 +57,11 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Bahasa pemrograman | Python 3.14.6 pada `.venv` | `py --version` di dalam *venv* |
 | Rerangka web | Django 5.2.17 | `requirements.txt` (`Django>=5.2,<6.0`) |
 | Basis data | MariaDB 10.4 bawaan XAMPP, *port* 3306 | `sipper/__init__.py` (gerbang versi diturunkan lewat *shim*) |
-| Arsitektur aplikasi | satu aplikasi Django bernama `core` | `sipper/settings.py` (`INSTALLED_APPS`) |
-| Model | 7 model: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole` | `core/models.py` |
-| Pengujian | 52 pengujian, seluruhnya lulus | `DB_ENGINE=sqlite python manage.py test` |
+| Arsitektur aplikasi | dua aplikasi milik proyek: `core` (seluruh logika bisnis) dan `ai_ocr` (panel tinjauan hasil OCR, tanpa tabel sendiri) | `sipper/settings.py` (`INSTALLED_APPS`) |
+| Model | 7 model tabel nyata: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole`; ditambah 1 *proxy model* `TinjauanOcr` di `ai_ocr` yang membaca baris `core_dokumen` yang sama | `core/models.py`, `ai_ocr/models.py` |
+| Pengujian | 162 pengujian, seluruhnya lulus | `python manage.py test` di atas MariaDB (107 di `core/tests.py`, 14 di `core/tests_pdf.py`, 8 di `core/tests_llm.py`, 33 di `ai_ocr/tests.py`) |
+| Baca OPTIK | Tesseract OCR 5.4 (berkas *binary* di luar repositori) melalui `pytesseract`, dengan pra-proses OpenCV | `core/ocr_processor.py`, `requirements.txt` (`pytesseract`, `opencv-python-headless`, `numpy`) |
+| Prapemilahan AI | Skor kecocokan teks OCR KTP vs isian formulir: NIK 45%, nama 30%, keterbacaan 25%; di atas 85% berlabel *Valid*, sisanya *Perlu review manual*. Mesin hanya menulis kolom `ai_*`, tidak pernah `Dokumen.status` | `core/ai_verifikasi.py`, `ai_ocr/admin.py` |
 | CI | 3 *job* — `cek-cepat` pada Python 3.13 dan 3.14 (SQLite) serta `paritas-mariadb` (MariaDB 10.11) | `.github/workflows/ci.yml` |
 | Gaya | CSS tulisan sendiri: `static/css/style.css` dan `static/css/admin.css` | `static/`, `templates/base.html` |
 | Huruf | Google Fonts — DM Sans dan Space Grotesk | `templates/base.html` |
@@ -83,15 +88,15 @@ baris tertentu supaya mudah diverifikasi ulang sebelum dokumennya disunting.
 | Bootstrap 5 | Tidak ada Bootstrap sama sekali di `templates/` dan `static/`; gaya memakai CSS tulisan sendiri. | `SIPPER_FULLSTACK_GUIDE.md:10,67,457,542,627,1697,1751`; `SIPPER_FRONTEND_TEMPLATES.md:756,975`; `SIPPER_QUICK_REFERENCE.md:248,261,410` |
 | `static/js/main.js` | Berkasnya tidak ada, dan tidak satu pun *template* memuatnya. | `SIPPER_FRONTEND_TEMPLATES.md:640`; `SIPPER_FULLSTACK_GUIDE.md:459,1757`; `SIPPER_QUICK_REFERENCE.md:132` |
 | LangChain 0.0.300 dan OpenAI 0.27.8 untuk prapemeriksaan pintar | Kedua paket tidak ada di `requirements.txt`. Yang berjalan sekarang adalah aturan validasi NIK serta pemeriksaan ukuran dan jenis berkas. | `SIPPER_FULLSTACK_GUIDE.md:70-71,669,2306`; `SIPPER_SETUP_DEPLOYMENT.md:160` |
-| Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Satu aplikasi `core` dengan nama rute yang berbeda. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
+| Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Dua aplikasi: `core` memegang seluruh rute dan model, `ai_ocr` hanya menambah panel tinjauan OCR di admin. Tidak ada satu pun dari empat nama *app* lama itu. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
 | Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan memakai 3.14. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
 
-Rekam jejak CI berada di `ci-status.md`. Tabelnya memuat delapan baris — *run* #1–#6 serta
-#9 dan #10 — beserta urutan langkah dan durasi tiap *job*; kedelapan baris itu lulus pada tiga
-*job*. *Run* #7 dan #8 tidak masuk tabel karena dibatalkan gerbang `concurrency` sebelum
-ada langkah yang selesai, perilaku yang memang diharapkan, bukan kegagalan. Kalau ada
-*run* baru yang diverifikasi, tabel itu yang lebih dulu diperbarui — halaman ini hanya
-menyebut jumlah *job* dan kesimpulannya.
+Rekam jejak CI berada di `ci-status.md`. Sampai 16 Oktober 2026 repositori punya 22
+*run* workflow `CI`: 19 berkesimpulan **success** dan 3 (`#7`, `#8`, `#16`) `cancelled`
+karena gerbang `concurrency` dengan `cancel-in-progress: true` membatalkan run lama dari
+*push* yang sama sebelum ada langkah yang selesai. Tidak ada satu pun *run* yang
+*failure*. Tabel per-*run* di `ci-status.md` masih berhenti di #10; baris sisanya belum
+dicatat satu per satu, hanya kesimpulannya yang dibaca ulang lewat API GitHub.
 
 ---
 
