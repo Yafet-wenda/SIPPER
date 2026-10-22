@@ -4,6 +4,10 @@
 {% block title %}SIPPER / Sistem Informasi Penduduk Perantauan{% endblock %}
 
 {% block content %}
+  <!-- Penanda bahwa JavaScript jalan: tanpa kelas ini semua gaya gerak tidak berlaku,
+      jadi halaman tetap tampil lengkap saat skrip dimatikan. -->
+  <script>document.documentElement.classList.add('js');</script>
+
   <style>
     /* Landing page specific styles - nav transparan */
     .nav {
@@ -72,12 +76,13 @@
 
     /* --- Hero dengan latar foto + overlay gelap --- */
     .hero {
+      --hero-pos: 50% 44%;
       position: relative;
       overflow: hidden;
       isolation: isolate;
       padding: 40px 10vw 70px;
       min-height: 61.5vw;
-      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") 50% 44% / cover no-repeat;
+      background: #0c1a16;
     }
     .hero::before {
       content: "";
@@ -92,11 +97,45 @@
       position: relative;
       z-index: 2;
     }
+    /* Layers dekoratif: tetap di belakang teks (z-index: 2 di atas dikecualikan). */
+    .hero > .hero-bg {
+      position: absolute;
+      z-index: 0;
+    }
+    .hero > .hero-sweep {
+      position: absolute;
+      z-index: 1;
+    }
+
+    /* --- Foto latar sebagai lapisan sendiri, supaya bisa digerakkan ---
+       inset: 0 dan transform-origin di kanan: lapisan tidak pernah lebih besar
+       dari hero, dan pembesaran Ken Burns hanya memakan sisi kiri (laptop/tepi),
+       sehingga kartu di sisi kanan selalu tertampil utuh. */
+    .hero-bg {
+      inset: 0;
+      transform-origin: 100% 50%;
+      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") var(--hero-pos) / cover no-repeat;
+      will-change: transform;
+    }
+    /* --- Kilau lebar yang melintas sekali-sekali --- */
+    .hero-sweep {
+      top: -20%;
+      left: -35%;
+      width: 26%;
+      height: 140%;
+      background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(159, 211, 189, 0.10) 45%, rgba(255, 255, 255, 0.14) 55%, rgba(255, 255, 255, 0) 100%);
+      transform: translateX(0) skewX(-14deg);
+      filter: blur(6px);
+      pointer-events: none;
+    }
 
     /* --- Teks di atas latar gelap --- */
     .hero .eyebrow { color: #9fd3bd; }
     .hero h1 { color: #fff; }
     .hero h1 em { color: #f2b544; }
+    /* Baris judul dibungkus supaya bisa dibuka dari balik topeng; display: block
+       tetap diperlukan saat animasi mati, karena <br> tidak dipakai lagi. */
+    .hero .ht-line { display: block; padding-bottom: .18em; margin-bottom: -.18em; }
     .hero .hero-lede { color: rgba(233, 240, 236, 0.85); }
     .hero .button-dark {
       background: #f2b544;
@@ -106,6 +145,148 @@
     .hero .text-link { color: #fff; }
     .hero .text-link span { color: #9fd3bd; }
     .hero .art-orbit { border-color: rgba(255, 255, 255, 0.28); }
+
+    /* ========================================
+       GERAK
+       Hidup hanya bila (1) JavaScript jalan — kelas "js" pada <html> —
+       dan (2) pengguna tidak meminta gerakan dikurangi. Di luar dua
+       syarat itu halaman tampil dalam keadaan final, tanpa elemen hilang.
+       Semua keyframe memakai transform/opacity saja.
+       ======================================== */
+    @keyframes rise-in   { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+    @keyframes art-in    { from { opacity: 0; transform: translateY(26px) scale(.96); } to { opacity: 1; transform: none; } }
+    @keyframes line-up   { from { transform: translateY(112%); } to { transform: translateY(0); } }
+    /* Membesar pelan dari tepi kanan: tepi kanan diam, sisi kiri yang bergerak. */
+    @keyframes kenburns  { from { transform: scale(1); }
+                           to   { transform: scale(1.075); } }
+    @keyframes sweep-by  { 0%, 58% { transform: translateX(0) skewX(-14deg); }
+                           100%    { transform: translateX(560%) skewX(-14deg); } }
+    @keyframes orbit-a-spin { from { transform: rotate(-28deg); } to { transform: rotate(332deg); } }
+    @keyframes orbit-b-spin { from { transform: rotate(-28deg); } to { transform: rotate(-388deg); } }
+    @keyframes shine-by    { 0%, 68% { transform: translateX(0) skewX(-18deg); }
+                             100%    { transform: translateX(360%) skewX(-18deg); } }
+    @keyframes cue-bob     { 0%, 100% { transform: translateY(0); opacity: .85; }
+                             50%      { transform: translateY(7px); opacity: 1; } }
+    @keyframes dot-breathe { 0%, 100% { transform: scale(.85); opacity: .45; }
+                             50%      { transform: scale(1.2);  opacity: 1; } }
+    @keyframes halo-gold   { 0%   { box-shadow: 0 0 0 0 rgba(255, 212, 132, 0.6); }
+                             70%  { box-shadow: 0 0 0 12px rgba(255, 212, 132, 0); }
+                             100% { box-shadow: 0 0 0 0 rgba(255, 212, 132, 0); } }
+
+    @media (prefers-reduced-motion: no-preference) {
+      /* Foto latar bergerak sangat lambat (Ken Burns) supaya hero tidak diam. */
+      .js .hero-bg { animation: kenburns 30s ease-in-out infinite alternate; }
+
+      /* Kilau melintas tiap belasan detik. */
+      .js .hero-sweep { animation: sweep-by 14s ease-in-out 2s infinite; }
+
+      /* Teks masuk bertahap; dua baris judul dibalik topeng. */
+      .js .hero .ht-line { overflow: hidden; padding-bottom: .18em; margin-bottom: -.18em; }
+      .js .hero .ht-line > span { display: block; animation: line-up 1s cubic-bezier(.16, 1, .3, 1) both; }
+      .js .hero .ht-line:nth-child(2) > span { animation-delay: .13s; }
+      .js .hero .eyebrow    { animation: rise-in .7s cubic-bezier(.2, .8, .2, 1) .04s both; }
+      .js .hero .eyebrow span {
+        display: inline-block;
+        animation: dot-breathe 3.6s ease-in-out 1.4s infinite;
+      }
+      .js .hero .hero-lede  { animation: rise-in .85s cubic-bezier(.2, .8, .2, 1) .38s both; }
+      .js .hero .hero-actions { animation: rise-in .85s cubic-bezier(.2, .8, .2, 1) .5s both; }
+      .js .hero-art         { animation: art-in 1.2s cubic-bezier(.2, .8, .2, 1) .6s both; }
+
+      /* Cincin orbit berputar berlawanan arah; titiknya ikut mengelilingi pusat. */
+      .js .art-orbit::after {
+        content: "";
+        position: absolute;
+        top: -4px;
+        left: 50%;
+        width: 7px;
+        height: 7px;
+        margin-left: -3.5px;
+        border-radius: 50%;
+        background: #ffd484;
+        box-shadow: 0 0 12px 2px rgba(242, 181, 68, 0.75);
+      }
+      .js .orbit-a { animation: orbit-a-spin 34s linear infinite; }
+      .js .orbit-a::after { animation: halo-gold 3.2s ease-out infinite; }
+      .js .orbit-b { animation: orbit-b-spin 46s linear infinite; }
+      .js .orbit-b::after {
+        background: #9fd3bd;
+        box-shadow: 0 0 12px 2px rgba(159, 211, 189, 0.6);
+        animation: pill-pulse 4s ease-out infinite;
+      }
+
+      /* Parallax pointer dipasang lewat variabel di JS. Properti "translate"
+         dipakai agar tidak bertabrakan dengan animasi transform di atasnya. */
+      .js .hero-art {
+        translate: var(--px, 0) var(--py, 0);
+        transition: translate .6s cubic-bezier(.2, .8, .2, 1);
+      }
+
+      /* Kartu langkah muncul bertingkat saat digulir, garis atasnya menggambar diri. */
+      .js .landing-step {
+        opacity: 0;
+        transform: translateY(24px);
+        transition: opacity .75s ease calc(var(--i, 0) * 120ms),
+                    transform .75s cubic-bezier(.2, .8, .2, 1) calc(var(--i, 0) * 120ms);
+      }
+      .js .landing-step.is-in { opacity: 1; transform: none; }
+      .js .landing-step::after {
+        content: "";
+        position: absolute;
+        top: -2px;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: var(--green);
+        transform: scaleX(0);
+        transform-origin: left;
+        transition: transform .95s cubic-bezier(.16, 1, .3, 1) calc(var(--i, 0) * 120ms + 150ms);
+      }
+      .js .landing-step.is-in::after { transform: scaleX(1); }
+
+      /* Micro-interaction tombol dan tautan. */
+      .js .hero .button-dark {
+        position: relative;
+        overflow: hidden;
+        transition: transform .25s cubic-bezier(.2, .8, .2, 1), box-shadow .25s ease;
+      }
+      .js .hero .button-dark::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -45%;
+        width: 32%;
+        height: 100%;
+        background: linear-gradient(100deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.6) 50%, rgba(255, 255, 255, 0) 100%);
+        animation: shine-by 6.5s ease-in-out 2.5s infinite;
+      }
+      .js .hero .button-dark:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 18px 40px rgba(242, 181, 68, 0.38);
+      }
+      .js .hero .button-dark span { transition: transform .25s ease; }
+      .js .hero .button-dark:hover span { transform: translate(4px, -4px); }
+      .js .hero .text-link { position: relative; }
+      .js .hero .text-link::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -3px;
+        width: 100%;
+        height: 1px;
+        background: currentColor;
+        transform: scaleX(0);
+        transform-origin: right;
+        transition: transform .35s cubic-bezier(.2, .8, .2, 1);
+      }
+      .js .hero .text-link:hover::after { transform: scaleX(1); transform-origin: left; }
+      .js .hero .text-link span { display: inline-block; transition: transform .25s ease; }
+      .js .hero .text-link:hover span { transform: translateX(6px); }
+      .js .landing-step h3 { transition: transform .3s ease; }
+      .js .landing-step:hover h3 { transform: translateX(5px); }
+
+      .js .scroll-cue i { animation: cue-bob 2.4s ease-in-out infinite; }
+    }
 
     /* --- Pill kaca mini-stats --- */
     .art-pill {
@@ -173,13 +354,24 @@
       border-radius: 50%;
       background: radial-gradient(circle, rgba(255, 255, 255, 0.95) 0 30%, rgba(255, 255, 255, 0) 70%);
       opacity: 0;
+      filter: blur(var(--blur, 0px));
       animation: spark-float linear infinite;
     }
+    /* Butir emas yang lebih besar: kedalaman, bukan titik putih seragam. */
+    .spark.warm {
+      background: radial-gradient(circle, rgba(255, 212, 132, 0.95) 0 30%, rgba(242, 181, 68, 0) 70%);
+    }
+    /* Sebagian hanya berdenyut di tempat, supaya latarnya tidak terasa seragam. */
+    .spark.tw { animation-name: spark-twinkle; }
     @keyframes spark-float {
-      0%   { opacity: 0;   transform: translateY(16px) scale(0.55); }
-      20%  { opacity: 1; }
-      55%  { opacity: 0.85; }
-      100% { opacity: 0;   transform: translateY(-52px) scale(1.1); }
+      0%   { opacity: 0;                 transform: translate3d(0, 16px, 0) scale(0.55); }
+      20%  { opacity: var(--peak, 1); }
+      55%  { opacity: calc(var(--peak, 1) * 0.85); }
+      100% { opacity: 0;                 transform: translate3d(var(--dx, 0px), -62px, 0) scale(1.1); }
+    }
+    @keyframes spark-twinkle {
+      0%, 100% { opacity: 0;    transform: scale(0.8); }
+      50%      { opacity: var(--peak, 1); transform: scale(1); }
     }
     @media (prefers-reduced-motion: reduce) {
       #hero-sparks { display: none; }
@@ -195,6 +387,7 @@
     }
 
     .landing-step {
+      position: relative;
       border-top: 2px solid var(--ink);
       padding-top: 18px;
     }
@@ -218,6 +411,21 @@
       line-height: 1.6;
       color: #4c615a;
     }
+
+    /* --- Isyarat gulir di dasar hero --- */
+    .scroll-cue {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 34px;
+      font: 600 11px 'Space Grotesk';
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: rgba(233, 240, 236, 0.7);
+      text-decoration: none;
+    }
+    .scroll-cue i { font-style: normal; }
+    .scroll-cue:hover { color: #fff; }
 
     /* ========================================
        TABLET & MOBILE (< 1024px) - Hamburger menu
@@ -282,10 +490,13 @@
       /* Hero tablet/mobile */
       .hero {
         grid-template-columns: 1fr;
+        --hero-pos: 30% 50%;
         padding: 80px 24px 50px;
         min-height: auto;
-        background-position: 30% 50%;
       }
+
+      /* Di layar sempit subjeknya di tengah, jadi pembesaran dari tengah. */
+      .hero-bg { transform-origin: 50% 50%; }
 
       .hero h1 {
         font-size: clamp(32px, 8vw, 56px);
@@ -315,6 +526,8 @@
         text-align: center;
         font-size: 14px;
       }
+
+      .scroll-cue { display: none; }
 
       .art-pill {
         bottom: 3%;
@@ -449,7 +662,7 @@
     /* Small screen adjustments */
     @media (max-width: 600px) {
       .hero {
-        background-position: 25% 48%;
+        --hero-pos: 25% 48%;
         min-height: 585px;
         padding-top: 50px;
         padding-bottom: 50px;
@@ -457,15 +670,18 @@
       .hero::before {
         background: linear-gradient(180deg, rgba(9, 20, 17, 0.92) 0%, rgba(9, 20, 17, 0.80) 100%);
       }
+      .hero-sweep { display: none; }
     }
   </style>
 
   <section class="hero">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="hero-sweep" aria-hidden="true"></div>
     <div class="hero-copy">
       <p class="eyebrow">Sistem Informasi Penduduk Perantauan <span>●</span></p>
       <h1>
-        Berpindah tempat,<br>
-        <em>tetap terdata.</em>
+        <span class="ht-line"><span>Berpindah tempat,</span></span>
+        <span class="ht-line"><span><em>tetap terdata.</em></span></span>
       </h1>
       <p class="hero-lede">
         Catat domisili perantauan Anda dalam satu alur yang jelas, transparan, dan mudah dilacak.
@@ -474,6 +690,7 @@
         <a class="button button-dark" href="{% url 'core:register' %}">Mulai pendataan <span>↗</span></a>
         <a class="text-link" href="{% url 'core:login' %}">Sudah punya akun? Masuk <span>→</span></a>
       </div>
+      <a class="scroll-cue" href="#langkah">Lihat alurnya <i aria-hidden="true">↓</i></a>
     </div>
 
     <div class="hero-art">
@@ -490,18 +707,18 @@
     <div id="hero-sparks" aria-hidden="true"></div>
   </section>
 
-  <section class="landing-steps">
-    <div class="landing-step">
+  <section class="landing-steps" id="langkah">
+    <div class="landing-step" style="--i: 0">
       <span class="step-no">01</span>
       <h3>Daftar akun</h3>
       <p>Buat akun dengan nama dan email aktif. Prosesnya kurang dari satu menit.</p>
     </div>
-    <div class="landing-step">
+    <div class="landing-step" style="--i: 1">
       <span class="step-no">02</span>
       <h3>Ajukan data</h3>
       <p>Isi identitas dan tujuan perantauan, lampirkan dokumen, lalu tunggu verifikasi petugas.</p>
     </div>
-    <div class="landing-step">
+    <div class="landing-step" style="--i: 2">
       <span class="step-no">03</span>
       <h3>Kartu digital</h3>
       <p>Setelah disetujui, Anda menerima kartu digital ber-QR yang dapat divalidasi kapan saja.</p>
@@ -509,22 +726,89 @@
   </section>
 
   <script>
+    /* Satu syarat untuk seluruh gerak di halaman ini: pengguna tidak meminta
+       gerakan dikurangi. Kalau diminta, semua elemen tetap tampil final. */
+    var gerakBoleh = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    /* --- Butir cahaya: ukuran, warna, kabur dan arah apung yang berbeda-beda --- */
     (function () {
       var layer = document.getElementById('hero-sparks');
-      if (!layer || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      var N = 26;
-      for (var i = 0; i < N; i++) {
+      if (!layer || !gerakBoleh) return;
+      var jumlah = window.innerWidth < 700 ? 18 : 34;          // layar kecil: lebih hemat
+      for (var i = 0; i < jumlah; i++) {
+        var jauh = Math.random() < 0.45;                       // "jauh" = kecil, kabur, lambat
         var s = document.createElement('span');
-        s.className = 'spark';
-        var size = 2 + Math.random() * 4;               // 2–6 px
+        s.className = 'spark'
+          + (Math.random() < 0.3 ? ' warm' : '')
+          + (Math.random() < 0.25 ? ' tw' : '');               // sebagian berdenyut di tempat
+        var size = (jauh ? 1.5 : 3) + Math.random() * (jauh ? 2 : 5);
+        var dur = (4 + Math.random() * 6) * (jauh ? 1.6 : 1);
         s.style.width = size + 'px';
         s.style.height = size + 'px';
         s.style.left = (Math.random() * 96 + 2) + '%';
         s.style.top = (Math.random() * 88 + 6) + '%';
-        s.style.animationDuration = (4 + Math.random() * 5).toFixed(2) + 's';   // 4–9 s
-        s.style.animationDelay = (-Math.random() * 8).toFixed(2) + 's';          // mulai tersebar
+        s.style.setProperty('--blur', (jauh ? 1.4 : 0) + 'px');
+        s.style.setProperty('--peak', (0.45 + Math.random() * 0.55).toFixed(2));
+        s.style.setProperty('--dx', (Math.random() * 44 - 22).toFixed(0) + 'px');
+        s.style.animationDuration = dur.toFixed(2) + 's';
+        s.style.animationDelay = (-Math.random() * dur).toFixed(2) + 's';
         layer.appendChild(s);
       }
+    })();
+
+    /* --- Kartu langkah dibuka bertingkat ketika bagian itu masuk layar --- */
+    (function () {
+      var steps = document.querySelectorAll('.landing-step');
+      if (!steps.length) return;
+      function tampilkan(el) { el.classList.add('is-in'); }
+      if (!gerakBoleh || typeof IntersectionObserver !== 'function') {
+        for (var i = 0; i < steps.length; i++) tampilkan(steps[i]);
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) {
+          if (!e.isIntersecting) return;
+          tampilkan(e.target);
+          io.unobserve(e.target);
+        });
+      }, { threshold: 0.2, rootMargin: '0px 0px -6% 0px' });
+      for (var j = 0; j < steps.length; j++) io.observe(steps[j]);
+    })();
+
+    /* --- Pergeseran halus art hero mengikuti kursor (kedalaman, bukan goyang) --- */
+    (function () {
+      var hero = document.querySelector('.hero');
+      var art = document.querySelector('.hero-art');
+      if (!hero || !art || !gerakBoleh) return;
+      if (window.matchMedia('(pointer: coarse)').matches) return;   // layar sentuh: lewati
+      var px = 0, py = 0, antre = 0;
+      hero.addEventListener('pointermove', function (e) {
+        var r = hero.getBoundingClientRect();
+        px = ((e.clientX - r.left) / r.width - 0.5) * 26;
+        py = ((e.clientY - r.top) / r.height - 0.5) * 18;
+        if (antre) return;
+        antre = requestAnimationFrame(function () {
+          antre = 0;
+          art.style.setProperty('--px', px.toFixed(1) + 'px');
+          art.style.setProperty('--py', py.toFixed(1) + 'px');
+        });
+      });
+      hero.addEventListener('pointerleave', function () {
+        art.style.setProperty('--px', '0px');
+        art.style.setProperty('--py', '0px');
+      });
+    })();
+
+    /* --- Tautan "Lihat alurnya" digulir halus, bukan lompat --- */
+    (function () {
+      var cue = document.querySelector('.scroll-cue');
+      var target = document.getElementById('langkah');
+      if (!cue || !target || !gerakBoleh) return;
+      cue.addEventListener('click', function (e) {
+        if (cue.getAttribute('href') !== '#langkah') return;
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     })();
 
     /* --- Mini-stats: angka diambil langsung dari database, bukan angka hiasan --- */
@@ -532,16 +816,48 @@
       var elWarga = document.getElementById('stat-warga');
       var elSetuju = document.getElementById('stat-disetujui');
       if (!elWarga || !elSetuju) return;
+      var pill = document.getElementById('live-stats');
       var endpoint = "{% url 'core:api_landing_stats' %}";
 
-      function tulis(el, nilai) {
-        var baru = Number(nilai || 0).toLocaleString('id-ID');
-        if (el.textContent === baru) return;
-        el.textContent = baru;
-        el.classList.remove('bump');
-        void el.offsetWidth;          // mulai ulang animasi
-        el.classList.add('bump');
+      function nilaiLama(el) {
+        var digit = el.textContent.replace(/\D/g, '');
+        return digit ? parseInt(digit, 10) : 0;
       }
+
+      var pertama = true;
+
+      function tulis(el, nilai) {
+        var target = Number(nilai || 0);
+        /* Tanggapan pertama dinaikkan dari nol ke nilai nyata database; sesudah itu
+           hanya selisihnya yang bergerak. Angka server tidak pernah dihapus lebih
+           dulu, jadi kegagalan jaringan tidak menyisakan "0" palsu. */
+        var dari = pertama ? 0 : nilaiLama(el);
+        if (!pertama && dari === target) return;
+        if (!gerakBoleh) {
+          el.textContent = target.toLocaleString('id-ID');
+          return;
+        }
+        /* Naikkan angkanya pelan-pelan, lalu beri penanda "baru berubah".
+           Live region dimatikan selama angka naik supaya pembaca layar tidak
+           menyebut setiap singgahan, dan kembali hidup di nilai akhir saja. */
+        if (pill) pill.setAttribute('aria-live', 'off');
+        if (el._naik) clearInterval(el._naik);
+        var mulai = Date.now();
+        el._naik = setInterval(function () {
+          var p = Math.min(1, (Date.now() - mulai) / 900);
+          var kini = Math.round(dari + (target - dari) * (1 - Math.pow(1 - p, 3)));
+          el.textContent = kini.toLocaleString('id-ID');
+          if (p < 1) return;
+          clearInterval(el._naik);
+          el._naik = null;
+          if (pill) pill.setAttribute('aria-live', 'polite');
+          el.classList.remove('bump');
+          void el.offsetWidth;          // mulai ulang animasi
+          el.classList.add('bump');
+        }, 40);
+      }
+
+      var jeda = 15000, jedaMaks = 300000, jadwal = null;
 
       function ambil() {
         fetch(endpoint, { credentials: 'same-origin', cache: 'no-store' })
@@ -552,16 +868,32 @@
           .then(function (d) {
             tulis(elWarga, d.warga);
             tulis(elSetuju, d.disetujui);
+            pertama = false;
+            jeda = 15000;
           })
           .catch(function () {
-            /* Database/jaringan sedang bermasalah: pertahankan angka nyata terakhir. */
+            /* Database/jaringan bermasalah atau permintaan dibatasi server:
+               pertahankan angka nyata terakhir dan mundur, jangan memaksa. */
+            jeda = Math.min(jeda * 2, jedaMaks);
           });
       }
 
+      /* Tab yang dibiarkan terbuka berjam-jam tidak boleh menghabiskan kuota
+       * permintaan; berhenti bertanya saat tidak dilihat dan sambung lagi saat dibuka. */
+      function jadwalkan() {
+        clearTimeout(jadwal);
+        jadwal = setTimeout(function () {
+          if (!document.hidden) ambil();
+          jadwalkan();
+        }, jeda);
+      }
+
       ambil();                         // samakan format angka dengan isi database saat halaman dibuka
-      setInterval(ambil, 15000);       // perbarui tanpa reload
+      jadwalkan();
       document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) ambil(); // langsung sinkron ketika tab dibuka lagi
+        if (document.hidden) return;
+        ambil();                       // langsung sinkron ketika tab dibuka lagi
+        jadwalkan();
       });
     })();
   </script>
