@@ -11,5 +11,5 @@ rem
 rem  Hanya untuk pengembangan. Untuk bentuk produksi pakai prod.bat
 rem  (waitress + Apache di http://localhost).
 rem =====================================================================
-cd /D D:\SIPPER
+cd /D "%~dp0"
 .venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000 --insecure

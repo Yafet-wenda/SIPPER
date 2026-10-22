@@ -1,5 +1,5 @@
-$docxPath = "D:\SIPPER\docs\laporan-implementasi-ocr.docx"
-$pdfPath = "D:\SIPPER\docs\laporan-implementasi-ocr.pdf"
+$docxPath = Join-Path $PSScriptRoot "laporan-implementasi-ocr.docx"
+$pdfPath  = Join-Path $PSScriptRoot "laporan-implementasi-ocr.pdf"
 
 $word = New-Object -ComObject Word.Application
 $word.Visible = $false

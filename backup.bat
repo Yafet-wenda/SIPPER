@@ -2,7 +2,7 @@
 rem =====================================================================
 rem  BACKUP  -  ekspor seluruh data SIPPER ke JSON + retensi otomatis
 rem
-rem  Hasil: D:\SIPPER\backups\sipper-TANGGAL-JAM.json  (folder ini tidak
+rem  Hasil: <folder proyek>\backups\sipper-TANGGAL-JAM.json  (folder ini tidak
 rem  ikut ke git). Default menyimpan 14 file terakhir.
 rem
 rem  Kalau Anda punya drive atau folder lain untuk salinan, set variabel
@@ -10,7 +10,7 @@ rem  lingkungan SIPPER_BACKUP_MIRROR ke path itu, misalnya
 rem     setx SIPPER_BACKUP_MIRROR "E:\cadangan-sipper"
 rem  lalu skrip ini akan menyalin hasilnya ke sana juga.
 rem =====================================================================
-cd /D D:\SIPPER
+cd /D "%~dp0"
 .venv\Scripts\python.exe manage.py backup_db --keep 14
 if errorlevel 1 (
     echo BACKUP GAGAL - periksa apakah MariaDB berjalan di 127.0.0.1:3306

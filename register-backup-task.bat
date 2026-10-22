@@ -12,7 +12,7 @@ if %ERRORLEVEL%==0 (
     echo Tugas sudah terdaftar, diperbarui ...
     schtasks /Delete /TN "SIPPER backup harian" /F >NUL
 )
-schtasks /Create /TN "SIPPER backup harian" /TR "D:\SIPPER\backup.bat" /SC DAILY /ST 06:30 /F
+schtasks /Create /TN "SIPPER backup harian" /TR "\"%~dp0backup.bat\"" /SC DAILY /ST 06:30 /F
 if %ERRORLEVEL% neq 0 (
     echo Gagal mendaftarkan tugas. Coba jalankan file ini sebagai administrator.
     pause

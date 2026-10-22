@@ -1,8 +1,17 @@
 const fs = require('fs');
-const docx = require('C:/Users/yafet/AppData/Roaming/npm/node_modules/docx');
+const path = require('path');
+let docx;
+try {
+  docx = require('docx');
+} catch (err) {
+  console.error('Modul "docx" tidak ditemukan. Install dulu:  npm install -g docx');
+  console.error('atau jalankan dari folder ini:  npm install docx');
+  process.exit(1);
+}
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, AlignmentType, PageOrientation, LevelFormat, BorderStyle, WidthType, ShadingType, HeadingLevel, TableOfContents, PageBreak, PageNumber } = docx;
 
-const content = fs.readFileSync('D:/SIPPER/docs/laporan-implementasi-ocr.md', 'utf8');
+const markdownPath = path.join(__dirname, 'laporan-implementasi-ocr.md');
+const content = fs.readFileSync(markdownPath, 'utf8');
 const lines = content.split('\n');
 const children = [];
 
@@ -155,7 +164,7 @@ const doc = new Document({
 });
 
 Packer.toBuffer(doc).then(buffer => {
-  fs.writeFileSync('D:/SIPPER/docs/laporan-implementasi-ocr.docx', buffer);
+  fs.writeFileSync(path.join(__dirname, 'laporan-implementasi-ocr.docx'), buffer);
   console.log('DOCX created successfully');
 }).catch(err => {
   console.error('Error creating DOCX:', err.message);
