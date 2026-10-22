@@ -272,7 +272,16 @@ Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** 
 .venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
 ```
 
-Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, waitress, Apache). Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
+Bentuk produksi perlu satu langkah tambahan per mesin, karena Apache harus tahu cara mem-*proxy* ke waitress:
+
+```powershell
+# sekali per mesin; butuh izin tulis ke <XAMPP>\apache\conf
+powershell -ExecutionPolicy Bypass -File scripts\install-apache-config.ps1 -Restart
+```
+
+Skrip itu menyalakan `mod_proxy_http` (bawaan XAMPP dimuat tapi dikomentari), menyalin `apache/sipper-httpd.conf` menjadi `conf/extra/httpd-sipper.conf` dengan `__PROJECT_ROOT__` sudah diganti lokasi folder proyek, menambahkan baris `Include` ke `httpd.conf`, lalu membatalkan seluruh perubahannya sendiri kalau `httpd -t` menolak hasil susunan. Lokasi XAMPP dideteksi otomatis (`C:\`, `D:\`, `F:\`) atau lewat `-ApacheHome`.
+
+Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, collectstatic, waitress, Apache). Skrip itu juga menyetel profil produksi di lingkungan prosesnya (`DJANGO_DEBUG=0`, host dan origin pada port 80, cookie aman dan HTTPS-redirect dimatikan selama Apache belum serving TLS), sehingga `.env` boleh tetap memakai `DJANGO_DEBUG=1` untuk `dev.bat`. Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
 
 ### URL Utama
 
