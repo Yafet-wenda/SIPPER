@@ -159,6 +159,11 @@
     /* Membesar pelan dari tepi kanan: tepi kanan diam, sisi kiri yang bergerak. */
     @keyframes kenburns  { from { transform: scale(1); }
                            to   { transform: scale(1.075); } }
+    /* Versi lembut untuk tablet & ponsel: di lebar itu "cover" sudah memakan
+       sebagian margin kanan foto, sehingga skala desktop 1.075 akan mulai
+       memotong kartu. */
+    @keyframes kenburns-soft { from { transform: scale(1); }
+                               to   { transform: scale(1.04); } }
     @keyframes sweep-by  { 0%, 58% { transform: translateX(0) skewX(-14deg); }
                            100%    { transform: translateX(560%) skewX(-14deg); } }
     @keyframes orbit-a-spin { from { transform: rotate(-28deg); } to { transform: rotate(332deg); } }
@@ -487,16 +492,32 @@
         margin-top: 8px;
       }
 
-      /* Hero tablet/mobile */
+      /* Hero tablet & ponsel: satu kolom, dan foto tidak lagi dibentangkan di
+         seluruh hero. Di lebar ini hero jadi tinggi (rasio ~0,93) sehingga
+         "cover" cuma menampilkan ~790 dari 1264 px foto - kalau dipaksa penuh,
+         kartu dan teks saling menindih. Foto jadi pita di dasarnya saja,
+         setinggi 52vw: bingkai 100vw x 52vw lebih lebar dari rasio foto (1,49),
+         jadi "cover" hanya memotong langit di atas dan air di bawah, dan
+         SELURUH adegan (laptop, dua orang, kartu) tetap masuk bingkai. */
       .hero {
         grid-template-columns: 1fr;
-        --hero-pos: 30% 50%;
+        --hero-pos: 50% 50%;
         padding: 80px 24px 50px;
         min-height: auto;
       }
 
-      /* Di layar sempit subjeknya di tengah, jadi pembesaran dari tengah. */
-      .hero-bg { transform-origin: 50% 50%; }
+      .hero-bg {
+        inset: auto 0 0 0;
+        height: 52vw;
+        transform-origin: 50% 50%;
+        -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 22%);
+        mask-image: linear-gradient(180deg, transparent 0, #000 22%);
+      }
+
+      /* Gelap dipertahankan di zona teks, lalu dibuka begitu foto mulai. */
+      .hero::before {
+        background: linear-gradient(180deg, rgba(9, 20, 17, 0.95) 0%, rgba(9, 20, 17, 0.90) 40%, rgba(9, 20, 17, 0.50) 58%, rgba(9, 20, 17, 0.36) 100%);
+      }
 
       .hero h1 {
         font-size: clamp(32px, 8vw, 56px);
@@ -659,18 +680,29 @@
       }
     }
 
-    /* Small screen adjustments */
+    /* Penyesuaian layar kecil */
     @media (max-width: 600px) {
       .hero {
-        --hero-pos: 25% 48%;
         min-height: 585px;
         padding-top: 50px;
         padding-bottom: 50px;
       }
-      .hero::before {
-        background: linear-gradient(180deg, rgba(9, 20, 17, 0.92) 0%, rgba(9, 20, 17, 0.80) 100%);
+
+      /* Ponsel terlalu sempit untuk memuat seluruh adegan 1264 px, jadi di sini
+         dipakai banner-hero-mobile.jpg: potongan 664x670 yang sudah rapat di
+         sekitar wajah + kartu (wajah berjarak 60 px dan kartu 40 px dari tepinya).
+         Tingginya 100.9vw = persis rasio foto itu, sehingga "cover" tidak memotong
+         apa pun selain yang sudah dipotong di file-nya. */
+      .hero-bg {
+        height: 100.9vw;
+        background-image: url("{% static 'img/banner-hero-mobile.jpg' %}?v=2");
       }
+
       .hero-sweep { display: none; }
+    }
+
+    @media (max-width: 1024px) and (prefers-reduced-motion: no-preference) {
+      .js .hero-bg { animation: kenburns-soft 30s ease-in-out infinite alternate; }
     }
   </style>
 
