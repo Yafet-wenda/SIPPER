@@ -8,8 +8,6 @@ tombol proses ulang — tanpa satu pun jalur yang mengubah status dokumen secara
 otomatis.
 """
 
-import threading
-
 from django import forms
 from django.contrib import admin
 from django.urls import reverse
@@ -19,6 +17,7 @@ from django.utils.timezone import localtime
 from core.admin_site import EksporCSVMixin, RentangWaktuFilter, sipper_admin
 from core.ai_verifikasi import AMBAT_VALID, JENIS_BERNILAI, baris_perbandingan, nilai_berkas
 from core.models import AuditLog
+from core.ocr_worker import picu_async
 
 from .models import TinjauanOcr
 
@@ -41,13 +40,11 @@ def proses_ulang_ocr(modeladmin, request, queryset):
     Dipakai kalau petugas memperbaiki kualitas foto atau parser baru terpasang:
     hasil lama ditimpa oleh hasil mesin, bukan oleh tebakan kita di sini.
     """
-    from core.views import _trigger_ocr_async
-
     jumlah = 0
     for berkas in queryset:
         if not berkas.file:
             continue
-        threading.Thread(target=_trigger_ocr_async, args=(berkas.pk,), daemon=True).start()
+        picu_async(berkas.pk)
         jumlah += 1
     modeladmin.message_user(
         request,
@@ -187,6 +184,10 @@ class TinjauanOcrAdmin(EksporCSVMixin, admin.ModelAdmin):
         'penduduk', 'nama', 'jenis', 'file_link', 'status',
         'teks_ocr', 'ocr_text', 'ocr_confidence', 'ai_score', 'ai_prescreen', 'ai_verified',
         'ocr_processed_at', 'tabel_perbandingan',
+        # extracted_data tidak muncul di fieldset mana pun. Kalau dibiarkan ikut
+        # form, Djangoanggap petugas mengosongkannya dan seluruh hasil bacaan
+        # mesin (alamat, TTL, nomor KK) terhapus saat tombol simpan ditekan.
+        'extracted_data',
     )
 
     def changelist_view(self, request, extra_context=None):

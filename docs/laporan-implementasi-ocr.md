@@ -73,10 +73,17 @@ ai_verification_notes = models.TextField(blank=True)
 ocr_processed_at = models.DateTimeField(null=True, blank=True)
 ```
 
-#### 4. **Background Processing** (`core/views.py`)
-- `_trigger_ocr_async()` - Memproses OCR di thread terpisah
-- Non-blocking upload experience
-- Auto-trigger saat dokumen diupload
+#### 4. **Background Processing** (`core/ocr_worker.py`)
+- `picu_async(dokumen_id)` - Memulai thread OCR dan langsung melepaskan
+  pemanggilnya; `jalankan_ocr(dokumen_id)` adalah isi thread-nya
+- `OCR_CONCURRENCY = threading.BoundedSemaphore(2)` membatasi hanya dua proses
+  Tesseract yang berjalan beriringan, supaya satu petugas yang menyortir banyak
+  berkas tidak menghabiskan seluruh mesin
+- Non-blocking upload experience; auto-trigger saat dokumen diunggah
+  (jalur ini dipakai `core/views.py`, `core/admin_site.py`, dan `ai_ocr/admin.py`)
+- Setiap akhir proses menulis jejak `AuditLog` (`ocr_processed`, `ocr_dilewati`,
+  atau `ocr_failed`) dan menutup koneksi basis data di blok `finally`, karena
+  koneksi Django terikat pada thread yang membuatnya
 
 #### 5. **API Endpoints** (`core/urls.py`)
 - `/api/ocr-result/<pk>/` - Mengambil hasil OCR
@@ -315,8 +322,15 @@ ALTER TABLE core_dokumen ADD COLUMN ocr_processed_at DATETIME;
    - Magic number verification
 
 3. **Rate Limiting**
-   - Belum diimplementasikan
-   - Recommended: Max 10 OCR/hour per user
+   - Sudah berjalan untuk jalur publik lewat `core/throttle.py`
+     (`throttle_public`): 60 permintaan / 5 menit secara bawaan, 30 / 5 menit
+     untuk `api/validate-nik/`, dan 120 / 5 menit untuk statistik beranda.
+     Kunci penghitungnya IP asli di belakang Apache (`client_ip`), bukan
+     `REMOTE_ADDR` yang selalu 127.0.0.1.
+   - Jalur OCR sendiri (`/api/trigger-ocr/<pk>/`) dikunci khusus petugas,
+     menerima hanya POST, dan dibatasi konkurensinya oleh semaphore dua slot,
+     jadi belum perlu kuota "10 OCR/jam per pengguna" seperti yang direkomendasikan
+     semula.
 
 ---
 

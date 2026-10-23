@@ -20,7 +20,7 @@
 | Penyusun | Yafet Wenda (NRP 3125521058), Muhammad Ai Nur Haaq (NRP 3125521052) |
 | Rerangka | Django 5.2 dengan aplikasi utama `core` dan aplikasi penunjang `ai_ocr` (tinjauan hasil OCR) |
 | Basis data | MariaDB 10.4 (bawaan XAMPP) melalui PyMySQL; SQLite tersedia sebagai jalur uji cepat |
-| Pengujian | 162 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
+| Pengujian | 164 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
 | Integrasi berkelanjutan | GitHub Actions — lihat [Pengujian dan CI](#-pengujian-dan-ci) dan [`docs/ci-status.md`](docs/ci-status.md) |
 | Visibilitas | Repo privat, karena sistem memuat data turunan KTP warga |
 
@@ -54,7 +54,7 @@ Perpindahan penduduk antar daerah untuk studi, pekerjaan, maupun bisnis bersifat
 ### 🧑‍💼 Modul Masyarakat (Perantau)
 
 - **Portal Pendataan Bertahap**: pendaftaran akun dan pengisian formulir domisili asal, alamat tujuan, durasi tinggal, serta alasan merantau.
-- **Unggah KTP dan Kartu Keluarga**: formulir pengajuan mewajibkan dua berkas terpisah, *Foto KTP* dan *Foto Kartu Keluarga*, masing-masing maksimal 5 MB dan tersimpan sebagai `Dokumen` berlabel jenis (`ktp`, `kk`). Pemeriksaan meliputi tipe berkas (`pdf`, `jpeg`, `png`) lewat magic byte, batas ukuran di *middleware* (total badan permintaan), dan validasi format NIK melalui `api/validate-nik/`.
+- **Unggah KTP dan Kartu Keluarga**: formulir pengajuan mewajibkan dua berkas terpisah, *Foto KTP* dan *Foto Kartu Keluarga*, masing-masing maksimal 5 MB dan tersimpan sebagai `Dokumen` berlabel jenis (`ktp`, `kk`). Pemeriksaan meliputi tipe berkas (`pdf`, `jpeg`, `png`) lewat magic byte, batas ukuran di *middleware* (total badan permintaan), jumlah piksel untuk menolak *decompression bomb*, dan validasi format NIK (tepat 16 digit angka) di sisi server. Endpoint `api/validate-nik/` tersedia untuk pemeriksaan format dari peramban; halaman form saat ini memvalidasi saat dikirim, jadi endpoint itu tidak dipanggil templat mana pun.
 - **Kartu Digital dan QR Code**: kartu identitas perantau terbit setelah pengajuan disetujui, dilengkapi berkas QR dan unduhan PDF. QR dapat dipindai untuk validasi publik.
 - **Pemutakhiran Data Mandiri**: pelaporan perubahan alamat tujuan, perpanjangan durasi tinggal, atau konfirmasi kembali ke daerah asal, lengkap dengan riwayat.
 
@@ -100,15 +100,27 @@ SIPPER/
 │   ├── views.py                    # Alur request-response dan hak akses
 │   ├── urls.py                     # Rute tingkat aplikasi
 │   ├── admin.py / admin_site.py    # Penampilan dan dasbor admin
+│   ├── forms.py                    # Form bawaan Django + atribut autocomplete sandi
 │   ├── middleware.py               # Batas ukuran berkas dan penjaga lain
-│   ├── emails.py                   # Notifikasi surel
-│   ├── tests.py                    # Pengujian alur utama
-│   ├── chatbot.py                  # Mesin aturan asisten verifikasi
-│   ├── llm.py                      # Klien Gemini (opsional, via .env)
+│   ├── akses.py                    # Satu sumber penentu "ini petugas atau bukan"
+│   ├── throttle.py                 # Pembatas permintaan publik + IP di belakang proxy
+│   ├── uploads.py                  # Aturan unggah: ukuran, ekstensi, magic byte, piksel
+│   ├── keputusan.py                # Transisi status pengajuan + penerbitan kartu
+│   ├── ocr_worker.py               # Thread OCR: antrean, batas konkurensi, audit
 │   ├── ocr_processor.py            # Ekstraksi teks KTP/KK via Tesseract
+│   ├── ktp_parser.py               # Pemetaan teks OCR menjadi isian KTP
 │   ├── ai_verifikasi.py            # Rumus skor kecocokan OCR vs isian formulir
+│   ├── kartu_pdf.py                # Gambar kartu ID-1 (reportlab)
+│   ├── pdf_report.py               # Laporan A4 data lengkap
+│   ├── csv_utils.py                # Pelindung formula injection saat ekspor CSV
+│   ├── chatbot.py                  # Mesin aturan asisten verifikasi
+│   ├── llm.py                      # Klien Gemini (opsional, via .env) + penyamaran data
+│   ├── emails.py                   # Notifikasi surel
+│   ├── context_processors.py       # Variabel template yang dipakai semua halaman
+│   ├── tests.py                    # Pengujian alur utama
+│   ├── tests_pdf.py                # Pengujian keluaran PDF
 │   ├── tests_llm.py                # Test router LLM + fallback
-│   └── management/commands/        # backup_db, promote_officer, send_test_email
+│   └── management/commands/        # backup_db, clean_data, promote_officer, send_test_email
 │
 ├── ai_ocr/                         # Aplikasi penunjang: panel tinjauan hasil OCR
 │   ├── models.py                   # Proxy model TinjauanOcr atas core.Dokumen
@@ -225,10 +237,11 @@ python manage.py migrate
 # Opsional: buat akun superuser
 python manage.py createsuperuser
 
+# atau cukup dev.bat (menyetel DJANGO_DEBUG=1 lalu runserver)
 python manage.py runserver 127.0.0.1:8000
 ```
 
-Buka peramban dan akses aplikasi melalui `http://127.0.0.1:8000/`.
+Buka peramban dan akses aplikasi melalui `http://127.0.0.1:8000/`. Perlu diingat bawaan `DJANGO_DEBUG` sekarang 0, jadi `runserver` langsung tanpa `set "DJANGO_DEBUG=1"` berjalan dalam mode produksi (halaman galat ringkas, tanpa *traceback*).
 
 ---
 
@@ -243,7 +256,7 @@ python manage.py test
 DB_ENGINE=sqlite python manage.py test
 ```
 
-Sebanyak 162 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), prapemilahan AI (rumus skor NIK 45% / nama 30% / keterbacaan 25% dan ambang 85% yang ketat, parser KTP, jalur OCR, serta panel tinjauan `ai_ocr` termasuk penolakan akses warga dan jaminan mesin tidak pernah mengubah status berkas), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
+Sebanyak 164 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), prapemilahan AI (rumus skor NIK 45% / nama 30% / keterbacaan 25% dan ambang 85% yang ketat, parser KTP, jalur OCR, serta panel tinjauan `ai_ocr` termasuk penolakan akses warga dan jaminan mesin tidak pernah mengubah status berkas), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
 
 GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pull request* ke `master`, dan dapat dipicu manual lewat `workflow_dispatch`. Ada tiga *job*:
 
@@ -261,7 +274,7 @@ GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pu
 
 Implementasi aktif memakai aplikasi Django `core` plus aplikasi penunjang `ai_ocr` (hanya proxy model dan tampilan admin, tanpa tabel baru) dengan **MariaDB bawaan XAMPP (10.4)** pada port 3306. Django 5.2 resmi mensyaratkan MariaDB 10.5, sehingga `sipper/__init__.py` memuat *shim* kompatibilitas kecil: menurunkan gerbang versi minimum dan mematikan dukungan `INSERT ... RETURNING` yang belum tersedia di 10.4. Fitur yang sudah berjalan mencakup akun masyarakat dan petugas, pengajuan, unggah dokumen maksimal 5 MB, prapemilahan berkas oleh mesin (OCR KTP lalu skor kecocokan terhadap isian formulir; hasil di bawah ambang 85% ditandai *Perlu review manual*, tanpa pernah mengubah status berkas), peninjauan dokumen, riwayat pemutakhiran, kartu QR, kartu PDF, statistik, ekspor CSV, reset sandi, pencadangan, dan pemindai QR.
 
-Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** → *reverse proxy* → **waitress (:8099)**. Aset `/static/` dilayani Alias Apache dengan *fallback* WhiteNoise sehingga tetap tampil baik pada `runserver` maupun waitress. Berkas `/media/` **tidak pernah** dilayani secara langsung: unggahan warga hanya dapat diunduh melalui `/dokumen/<pk>/file/` yang memeriksa status masuk dan kepemilikan, sambil menulis catatan audit.
+Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80)** → *reverse proxy* → **waitress (:8099)**. TLS (:443) belum dipasang di rangkaian ini, karena itu *cookie aman* dan *HTTPS-redirect* sengaja dimatikan sampai sertifikat benar-benar serving. Aset `/static/` dilayani Alias Apache dengan *fallback* WhiteNoise sehingga tetap tampil baik pada `runserver` maupun waitress. Berkas `/media/` **tidak pernah** dilayani secara langsung: unggahan warga hanya dapat diunduh melalui `/dokumen/<pk>/file/` yang memeriksa status masuk dan kepemilikan, sambil menulis catatan audit.
 
 ### Menjalankan Lokal
 
@@ -269,8 +282,10 @@ Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** 
 # Prasyarat: panel XAMPP -> Start pada Apache dan MySQL (MariaDB)
 .venv\Scripts\python.exe manage.py migrate
 .venv\Scripts\python.exe manage.py createsuperuser
-.venv\Scripts\python.exe manage.py runserver 127.0.0.1:8000
+dev.bat    # runserver dengan DJANGO_DEBUG=1; lihat catatan di bawah
 ```
+
+Bawaan `DJANGO_DEBUG` di `sipper/settings.py` adalah **0** (fail-closed): proses yang terlanjur dijalankan tanpa variabel lingkungan `DJANGO_DEBUG` tidak boleh menyajikan *traceback* SQL. Karena itu pengembangan memakai `dev.bat`, yang menyetel `DJANGO_DEBUG=1` di lingkungan prosesnya sebelum `runserver`. Kalau perlu menjalankan `manage.py runserver` langsung, set lebih dulu: `set "DJANGO_DEBUG=1"`.
 
 Bentuk produksi perlu satu langkah tambahan per mesin, karena Apache harus tahu cara mem-*proxy* ke waitress:
 
@@ -281,7 +296,7 @@ powershell -ExecutionPolicy Bypass -File scripts\install-apache-config.ps1 -Rest
 
 Skrip itu menyalakan `mod_proxy_http` (bawaan XAMPP dimuat tapi dikomentari), menyalin `apache/sipper-httpd.conf` menjadi `conf/extra/httpd-sipper.conf` dengan `__PROJECT_ROOT__` sudah diganti lokasi folder proyek, menambahkan baris `Include` ke `httpd.conf`, lalu membatalkan seluruh perubahannya sendiri kalau `httpd -t` menolak hasil susunan. Lokasi XAMPP dideteksi otomatis (`C:\`, `D:\`, `F:\`) atau lewat `-ApacheHome`.
 
-Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, collectstatic, waitress, Apache). Skrip itu juga menyetel profil produksi di lingkungan prosesnya (`DJANGO_DEBUG=0`, host dan origin pada port 80, cookie aman dan HTTPS-redirect dimatikan selama Apache belum serving TLS), sehingga `.env` boleh tetap memakai `DJANGO_DEBUG=1` untuk `dev.bat`. Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
+Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, collectstatic, waitress, Apache). Skrip itu juga menyetel profil produksi di lingkungan prosesnya (`DJANGO_DEBUG=0`, host dan origin pada port 80, cookie aman dan HTTPS-redirect dimatikan selama Apache belum serving TLS), sehingga isi `.env` untuk dua hal itu tidak ikut terpakai. Nilai yang **tidak** disetel `prod.bat` — `DB_HOST`, `DJANGO_EMAIL_BACKEND`, `CLAMAV_*` — tetap dibaca dari `.env`. Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
 
 ### URL Utama
 
@@ -304,14 +319,23 @@ Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.
 
 ### Administrasi
 
-Akun superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan. Petugas biasa bekerja di `/petugas/`; peran mereka disimpan sebagai baris `UserRole` yang dibaca `core/views.is_officer`, tanpa menyentuh tabel autentikasi.
+Akun superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan. Petugas biasa bekerja di `/petugas/`; peran mereka disimpan sebagai baris `UserRole` yang dibaca `core.akses.is_officer` (satu-satunya tempat pertanyaan "apakah akun ini petugas" dijawab), tanpa menyentuh tabel autentikasi.
 
 
-Perintah pengelolaan peran:
+Perintah pengelolaan:
 
 ```powershell
+# angkat akun warga yang sudah ada menjadi petugas
 python manage.py promote_officer <username>
+
+# bersihkan data uji coba — lihat dulu, lalu jalankan dengan konfirmasi
+python manage.py clean_data --admin <email-admin> --dry-run
+python manage.py clean_data --admin <email-admin> --yes
 ```
+
+`clean_data` menghapus baris, jadi dia menolak bekerja tanpa `--yes` dan tanpa
+`--admin` yang benar-benar ada di database; superuser lain tidak pernah ikut
+terhapus. Cadangan dibuat lebih dulu dengan `python manage.py backup_db`.
 
 ---
 

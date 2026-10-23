@@ -57,9 +57,6 @@ def _parse_ktp_column_format(text):
                         nama_clean.append(part)
                 if len(nama_clean) >= 2:
                     extracted['nama'] = ' '.join(nama_clean)
-                elif len(nama_clean) == 1 and len(nama_clean[0]) > 3:
-                    # Single word name (rare tapi mungkin)
-                    pass
     
     # Fallback: cari "Nama :" diikuti text
     if 'nama' not in extracted:

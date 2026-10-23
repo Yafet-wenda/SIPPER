@@ -6,7 +6,9 @@ from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
-DEBUG = os.getenv('DJANGO_DEBUG', '1') == '1'
+# Bawaannya mati supaya proses yang dilupakan tanpa DJANGO_DEBUG di lingkungan
+# tidak berakhir menyajikan traceback SQL. dev.bat menyetel 1, prod.bat menyetel 0.
+DEBUG = os.getenv('DJANGO_DEBUG', '0') == '1'
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
 if not SECRET_KEY:
     if DEBUG:
@@ -80,9 +82,28 @@ EMAIL_PORT = int(os.getenv('DJANGO_EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('DJANGO_EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('DJANGO_EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('DJANGO_EMAIL_USE_TLS', '1') == '1'
+# Tanpa batas waktu, send_mail ikut menunggu sampai OS menyerah (menit) ketika
+# SMTP mati atau DNS menggantung, dan petugas yang menekan tombol verifikasi
+# melihat layarnya membeku.
+EMAIL_TIMEOUT = int(os.getenv('DJANGO_EMAIL_TIMEOUT', '10'))
 EMAIL_FILE_PATH = BASE_DIR / os.getenv('DJANGO_EMAIL_FILE_PATH', 'tmp/outbox')
 DEFAULT_FROM_EMAIL = os.getenv('DJANGO_DEFAULT_FROM_EMAIL', 'SIPPER <no-reply@example.com>')
 CLAMAV_ENABLED = os.getenv('CLAMAV_ENABLED', '0') == '1'
 CLAMAV_HOST = os.getenv('CLAMAV_HOST', '127.0.0.1')
 CLAMAV_PORT = int(os.getenv('CLAMAV_PORT', '3310'))
+# Kejadian yang tidak lagi berhenti sebagai baris AuditLog saja. Semua jalur
+# kegagalan (OCR, ClamAV, pemotretan pasfoto) menulis ke log proses supaya
+# penyebab aslinya masih terbaca di jendela waitress saat petugas hanya
+# melihat "proses gagal". Level root sengaja WARNING agar log tidak membengkak.
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {'ringkas': {'format': '{levelname} {asctime} {name}: {message}', 'style': '{'}},
+    'handlers': {'konsol': {'class': 'logging.StreamHandler', 'formatter': 'ringkas'}},
+    'root': {'handlers': ['konsol'], 'level': 'WARNING'},
+    'loggers': {
+        'core': {'handlers': ['konsol'], 'level': 'INFO', 'propagate': False},
+        'django.security': {'handlers': ['konsol'], 'level': 'WARNING', 'propagate': False},
+    },
+}
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

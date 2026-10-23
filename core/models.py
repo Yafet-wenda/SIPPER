@@ -2,8 +2,6 @@ from django.conf import settings
 from django.core.validators import FileExtensionValidator, RegexValidator
 from django.db import models
 from django.utils import timezone
-from django.contrib.auth.models import User
-
 from .ai_verifikasi import PRESCREEN
 
 
@@ -61,7 +59,7 @@ class Pengajuan(models.Model):
     status = models.CharField(max_length=20, choices=STATUS, default='menunggu', verbose_name='status')
     catatan = models.TextField(blank=True, verbose_name='catatan petugas')
     submitted_at = models.DateTimeField(auto_now_add=True, verbose_name='dikirim pada')
-    verified_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name='verified_applications', verbose_name='diverifikasi oleh')
+    verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='verified_applications', verbose_name='diverifikasi oleh')
     verified_at = models.DateTimeField(null=True, blank=True, verbose_name='diverifikasi pada')
 
     def __str__(self):
@@ -82,6 +80,9 @@ class KartuDigital(models.Model):
 
     def is_valid(self):
         return self.status == 'aktif' and self.berlaku_sampai >= timezone.now().date()
+
+    def __str__(self):
+        return f'Kartu {self.kode} - {self.penduduk.nama}'
 
     class Meta:
         verbose_name = 'kartu digital'
@@ -135,6 +136,12 @@ class AuditLog(models.Model):
     deskripsi = models.TextField(verbose_name='deskripsi')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='waktu')
 
+    def __str__(self):
+        # Tanpa ini judul halaman admin berbunyi "AuditLog object (12)" dan
+        # petugas tidak tahu catatan mana yang sedang dibuka.
+        pelaku = self.user.username if self.user_id else 'sistem'
+        return f'{pelaku} - {self.aksi}'
+
     class Meta:
         verbose_name = 'log audit'
         verbose_name_plural = 'log audit'
@@ -146,6 +153,9 @@ class Pemutakhiran(models.Model):
     data_baru = models.JSONField(default=dict, verbose_name='data baru')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='waktu')
 
+    def __str__(self):
+        return f'Pemutakhiran {self.penduduk.nama} pada {self.created_at:%d/%m/%Y}'
+
     class Meta:
         verbose_name = 'riwayat pemutakhiran'
         verbose_name_plural = 'riwayat pemutakhiran'
@@ -153,8 +163,11 @@ class Pemutakhiran(models.Model):
 
 class UserRole(models.Model):
     ROLE_CHOICES = [('masyarakat', 'Masyarakat'), ('petugas', 'Petugas Pemerintah')]
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='role_profile', verbose_name='pengguna')
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='role_profile', verbose_name='pengguna')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='masyarakat', verbose_name='peran')
+
+    def __str__(self):
+        return f'{self.user.username} - {self.get_role_display()}'
 
     class Meta:
         verbose_name = 'peran pengguna'

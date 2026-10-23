@@ -5,11 +5,15 @@ The runnable workspace currently uses the `sipper` project package and a single 
 # 📱 SIPPER - Sistem Informasi Penduduk Perantauan
 ## Dokumentasi Lengkap Fullstack Development
 
-**Status:** Production Ready  
+**Status:** Rujukan historis (bukan spesifikasi berjalan)  
 **Version:** 1.0.0  
-**Tech Stack:** Python 3.10+, Django 4.2, MySQL 8.0, Bootstrap 5  
+**Tech Stack yang diuraikan di bawah:** Python 3.10+, Django 4.2, MySQL 8.0, Bootstrap 5  
+**Yang berjalan sekarang:** Python 3.13/3.14, Django 5.2, MariaDB 10.4 (XAMPP), CSS
+tulisan sendiri tanpa Bootstrap, satu aplikasi `core` plus panel `ai_ocr`  
 **Author:** Development Team  
-**Last Updated:** 2024
+**Last Updated:** 2024 — blok *settings* di bagian 4 adalah rancangan lama: nilai
+`STATIC_ROOT = 'static_root'`, `AUTH_USER_MODEL = 'core.CustomUser'`, dan Crispy Forms
+tidak ada di `sipper/settings.py`. Baca berkas itu untuk angka yang sebenarnya.
 
 ---
 

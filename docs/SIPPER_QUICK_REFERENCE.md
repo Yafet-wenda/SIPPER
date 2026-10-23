@@ -1,5 +1,11 @@
 # SIPPER - Quick Reference & Resources
 
+> **Status dokumen.** Tabel versi, peta struktur berkas, dan daftar rute di bawah
+> sudah dibaca ulang terhadap kode pada 23 Oktober 2026 — rute diambil langsung
+> dari `core/urls.py`. Bagian yang masih berupa rencana lama (misalnya contoh
+> `bootstrap` atau `main.js`) ditandai di [`README.md`](README.md) folder ini.
+> Untuk fakta yang paling baru, README di akar repositori tetap acuan utama.
+
 ---
 
 ## ⚡ Quick Commands Reference
@@ -112,30 +118,35 @@ mysql -u user -p database < backup.sql
 ## 📱 File Structure Quick Map
 
 ```
-sipper-app/
-├── sipper_config/          # Main Django config
-│   ├── settings.py         # Configuration
-│   ├── urls.py             # URL routing
-│   └── wsgi.py             # Server entry
-├── core/                   # Core app
-│   ├── models.py           # Database models
-│   ├── views.py            # View logic
-│   ├── forms.py            # Form validation
-│   └── urls.py             # App URLs
-├── users/                  # User authentication
-├── perantau/               # Perantau (citizen) features
-├── verifikasi/             # Verification (admin) features
-├── kartu/                  # Digital card features
-├── templates/              # HTML templates
-├── static/                 # CSS, JS, Images
-│   ├── css/style.css       # Green theme
-│   ├── js/main.js          # JavaScript
-│   └── img/                # Images
-├── media/                  # User uploaded files
-├── manage.py               # Django CLI
-├── requirements.txt        # Dependencies
-└── .env                    # Environment variables
+SIPPER/
+├── sipper/                 # Konfigurasi proyek (bukan sipper_config)
+│   ├── settings.py         # Nilai dibaca dari .env; bawaan DJANGO_DEBUG=0
+│   ├── urls.py             # Rute tingkat atas + admin
+│   ├── __init__.py         # Shim agar Django 5.2 menerima MariaDB 10.4
+│   └── wsgi.py             # Titik masuk waitress/gunicorn
+├── core/                   # SATU aplikasi bisnis — seluruh model, view, rute
+│   ├── models.py           # Penduduk, Pengajuan, Dokumen, KartuDigital, AuditLog,
+│   │                       #   Pemutakhiran, UserRole
+│   ├── views.py            # Halaman + endpoint JSON, keputusan hak akses
+│   ├── urls.py             # Peta rute yang sebenarnya (lihat tabel API di bawah)
+│   ├── uploads.py          # Gerbang unggah: ukuran, ekstensi, magic byte, piksel
+│   ├── ocr_worker.py       # Thread OCR + batas konkurensi + jejak audit
+│   ├── kartu_pdf.py        # Gambar kartu ID-1
+│   └── management/commands/# backup_db, clean_data, promote_officer, send_test_email
+├── ai_ocr/                 # Panel tinjauan hasil OCR (proxy model, tanpa tabel baru)
+├── templates/              # HTML; tidak ada Bootstrap, CSS tulisan sendiri
+├── static/css/style.css    # Tema hijau sipper
+├── static/css/admin.css    # Tema dasbor admin
+├── static/js/              # admin-dashboard.js, file-label.js, html5-qrcode.min.js
+├── apache/                 # Template conf\extra\httpd-sipper.conf untuk proxy :80
+├── scripts/                # install-apache-config.ps1, install_tesseract.ps1
+├── dev.bat                 # runserver + DJANGO_DEBUG=1
+├── prod.bat                # MariaDB -> collectstatic -> waitress:8099 -> Apache:80
+└── requirements.txt        # Django>=5.2,<6.0 (lihat-daftar di bawah)
 ```
+
+Empat aplikasi `users/`, `perantau/`, `verifikasi/`, dan `kartu/` hanya ada di
+rencana lama; kode yang berjalan menyatukan semuanya di `core`.
 
 ---
 
@@ -194,46 +205,54 @@ Pengajuan ──→ User (verified_by)
 
 ## 🌐 API Endpoints
 
-### Authentication
+Daftar ini diambil dari `core/urls.py` (satu-satunya sumber yang benar). Rute
+lama berbentuk `/auth/...` dan `/perantau/...` tidak pernah diimplementasi —
+kalau suatu saat bertemu di dokumen lain, itu sketsa desain, bukan kode.
+
+### Masuk dan akun
 ```
-POST   /auth/login/           - User login
-POST   /auth/register/        - User registration
-GET    /auth/logout/          - User logout
-GET    /auth/profile/         - User profile
+GET/POST /daftar/               - Buat akun masyarakat
+GET/POST /login/                - Masuk (dibatasi 5 percobaan per IP+akun)
+POST       /logout/             - Keluar (hanya menerima POST)
+GET/POST /profil/               - Data akun
+GET/POST /password/             - Ganti sandi
+GET/POST /lupa-password/        - Mulai reset sandi lewat surel
+GET/POST /reset-password/<uidb64>/<token>/ - Lanjutan tautan reset
 ```
 
-### Perantau (Citizen)
+### Warga
 ```
-GET    /perantau/dashboard/   - Dashboard
-GET    /perantau/pendaftaran/ - Registration form
-POST   /perantau/pendaftaran/ - Submit registration
-GET    /perantau/edit/<id>/   - Edit data
-POST   /perantau/edit/<id>/   - Update data
-GET    /perantau/dokumen/     - List documents
-POST   /perantau/dokumen/     - Upload document
-```
-
-### Verifikasi (Admin)
-```
-GET    /verifikasi/dashboard/        - Admin dashboard
-GET    /verifikasi/pengajuan/        - List applications
-GET    /verifikasi/pengajuan/<id>/   - View application detail
-POST   /verifikasi/pengajuan/<id>/   - Verify/Reject
-GET    /verifikasi/statistik/        - Statistics
+GET/POST /dashboard/                     - Dasbor (warga atau petugas)
+GET/POST /pengajuan/                     - Formulir pengajuan + unggah KTP/KK
+POST       /pengajuan/<pk>/kirim-ulang/  - Kirim ulang setelah perlu perbaikan
+GET/POST /pemutakhiran/                  - Laporkan perubahan data
+GET        /histori/                      - Riwayat pemutakhiran
+GET        /kartu/<code>/                - Halaman validasi kartu (publik, NIK disamar)
+GET        /kartu/<code>/qr.png          - Gambar QR
+GET        /kartu/<code>/download/       - Unduhan PDF kartu (reportlab)
+GET        /dokumen/<pk>/file/           - Berkas unggahan, hanya pemilik atau petugas
+GET        /penduduk/<pk>/pasfoto/       - Pasfoto, pemeriksaan hak sama
 ```
 
-### Kartu Digital
+### Petugas
 ```
-GET    /kartu/view/           - View digital card
-GET    /kartu/validate/<code>/ - Validate card
+GET        /petugas/                                  - Antrean verifikasi (?export=csv untuk unduhan)
+GET        /petugas/pengajuan/<pk>/                   - Detail satu pengajuan
+GET        /petugas/pengajuan/<pk>/laporan.pdf        - Laporan A4 data lengkap
+GET        /petugas/dokumen/<pk>/                     - Peninjauan hasil OCR
+POST       /petugas/                                  - Aksi keputusan (setujui/perbaikan/tolak)
+GET        /petugas/statistik/                        - Grafik tujuan merantau
 ```
 
-### API (JSON)
+### JSON
 ```
-GET    /api/pending-count/    - Get pending count
-GET    /api/perantau/status/  - Get application status
-GET    /api/chart-data/       - Get chart data
-POST   /api/validate-nik/     - Validate NIK
+GET  /api/pending-count/          - Jumlah antrean menunggu (khusus petugas)
+GET  /api/landing-stats/          - Statistik beranda, hanya agregat
+GET  /api/validate-nik/?nik=...   - Format NIK; field "registered" hanya untuk petugas
+GET  /api/ocr-result/<pk>/        - Hasil OCR satu berkas (khusus petugas)
+POST /api/trigger-ocr/<pk>/       - Jalankan ulang OCR (khusus petugas)
+POST /api/chat/                   - Asisten verifikasi dokumen (khusus petugas)
+GET  /health/                     - Cek kesehatan + koneksi basis data
 ```
 
 ---
@@ -242,10 +261,14 @@ POST   /api/validate-nik/     - Validate NIK
 
 | Component | Recommended | Minimum |
 |-----------|------------|---------|
-| Python | 3.11+ | 3.10 |
-| Django | 4.2+ | 4.2 |
-| MySQL | 8.0+ | 5.7 |
+| Python | 3.13 / 3.14 (keduanya diuji di CI) | 3.12 |
+| Django | 5.2.x (`Django>=5.2,<6.0`) | 5.2 |
+| MySQL/MariaDB | MariaDB 10.11 (CI) / MySQL 8 | MariaDB 10.5* |
 | Bootstrap | 5.3+ | 5.1 |
+
+\* Django 5.2 mensyaratkan MariaDB 10.5. Mesin XAMPP lokal memakai 10.4, jadi
+`sipper/__init__.py` memuat *shim* yang menurunkan gerbang versi dan mematikan
+dukungan `INSERT ... RETURNING`.
 
 ---
 

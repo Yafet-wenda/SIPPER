@@ -23,10 +23,17 @@ if platform.system() == 'Windows':
             break
 
 
-# Confidence di bawah angka ini menandakan berkas bukan tangkapan layar bersih.
-# Angkanya dari pengujian laporan: gambar digital selalu > 90%, foto KTP asli
-# berkisar 40-70% -> hanya kelompok kedua yang perlu praproses agresif.
+# Ambang pemisah dua jalur baca. Confidence di bawah angka ini menandakan
+# gambarnya bukan tangkapan layar bersih, sehingga pembacaan diulang lewat
+# praproses agresif (lihat ekstrak_dengan_pilihan_praproses). Angkanya dari
+# pengujian: gambar digital hasil scan rapi berada di atas 90%, foto KTP
+# berkisar 40-70%.
 AMBAT_PREPROCESS = 70.0
+
+# Gerbang kedua, lebih longgar, dipakai di dalam extract_text_from_image:
+# hasil jalur polos yang di bawah angka ini dianggap belum layak sebelum
+# dicoba ulang dengan praproses ringan.
+AMBAT_HASIL_POLOS = 50.0
 
 
 def preprocess_image(image_path, aggressive=False):
@@ -100,7 +107,7 @@ def extract_text_from_image(image_path, lang='ind+eng', aggressive_preprocess=Fa
         result = _build_result(data)
         
         # Jika hasil buruk, fallback ke preprocessing ringan
-        if result['confidence'] < 50 or len(result['text']) < 50:
+        if result['confidence'] < AMBAT_HASIL_POLOS or len(result['text']) < 50:
             processed_img = preprocess_image(image_path, aggressive=False)
             data = pytesseract.image_to_data(processed_img, lang=lang, config='--oem 3 --psm 3', output_type=pytesseract.Output.DICT)
             result = _build_result(data)

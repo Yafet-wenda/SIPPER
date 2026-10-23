@@ -1,0 +1,19 @@
+# Aturan baris dibuat eksplisit supaya hasil checkout tidak bergantung pada
+# core.autocrlf di mesin masing-masing. Repository tetap menyimpan LF.
+# Yang wajib CRLF hanyalah berkas yang dijalankan cmd.exe/PowerShell: tanpa
+# aturan ini, mesin tanpa autocrlf akan men-check-out .bat bersambung LF dan
+# cmd salah memotong barisnya.
+* text=auto
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Gagal bila ada yang tanpa sengaja menambahkan biner ke repository.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.sqlite3 binary
+*.db binary

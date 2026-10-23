@@ -17,9 +17,10 @@ rem  Lokasi XAMPP dideteksi otomatis (C:, D:, lalu F:). Kalau berada di tempat
 rem  lain, set lebih dulu:  set XAMPP_HOME=E:\xampp
 rem
 rem  Nilai DJANGO_* di bawah menimpa isi .env, karena python-dotenv tidak
-rem  menimpa variabel yang sudah ada di lingkungan. Jadi .env boleh tetap
-rem  DJANGO_DEBUG=1 untuk dev.bat. Set sendiri salah satunya kalau perlu
-rem  mengubahnya.
+rem  menimpa variabel yang sudah ada di lingkungan. Yang ditimpa hanyalah
+rem  DJANGO_DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS dan tiga nilai
+rem  keamanan HTTPS - jadi .env boleh tetap DJANGO_DEBUG=1 untuk dev.bat.
+rem  Nilai lain (DB_HOST, DJANGO_EMAIL_BACKEND, dst) tetap dibaca dari .env.
 rem =====================================================================
 cd /D "%~dp0"
 
@@ -34,14 +35,19 @@ if not defined DJANGO_DEBUG set "DJANGO_DEBUG=0"
 if not defined DJANGO_ALLOWED_HOSTS set "DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1"
 if not defined DJANGO_CSRF_TRUSTED_ORIGINS set "DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1"
 rem  Apache di sini masih HTTP biasa. Baru setelah TLS terpasang dan
-rem  X-Forwarded-Proto dikirim, dua nilai berikut boleh jadi 1.
+rem  X-Forwarded-Proto dikirim, tiga nilai berikut boleh jadi 1.
 if not defined DJANGO_SECURE_SSL_REDIRECT set "DJANGO_SECURE_SSL_REDIRECT=0"
 if not defined DJANGO_SECURE_COOKIES set "DJANGO_SECURE_COOKIES=0"
 if not defined DJANGO_HSTS_SECONDS set "DJANGO_HSTS_SECONDS=0"
 
+rem  Cari assignment yang benar-benar berisi, bukan sekadar ada barisnya:
+rem  "DJANGO_SECRET_KEY=" kosong juga membuat Django menolak start. findstr
+rem  tidak mengenal "+", jadi ".." (dua karakter apa pun) yang dipakai.
 if defined DJANGO_SECRET_KEY goto :punya_kunci
-findstr /B /C:"DJANGO_SECRET_KEY=" .env >NUL 2>&1
+findstr /R /C:"^DJANGO_SECRET_KEY=.." .env >NUL 2>&1
 if errorlevel 1 echo        PERHATIAN: DJANGO_SECRET_KEY kosong. Dengan DJANGO_DEBUG=0 Django menolak start - isi dulu di .env.
+findstr /I /R /C:"^DJANGO_SECRET_KEY=replace" /C:"^DJANGO_SECRET_KEY=ganti" /C:"^DJANGO_SECRET_KEY=changeme" .env >NUL 2>&1
+if not errorlevel 1 echo        PERHATIAN: DJANGO_SECRET_KEY masih nilai contoh dari .env.example - ganti dengan nilai acak panjang.
 :punya_kunci
 
 echo [1/4] MariaDB
@@ -54,7 +60,7 @@ if exist staticfiles\admin (
     echo          .venv\Scripts\python.exe manage.py collectstatic --noinput
 ) else (
     echo       staticfiles masih kosong, menyusun ...
-    .venv\Scripts\python.exe manage.py collectstatic --noinput
+    "%~dp0.venv\Scripts\python.exe" manage.py collectstatic --noinput
 )
 
 echo [3/4] waitress di 127.0.0.1:8099
@@ -63,7 +69,7 @@ rem  sebelum sampai ke Django. Tanpa dua baris flag di bawah, Django selalu meli
 rem  REMOTE_ADDR 127.0.0.1 (rate limit jadi dipakai bersama semua pengguna) dan
 rem  SECURE_PROXY_SSL_HEADER tidak pernah punya bukti HTTPS.
 netstat -ano | findstr "127.0.0.1:8099" | findstr "LISTENING" >NUL
-if errorlevel 1 (start "SIPPER waitress" .venv\Scripts\python.exe -m waitress --host=127.0.0.1 --port=8099 --threads=8 --trusted-proxy=127.0.0.1 --trusted-proxy-headers=x-forwarded-for --trusted-proxy-headers=x-forwarded-proto sipper.wsgi:application) else (echo       sudah jalan, dilewati)
+if errorlevel 1 (start "SIPPER waitress" "%~dp0.venv\Scripts\python.exe" -m waitress --host=127.0.0.1 --port=8099 --threads=8 --trusted-proxy=127.0.0.1 --trusted-proxy-headers=x-forwarded-for --trusted-proxy-headers=x-forwarded-proto sipper.wsgi:application) else (echo       sudah jalan, dilewati)
 
 echo [4/4] Apache di port 80
 if not exist "%XAMPP_HOME%\apache\conf\extra\httpd-sipper.conf" echo       PERHATIAN: conf\extra\httpd-sipper.conf belum dipasang - http://localhost tidak akan meneruskan ke waitress. Jalankan install-apache-config.ps1 di baris paling atas.

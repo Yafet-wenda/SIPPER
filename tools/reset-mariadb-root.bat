@@ -13,7 +13,15 @@ rem  dulu waitress / phpMyAdmin tab kalau sedang dipakai.
 rem  User aplikasi (sipper_app) dan isinya TIDAK disentuh.
 rem =====================================================================
 
-set "BINDIR=C:\xampp\mysql\bin"
+rem  Lokasi XAMPP dideteksi otomatis (C:, D:, lalu F:) seperti pada prod.bat.
+rem  Kalau berada di tempat lain, set lebih dulu:  set XAMPP_HOME=E:\xampp
+if not defined XAMPP_HOME if exist "C:\xampp\mysql_start.bat" set "XAMPP_HOME=C:\xampp"
+if not defined XAMPP_HOME if exist "D:\xampp\mysql_start.bat" set "XAMPP_HOME=D:\xampp"
+if not defined XAMPP_HOME if exist "F:\xampp\mysql_start.bat" set "XAMPP_HOME=F:\xampp"
+if not defined XAMPP_HOME set "XAMPP_HOME=C:\xampp"
+echo        XAMPP: %XAMPP_HOME%
+
+set "BINDIR=%XAMPP_HOME%\mysql\bin"
 set "MYSQD=%BINDIR%\mysqld.exe"
 set "MYSQL=%BINDIR%\mysql.exe"
 set "INI=%BINDIR%\my.ini"
@@ -55,7 +63,7 @@ echo.
 echo [4/4] Memulai ulang MariaDB secara normal ...
 taskkill /F /IM mysqld.exe >nul 2>&1
 timeout /t 5 /nobreak >nul
-start "MariaDB" C:\xampp\mysql_start.bat
+start "MariaDB" "%XAMPP_HOME%\mysql_start.bat"
 timeout /t 10 /nobreak >nul
 
 echo.
@@ -76,7 +84,7 @@ echo Gagal terhubung ke mysql. Kemungkinan mysqld belum siap.
 echo Menutup mode tanpa hak akses dan memulai ulang secara normal ...
 taskkill /F /IM mysqld.exe >nul 2>&1
 timeout /t 5 /nobreak >nul
-start "MariaDB" C:\xampp\mysql_start.bat
+start "MariaDB" "%XAMPP_HOME%\mysql_start.bat"
 echo.
 echo MariaDB sudah kembali normal. Ulangi skrip ini kalau mau coba lagi.
 

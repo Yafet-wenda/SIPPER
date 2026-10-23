@@ -42,25 +42,6 @@ def terbitkan_kartu(request, person):
     return card
 
 
-def lengkapi_kartu(request, card):
-    """Isi kode bila kosong, simpan kartunya, lalu render QR bila belum ada.
-
-    ``kode`` dan ``qr_code`` sengaja dibiarkan hanya-baca di form: keduanya
-    identitas mesin, bukan sesuatu yang diketik petugas. Tanpa pengisian ini
-    form tambah kartu tidak pernah bisa disimpan karena kolom wajib itu kosong
-    — bug yang membuat halaman admin kehilangan salah satu fungsinya.
-
-    Dipakai oleh :func:`terbitkan_kartu` dan oleh form admin, sehingga kartu
-    hasil keduanya identik.
-    """
-    if not card.kode:
-        card.kode = f'SPR-{secrets.token_urlsafe(16)}'
-    card.save()
-    if not card.qr_code:
-        _buat_qr(request, card)
-    return card
-
-
 def beri_tahu_status(person, status, actor):
     """Beri tahu warga lewat email; kegagalan kirim dicatat, bukan dilempar.
 

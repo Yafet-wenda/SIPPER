@@ -1,18 +1,15 @@
 import csv
 import os
-import threading
 from datetime import timedelta
 
 from django import forms
 from django.contrib import admin
 from django.contrib.admin.forms import AdminAuthenticationForm
-from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
 from django.contrib.admin.options import IncorrectLookupParameters
 from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
-from django.template.response import TemplateResponse
 from django.utils.html import format_html
 from django.urls import path, reverse
 from django.db.models import Count
@@ -20,6 +17,7 @@ from .csv_utils import sel_aman
 from .ai_verifikasi import AMBAT_VALID
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
 from .keputusan import terapkan_status
+from .ocr_worker import picu_async
 
 
 class FormMasukAdmin(AdminAuthenticationForm):
@@ -60,8 +58,6 @@ class SipperAdminSite(admin.AdminSite):
         hanya diberikan kepada pengguna yang punya izin lihat modelnya — sama
         seperti halaman depan admin yang hanya menampilkan model terizinkan.
         """
-        from datetime import timedelta
-
         from django.utils import timezone
 
         boleh_pengajuan = user.has_perm('core.view_pengajuan')
@@ -502,10 +498,7 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
             obj.nama = os.path.basename(obj.file.name)[:100]
         super().save_model(request, obj, form, change)
         if not change and obj.jenis in ('ktp', 'kk') and obj.file:
-            from .views import _trigger_ocr_async
-            threading.Thread(
-                target=_trigger_ocr_async, args=(obj.pk,), daemon=True,
-            ).start()
+            picu_async(obj.pk)
 
 
 @admin.register(KartuDigital, site=sipper_admin)

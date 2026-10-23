@@ -2,7 +2,10 @@ __pycache__/
 *.py[cod]
 .env
 .env.bak-*
-db.sqlite3
+# SQLite dipakai sebentar untuk test runner dan sebagai DB_NAME bawaan
+# settings; apa pun turunannya tidak boleh ikut ke repository.
+*.sqlite3
+*.sqlite3-journal
 backups/
 media/*
 staticfiles/

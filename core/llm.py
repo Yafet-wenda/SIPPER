@@ -19,7 +19,9 @@ Keamanan yang sengaja dijaga di sini:
 - data pengajuan diberi payung "DATA, bukan instruksi" di system prompt —
   warga bisa menulis nama/alamat apa pun, dan itu tidak boleh ditafsirkan
   sebagai perintah;
-- riwayat divalidasi bentuk dan panjangnya SEBELUM dikirim keluar.
+- riwayat divalidasi bentuk dan panjangnya SEBELUM dikirim keluar;
+- NIK dan nomor telepon disamarkan oleh :func:`samarkan_konteks` sebelum masuk
+  blok data, jadi yang keluar hanya keterangan yang memang perlu dibaca mesin.
 """
 import json
 import os
@@ -67,6 +69,39 @@ def riwayat_valid(riwayat):
     return True
 
 
+def samarkan_konteks(konteks):
+    """Salinan konteks siap kirim: identitas lengkap tidak ikut keluar mesin.
+
+    Asisten hanya perlu MENJELASKAN hasil verifikasi, dan hasil itu sudah
+    dihitung di dalam negeri (ai_score, ai_prescreen, catatan). NIK utuh dan
+    nomor telepon tidak menambah apa pun pada penjelasan itu, sedangkan sekali
+    keduanya berangkat ke server Google tidak ada jalan menariknya kembali.
+    Karena itu penyamaran dilakukan di modul yang memiliki permintaan keluar,
+    bukan di view, supaya jalur baru tidak bisa lupa melakukannya.
+    """
+    def tutup(nomor):
+        teks = str(nomor or '')
+        return '*' * max(len(teks) - 4, 0) + teks[-4:] if teks else ''
+
+    hasil = json.loads(json.dumps(konteks, ensure_ascii=False, default=str))
+    warga = hasil.get('penduduk') or {}
+    if warga.get('nik'):
+        warga['nik'] = tutup(warga['nik'])
+    if 'nomor_telepon' in warga:
+        warga['nomor_telepon'] = ''
+    for berkas in hasil.get('dokumen') or []:
+        if berkas.get('extracted_nik'):
+            berkas['extracted_nik'] = tutup(berkas['extracted_nik'])
+        data = berkas.get('extracted_data')
+        if isinstance(data, dict):
+            # Nomor induk keluarga dan NIK hasil bacaan adalah kunci identitas
+            # yang paling berharga bagi pencuri data; sisa bacaan (nama, kota,
+            # tanggal) tetap dikirim karena itu yang sedang didiskusikan petugas.
+            for kunci in ('nik', 'nomor_kk', 'no_kk'):
+                data.pop(kunci, None)
+    return hasil
+
+
 def _isi_sistem(konteks):
     """System prompt: identitas, batasan, dan data pengajuan sebagai blok data."""
     return '\n'.join([
@@ -86,7 +121,7 @@ def _isi_sistem(konteks):
         'mengarang.',
         '',
         'DATA PENGAJUAN (JSON):',
-        json.dumps(konteks, ensure_ascii=False, default=str, indent=None),
+        json.dumps(samarkan_konteks(konteks), ensure_ascii=False, default=str, indent=None),
     ])
 
 

@@ -19,7 +19,7 @@ from io import BytesIO
 from PIL import Image
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, UserRole
 from .middleware import HARD_LIMIT_BYTES, MaxUploadSizeMiddleware
-from .views import LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
+from .uploads import MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
 
 # Tes mengunggah dokumen; arahkan MEDIA_ROOT ke folder sementara supaya
 # folder media/ asli tidak ikut tertumpuk file uji.
@@ -75,7 +75,8 @@ class SipperFlowTests(TestCase):
         response = self.client.post('/petugas/', {'id': application.id, 'status': 'disetujui'})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(KartuDigital.objects.count(), 1)
-        self.assertTrue(self.client.get(f'/kartu/{KartuDigital.objects.first().kode}/').status_code, 200)
+        self.assertTrue(KartuDigital.objects.first().is_valid())
+        self.assertEqual(self.client.get(f'/kartu/{KartuDigital.objects.first().kode}/').status_code, 200)
 
     def test_staff_can_search_and_review_application_detail(self):
         person = Penduduk.objects.create(user=self.user, nama='Citizen Detail', nik='9202020202020202', daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan')
@@ -422,6 +423,36 @@ class SipperFlowTests(TestCase):
         self.client.force_login(self.staff)
         public_path = f'/media/{document.file.name}'
         self.assertEqual(self.client.get(public_path).status_code, 404)
+
+    def test_dashboard_scope_follows_petugas_role_not_is_staff(self):
+        """Petugas UserRole melihat antrean penuh; warga hanya punyanya sendiri.
+
+        Dasbor dulu menyaring dengan is_staff. Petugas yang diangkat lewat
+        perintah promote_officer tidak punya is_staff, sehingga dia membuka
+        dasbor petugas berisi satu baris miliknya sendiri — dan sebaliknya,
+        akun is_staff tanpa UserRole tetap dianggap petugas oleh is_officer.
+        """
+        warga = User.objects.create_user(username='warga2@example.com', password='password123')
+        person = Penduduk.objects.create(user=warga, nama='Warga Lain', nik='9707070707070797',
+                                         daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')
+        Pengajuan.objects.create(penduduk=person)
+        milik_sendiri = Penduduk.objects.create(user=self.user, nama='Milik Sendiri', nik='9606060606060696',
+                                                daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pekerjaan')
+        Pengajuan.objects.create(penduduk=milik_sendiri)
+
+        self.client.force_login(self.user)
+        context = self.client.get('/dashboard/').context
+        self.assertEqual([item.penduduk_id for item in context['latest']], [milik_sendiri.pk])
+        self.assertEqual(context['total'], 1)
+
+        petugas = User.objects.create_user(username='petugasrole@example.com', password='password123')
+        UserRole.objects.create(user=petugas, role='petugas')
+        self.client.force_login(petugas)
+        response = self.client.get('/dashboard/')
+        self.assertTemplateUsed(response, 'dashboard.html')
+        context = response.context
+        self.assertEqual(context['total'], Pengajuan.objects.count())
+        self.assertEqual(context['total'], 2)
 
     def test_invalid_date_and_protected_apis(self):
         self.client.force_login(self.user)
@@ -821,17 +852,6 @@ class AdminExportCSVTests(TestCase):
         self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
 
 
-class _SyncThread:
-    """Tiruan threading.Thread yang langsung menjalankan target agar tes deterministik."""
-
-    def __init__(self, target=None, args=(), kwargs=None, daemon=None):
-        self._target, self._args, self._kwargs = target, args, kwargs or {}
-
-    def start(self):
-        if self._target is not None:
-            self._target(*self._args, **self._kwargs)
-
-
 class AdminDokumenFormTests(TestCase):
     """Form admin Dokumen hanya menampilkan field yang perlu diisi manusia.
 
@@ -911,8 +931,7 @@ class AdminDokumenFormTests(TestCase):
         """Simpan KTP baru dari admin memicu OCR, sama seperti jalur warga."""
         self.client.force_login(self.superuser)
         isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 600
-        with mock.patch('core.views._trigger_ocr_async') as ocr, \
-                mock.patch('core.admin_site.threading.Thread', _SyncThread):
+        with mock.patch('core.admin_site.picu_async') as ocr:
             response = self.client.post('/admin/core/dokumen/add/', {
                 'penduduk': self.warga.pk, 'nama': 'ktp-ocr.png', 'jenis': 'ktp',
                 'status': 'pending',
@@ -930,8 +949,7 @@ class AdminDokumenFormTests(TestCase):
             file='dokumen/2026/01/ktp-sudah.png')
         self.client.force_login(self.superuser)
         isi_file = b'\x89PNG\r\n\x1a\n' + b'x' * 300
-        with mock.patch('core.views._trigger_ocr_async') as ocr, \
-                mock.patch('core.admin_site.threading.Thread', _SyncThread):
+        with mock.patch('core.admin_site.picu_async') as ocr:
             response = self.client.post(f'/admin/core/dokumen/{doc.pk}/change/', {
                 'penduduk': self.warga.pk, 'nama': 'ktp-diedit.png', 'jenis': 'ktp',
                 'status': 'valid', '_save': 'Simpan',
@@ -1244,7 +1262,7 @@ class PasfotoKartuTests(TestCase):
         dan ATM. PDF memakainya sebagai ukuran gambar kartu supaya hasil cetak
         100% bisa langsung dipotong sebesar kartu asli.
         """
-        from .views import KARTU_ID1_MM, KARTU_ID1_PT
+        from .kartu_pdf import KARTU_ID1_MM, KARTU_ID1_PT
         self.assertEqual(KARTU_ID1_MM, (85.6, 53.98))
         self.assertAlmostEqual(KARTU_ID1_PT[0], 242.6457, places=3, msg='lebar kartu = 85,6 mm dalam poin')
         self.assertAlmostEqual(KARTU_ID1_PT[0] / KARTU_ID1_PT[1], 85.6 / 53.98, places=4, msg='rasio wajib ID-1')
@@ -1258,11 +1276,11 @@ class PasfotoKartuTests(TestCase):
         """
         import io
         from PIL import Image
-        from .views import _potret_pasfoto
+        from .kartu_pdf import potret_pasfoto
         sumber = io.BytesIO()
         Image.new('RGB', (2000, 2000), 'white').save(sumber, format='PNG')
         sumber.seek(0)
-        hasil = _potret_pasfoto(sumber)
+        hasil = potret_pasfoto(sumber)
         self.assertIsNotNone(hasil)
         self.assertEqual(hasil.read(2), b'\xff\xd8', 'hasil harus berkas JPEG, bukan objek PIL')
         self.assertLess(len(hasil.getvalue()), 200_000, 'satu pasfoto tidak boleh menambah ~1 MB')
@@ -1280,10 +1298,10 @@ class PasfotoKartuTests(TestCase):
         """
         import io
         from reportlab.pdfgen import canvas
-        from .views import _baris_teks
+        from .kartu_pdf import baris_teks
         dokumen = canvas.Canvas(io.BytesIO())
         kolom = 104.6  # lebar kolom identitas kartu ID-1
-        hasil = _baris_teks('A' * 150, 'Helvetica-Bold', 12, kolom, dokumen)
+        hasil = baris_teks('A' * 150, 'Helvetica-Bold', 12, kolom, dokumen)
         self.assertGreater(len(hasil), 1, 'kata sepanjang 150 karakter harus dipecah')
         for baris in hasil:
             self.assertLessEqual(dokumen.stringWidth(baris, 'Helvetica-Bold', 12), kolom,
@@ -1294,16 +1312,16 @@ class PasfotoKartuTests(TestCase):
         """Kata yang muat kolom tetap utuh; hanya barisnya yang dihitung."""
         import io
         from reportlab.pdfgen import canvas
-        from .views import _baris_teks
+        from .kartu_pdf import baris_teks
         dokumen = canvas.Canvas(io.BytesIO())
-        hasil = _baris_teks('Sistem Informasi Penduduk Perantauan', 'Helvetica', 5, 60, dokumen)
+        hasil = baris_teks('Sistem Informasi Penduduk Perantauan', 'Helvetica', 5, 60, dokumen)
         self.assertEqual(' '.join(hasil), 'Sistem Informasi Penduduk Perantauan')
 
     def test_nama_bulan_pada_kartu_bergaya_indonesia(self):
         """PDF memakai formatter Django, bukan strftime yang ikut locale C."""
         from datetime import date
-        from .views import _tanggal_kartu
-        self.assertEqual(_tanggal_kartu(date(2027, 10, 9)), '09 Okt 2027')
+        from .kartu_pdf import tanggal_kartu
+        self.assertEqual(tanggal_kartu(date(2027, 10, 9)), '09 Okt 2027')
 
     def test_gerbang_ukuran_menampung_slot_pasfoto(self):
         """Form pengajuan punya tiga slot unggah; jatah CONTENT_LENGTH ikut jumlah itu."""

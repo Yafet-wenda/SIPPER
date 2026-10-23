@@ -7,7 +7,7 @@ singgah ke disk. Middleware ini memotong lebih awal lewat Content-Length.
 
 from django.http import HttpResponse
 
-from .views import MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
+from .uploads import MAX_UPLOAD_BYTES, SEMUA_LAMPILAN
 
 # Sedikit di atas batas aplikasi supaya pengguna masih mendapat pesan "maksimal
 # 5 MB per berkas", bukan 413 kosong dari server. Jatahnya dikalikan jumlah slot

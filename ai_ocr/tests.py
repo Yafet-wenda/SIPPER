@@ -18,7 +18,6 @@ from core.ktp_parser import parse_ktp_data as parse_ktp_parser
 from core.models import AuditLog, Dokumen, Penduduk
 
 from . import admin as admin_modul
-from .models import TinjauanOcr
 
 TEST_MEDIA_ROOT = tempfile.gettempdir() + '/sipper-test-ai-ocr'
 
@@ -322,15 +321,32 @@ class PanelReviewAdminTests(TestCase):
 
     def test_aksi_proses_ulang_mengirim_setiap_berkas_ke_mesin(self):
         self.client.force_login(self.superuser)
-        with mock.patch.object(admin_modul, 'threading') as th:
+        with mock.patch.object(admin_modul, 'picu_async') as picu:
             response = self.client.post(
                 '/admin/ai_ocr/tinjauanocr/',
                 {'action': 'proses_ulang_ocr', '_selected_action': [self.berkas.pk]})
         self.assertEqual(response.status_code, 302)
-        th.Thread.assert_called_once()
-        self.assertEqual(th.Thread.call_args.kwargs['args'], (self.berkas.pk,))
-        from core.views import _trigger_ocr_async
-        self.assertIs(th.Thread.call_args.kwargs['target'], _trigger_ocr_async)
+        picu.assert_called_once_with(self.berkas.pk)
+
+    def test_menyimpan_koreksi_tidak_menghapus_hasil_bacaan_mesin(self):
+        """Bagian hanya-baca harus lolos dari form tanpa mengubah isinya.
+
+        Panel koreksi hanya menampilkan nama dan NIK hasil OCR. Kolom
+        ``extracted_data`` tidak dirender di fieldset mana pun, dan kolom yang
+        absen dari form dikirim kosong - ModelForm menafsirkan kosong sebagai
+        "hapus", sehingga alamat, TTL, dan nomor KK hasil bacaan hilang tanpa
+        ada seorang pun menekan tombol hapus.
+        """
+        self.berkas.extracted_data = {'nama': 'ANI OCR', 'alamat': 'Jl. Contoh 1',
+                                      'nik': '9101010101010101'}
+        self.berkas.save(update_fields=['extracted_data'])
+        self.client.force_login(self.superuser)
+        self.client.post(
+            f'/admin/ai_ocr/tinjauanocr/{self.berkas.pk}/change/',
+            {'extracted_nik': '9101010101010101', 'extracted_nama': 'ANI OCR', '_save': 'Simpan'})
+        self.berkas.refresh_from_db()
+        self.assertEqual(self.berkas.extracted_data.get('alamat'), 'Jl. Contoh 1')
+        self.assertEqual(self.berkas.extracted_data.get('nik'), '9101010101010101')
 
     def test_aksi_tandai_review_manual_mencatat_audit(self):
         self.client.force_login(self.superuser)

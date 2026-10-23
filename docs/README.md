@@ -30,11 +30,11 @@ dokumen paling mutakhir. Folder ini berisi uraian yang lebih panjang.
 | :--- | :--- | :--- |
 | `README.md` | Halaman yang sedang dibaca ini — indeks dokumentasi dan daftar selisih dengan kode. | **Aktual** (16 Oktober 2026) |
 | `SIPPER_SETUP_DEPLOYMENT.md` | Langkah pemasangan lingkungan, konfigurasi basis data, migrasi, pengujian, sampai *deploy*. Paruh pertama sudah disesuaikan dengan kondisi *workspace* sekarang. | **Sebagian aktual** — lihat catatan di bawah |
-| `SIPPER_QUICK_REFERENCE.md` | Kumpulan perintah singkat untuk Django, *git*, dan MySQL/MariaDB, serta peta struktur berkas dan palet warna. | **Sebagian usang** — tabel versinya lama |
+| `SIPPER_QUICK_REFERENCE.md` | Kumpulan perintah singkat untuk Django, *git*, dan MySQL/MariaDB, serta peta struktur berkas dan palet warna. | **Aktual untuk rute, versi, dan peta berkas** (dibaca ulang 23 Oktober 2026); palet warna dan tautan sumber umum masih warisan rancangan lama |
 | `SIPPER_FULLSTACK_GUIDE.md` | Rancangan *fullstack* paling lengkap: arsitektur, model, *view*, *form*, API, keamanan, dan tema UI. Panjangnya 2.445 baris. | **Rujukan historis** — menguraikan rencana multi-*app*, bukan implementasi yang berjalan |
 | `SIPPER_FRONTEND_TEMPLATES.md` | Contoh kerangka HTML dan komponen JavaScript beserta palet warna. | **Rujukan historis** — nama *template* di dalamnya memakai struktur lama |
 | `ci-status.md` | Apa yang dijalankan GitHub Actions, hasil yang sudah diverifikasi, temuan *review*, dan cara membaca hasil CI dari mesin pengembangan. | **Aktual untuk penjelasannya**; tabel per-*run*-nya berhenti di #10 (*run* #11–#22 baru dirangkum di halaman ini) |
-| `laporan-implementasi-ocr.md` (+ `.docx`, `.pdf`) | Laporan implementasi OCR: pipeline Tesseract, parser format KTP, pra-proses, pemrosesan di latar, dan catatan keamanan. Versi `.docx` dan `.pdf` dihasilkan dari berkas `.md`. | **Sebagian aktual** — terbit 7 Oktober 2026 (v1.0), jadi belum memuat skor kecocokan NIK/nama dan panel tinjauan `ai_ocr` yang baru selesai 16 Oktober; keduanya dijelaskan di `README.md` akar. Catatan *"Rate limiting — belum diimplementasikan"* pada baris 318 masih benar sampai hari ini. |
+| `laporan-implementasi-ocr.md` (+ `.docx`, `.pdf`) | Laporan implementasi OCR: pipeline Tesseract, parser format KTP, pra-proses, pemrosesan di latar, dan catatan keamanan. Versi `.docx` dan `.pdf` dihasilkan dari berkas `.md`. | **Sebagian aktual** — terbit 7 Oktober 2026 (v1.0), jadi belum memuat skor kecocokan NIK/nama dan panel tinjauan `ai_ocr` yang baru selesai 16 Oktober; keduanya dijelaskan di `README.md` akar. Bagian *Background Processing* dan *Rate Limiting* sudah dikoreksi 23 Oktober 2026 terhadap `core/ocr_worker.py` dan `core/throttle.py`; **`.docx`/`.pdf` belum dihasilkan ulang** dari berkas `.md` yang baru itu, jadi keduanya masih memuat teks lama. |
 | `create-docx.js` dan `convert-to-pdf.ps1` | Penghasil `.docx` (paket npm `docx`) dan pengonversi `.docx` → `.pdf` (Word lewat COM) untuk laporan di atas. Jalur ini yang dipakai karena mesin tidak punya pandoc/LibreOffice. | **Aktual** — alat bantu, bukan dokumentasi |
 
 Panduan *fullstack* dan referensi singkat masih menuliskan **Last Updated: 2024**, dan
@@ -43,8 +43,9 @@ aplikasi `core`. Sebagian besar isinya masih berguna sebagai penjelasan mengapa 
 dirancang begitu, tetapi jangan salin perintah atau nilai konfigurasinya mentah-mentah.
 `SIPPER_FULLSTACK_GUIDE.md`, `SIPPER_FRONTEND_TEMPLATES.md`, dan
 `SIPPER_SETUP_DEPLOYMENT.md` membuka dirinya dengan catatan status *workspace* sehingga
-batasnya jelas; `SIPPER_QUICK_REFERENCE.md` belum punya catatan semacam itu, dan justru
-tabel versinya di baris 246–248 yang paling perlu dikoreksi.
+batasnya jelas; `SIPPER_QUICK_REFERENCE.md` sejak 23 Oktober 2026 juga punya catatan
+semacam itu, dan tabel versi, peta berkas, serta daftar rutenya sudah dibaca ulang
+terhadap kode (rute diambil dari `core/urls.py`).
 
 ---
 
@@ -59,7 +60,7 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Basis data | MariaDB 10.4 bawaan XAMPP, *port* 3306 | `sipper/__init__.py` (gerbang versi diturunkan lewat *shim*) |
 | Arsitektur aplikasi | dua aplikasi milik proyek: `core` (seluruh logika bisnis) dan `ai_ocr` (panel tinjauan hasil OCR, tanpa tabel sendiri) | `sipper/settings.py` (`INSTALLED_APPS`) |
 | Model | 7 model tabel nyata: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole`; ditambah 1 *proxy model* `TinjauanOcr` di `ai_ocr` yang membaca baris `core_dokumen` yang sama | `core/models.py`, `ai_ocr/models.py` |
-| Pengujian | 162 pengujian, seluruhnya lulus | `python manage.py test` di atas MariaDB (107 di `core/tests.py`, 14 di `core/tests_pdf.py`, 8 di `core/tests_llm.py`, 33 di `ai_ocr/tests.py`) |
+| Pengujian | 164 pengujian, seluruhnya lulus | `python manage.py test` di atas MariaDB (108 di `core/tests.py`, 14 di `core/tests_pdf.py`, 8 di `core/tests_llm.py`, 34 di `ai_ocr/tests.py`) |
 | Baca OPTIK | Tesseract OCR 5.4 (berkas *binary* di luar repositori) melalui `pytesseract`, dengan pra-proses OpenCV | `core/ocr_processor.py`, `requirements.txt` (`pytesseract`, `opencv-python-headless`, `numpy`) |
 | Prapemilahan AI | Skor kecocokan teks OCR KTP vs isian formulir: NIK 45%, nama 30%, keterbacaan 25%; di atas 85% berlabel *Valid*, sisanya *Perlu review manual*. Mesin hanya menulis kolom `ai_*`, tidak pernah `Dokumen.status` | `core/ai_verifikasi.py`, `ai_ocr/admin.py` |
 | CI | 3 *job* — `cek-cepat` pada Python 3.13 dan 3.14 (SQLite) serta `paritas-mariadb` (MariaDB 10.11) | `.github/workflows/ci.yml` |
@@ -67,7 +68,10 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Huruf | Google Fonts — DM Sans dan Space Grotesk | `templates/base.html` |
 | JavaScript | `static/js/admin-dashboard.js`, `static/js/file-label.js`, dan `static/js/html5-qrcode.min.js` | `static/js/` |
 | Selang penyegaran dasbor petugas | 5 detik (`REFRESH_MS = 5000`) | `static/js/admin-dashboard.js:13` |
-| Batas unggah | 5 MB *per berkas*, dua slot wajib (KTP dan KK); jenis dibatasi PDF, JPEG, PNG. Gerbang *middleware* mengikuti jumlah slot (2 × 5 MB + 3 MB) | `core/views.py:567` (`MAX_UPLOAD_BYTES`) dan `core/middleware.py` (`HARD_LIMIT_BYTES`) |
+| Batas unggah | 5 MB *per berkas*, dua slot wajib (KTP dan KK); jenis dibatasi PDF, JPEG, PNG, ditambah batas 40 juta piksel dan pemeriksaan *magic byte*. Gerbang *middleware* mengikuti jumlah slot (2 × 5 MB + 3 MB) | `core/uploads.py` (`MAX_UPLOAD_BYTES`, `MAX_IMAGE_PIXELS`, `valid_upload`) dan `core/middleware.py` (`HARD_LIMIT_BYTES`) |
+| Mode galat | Bawaan `DJANGO_DEBUG` adalah **0** (fail-closed). `dev.bat` menyetel 1 di lingkungan prosesnya, `prod.bat` menyetel 0 | `sipper/settings.py:11`, `dev.bat`, `prod.bat` |
+| Scoping dasbor | Daftar pengajuan di `/dashboard/` disaring dengan `is_officer`, bukan `is_staff`: petugas yang diangkat lewat `promote_officer` hanya punya `UserRole`, tidak punya `is_staff` | `core/views.py:67` (`dashboard`), `core/akses.py`, uji `test_dashboard_scope_follows_petugas_role_not_is_staff` |
+| Modul terpisah dari `views.py` | `akses.py` (penentu peran), `throttle.py` (pembatas + IP proxy), `uploads.py` (gerbang unggah), `ocr_worker.py` (thread OCR), `kartu_pdf.py` (gambar kartu), `csv_utils.py` (pelindung ekspor), `keputusan.py` (transisi status) | `core/` |
 | Kunci rahasia | `DJANGO_SECRET_KEY` wajib diisi saat `DJANGO_DEBUG=0`; *server* gagal saat *start* daripada berjalan dengan kunci bawaan yang terlihat di repositori | `sipper/settings.py` |
 | Isian formulir | Atribut `autocomplete` (`username`, `current-password`, `new-password`, `name`, `email`, `tel`) dipasang pada formulir masuk, daftar, ganti sandi, dan reset sandi lewat `core/forms.py`, supaya pengelola sandi dapat mengisi otomatis | `core/forms.py`, `templates/login.html`, `templates/register_v2.html` |
 | Teks antarmuka | Tidak ada nama atau surel pengembang yang tertinggal di *placeholder*, contoh pengisian, atau teks bantuan; penjaga statis `test_no_maintainer_pii_in_public_strings` menolak regenerasi | `core/tests.py` |
@@ -83,13 +87,14 @@ baris tertentu supaya mudah diverifikasi ulang sebelum dokumennya disunting.
 
 | Klaim pada dokumen | Kenyataan di kode | Lokasi klaim |
 | :--- | :--- | :--- |
-| Django 4.2 | Django 5.2.17 | `SIPPER_FULLSTACK_GUIDE.md:10,61`; `SIPPER_QUICK_REFERENCE.md:246,255` |
-| MySQL 8.0 | MariaDB 10.4 (XAMPP). *Shim* menolak MySQL 8, jadi klaim ini justru menyesatkan saat pemasangan. | `SIPPER_FULLSTACK_GUIDE.md:10`; `SIPPER_QUICK_REFERENCE.md:247` |
-| Bootstrap 5 | Tidak ada Bootstrap sama sekali di `templates/` dan `static/`; gaya memakai CSS tulisan sendiri. | `SIPPER_FULLSTACK_GUIDE.md:10,67,457,542,627,1697,1751`; `SIPPER_FRONTEND_TEMPLATES.md:756,975`; `SIPPER_QUICK_REFERENCE.md:248,261,410` |
-| `static/js/main.js` | Berkasnya tidak ada, dan tidak satu pun *template* memuatnya. | `SIPPER_FRONTEND_TEMPLATES.md:640`; `SIPPER_FULLSTACK_GUIDE.md:459,1757`; `SIPPER_QUICK_REFERENCE.md:132` |
+| Django 4.2 | Django 5.2.17 | `SIPPER_FULLSTACK_GUIDE.md:10,61` (di QUICK_REFERENCE sudah dikoreksi 23 Okt 2026) |
+| MySQL 8.0 | MariaDB 10.4 (XAMPP). *Shim* menolak MySQL 8, jadi klaim ini justru menyesatkan saat pemasangan. | `SIPPER_FULLSTACK_GUIDE.md:10` (di QUICK_REFERENCE sudah dikoreksi) |
+| Bootstrap 5 | Tidak ada Bootstrap sama sekali di `templates/` dan `static/`; gaya memakai CSS tulisan sendiri. | `SIPPER_FULLSTACK_GUIDE.md:10,67,457,542,627,1697,1751`; `SIPPER_FRONTEND_TEMPLATES.md:756,975`; `SIPPER_QUICK_REFERENCE.md:431` (daftar tautan sumber umum) |
+| `static/js/main.js` | Berkasnya tidak ada, dan tidak satu pun *template* memuatnya. | `SIPPER_FRONTEND_TEMPLATES.md:640`; `SIPPER_FULLSTACK_GUIDE.md:459,1757` (peta berkas QUICK_REFERENCE sudah diperbaiki) |
 | LangChain 0.0.300 dan OpenAI 0.27.8 untuk prapemeriksaan pintar | Kedua paket tidak ada di `requirements.txt`. Yang berjalan sekarang adalah aturan validasi NIK serta pemeriksaan ukuran dan jenis berkas. | `SIPPER_FULLSTACK_GUIDE.md:70-71,669,2306`; `SIPPER_SETUP_DEPLOYMENT.md:160` |
 | Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Dua aplikasi: `core` memegang seluruh rute dan model, `ai_ocr` hanya menambah panel tinjauan OCR di admin. Tidak ada satu pun dari empat nama *app* lama itu. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
 | Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan memakai 3.14. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
+| Rute `/api/status/` dan `/api/perantau/status/` | `api_status` dihapus: tidak satu pun templat memanggilnya dan isinya (status pengajuan milik diri sendiri) sudah tersedia di dasbor. | `core/urls.py` |
 
 Rekam jejak CI berada di `ci-status.md`. Sampai 16 Oktober 2026 repositori punya 22
 *run* workflow `CI`: 19 berkesimpulan **success** dan 3 (`#7`, `#8`, `#16`) `cancelled`
