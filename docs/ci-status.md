@@ -27,7 +27,8 @@ berbasis test client gagal, jadi CI tidak boleh memakai setelan keamanan berbent
 
 ## Hasil terverifikasi
 
-Run nyata di `github.com/Yafet-wenda/SIPPER` (repo privat), dibaca lewat API GitHub.
+Run nyata di `github.com/Yafet-wenda/SIPPER` dibaca lewat API GitHub; repo ini publik
+sehingga panggilan itu tidak memerlukan token.
 Verifikasi manual terakhir dilakukan 2026-10-16. Run sampai #10 dibuka sampai tingkat
 langkah (tabel pertama di bawah); run #11–#22 hanya dibaca pada tingkat run, jadi yang
 dijamin di sana adalah kesimpulannya, bukan isi tiap langkah. Run yang dipicu oleh commit
@@ -118,21 +119,30 @@ Sudah diterapkan:
    `EMAIL_FILE_PATH=tmp/outbox` akan menunjuk path yang tidak ada. Langkah `mkdir -p`
    sudah ditambahkan di kedua job.
 
+Catatan yang sudah diterapkan:
+
+- **Aksi pihak ketiga dipin ke SHA** (2026-10-23). Sebelumnya `actions/checkout@v4` dan
+  `setup-python@v5` mengikuti tag yang bisa dipindah pemiliknya; karena repositori ini
+  **publik** (terkonfirmasi: API GitHub dan unduhan arsip menjawab 200 tanpa token), risiko
+  rantai pasok itu bukan teori lagi. Keduanya di kedua job kini memakai commit tetap:
+  `checkout@11d5960a326750d5838078e36cf38b85af677262` (`v4.4.0`) dan
+  `setup-python@a26af69be951a213d495a4c3e4e4022e16d87065` (`v5.6.0`). SHA-nya dibaca dari
+  `GET /repos/actions/<aksi>/git/ref/tags/v<major>` yang bertipe `commit`. Saat menaikkan
+  versi, ganti SHA dan komentarnya bersamaan — komentar adalah satu-satunya petunjuk versi
+  manusia di berkas ini.
+
 Catatan yang belum diterapkan (butuh keputusan, bukan bug):
 
 1. **Belum ada lint/format gate.** Proyek ini belum punya konfigurasi ruff/flake8, jadi
    CI hanya menguji perilaku. Menambah `ruff check` akan memunculkan banyak temuan lama
    sekaligus; lebih baik diadopsi bertahap sebagai commit terpisah.
-2. **Aksi pihak ketiga tidak dipin ke SHA.** `actions/checkout@v4` dan
-   `setup-python@v5` mengikuti tag. Untuk repo privat kampus ini risiko dapat diterima;
-   kalau repo nanti dibuka untuk umum, pin ke commit SHA adalah upgrade yang murah.
-3. **CI tidak menguji MySQL 8.** Bukan kelalaian: shim di `sipper/__init__.py` memasang
+2. **CI tidak menguji MySQL 8.** Bukan kelalaian: shim di `sipper/__init__.py` memasang
    `minimum_database_version = (10, 4)` tanpa memandang engine, dan Django membandingkan
    tuple versi server terhadapnya — `8.0.x < 10.4` akan `NotSupportedError`. Jadi selama
    shim masih buta-engine, server CI harus MariaDB. Kalau produksi pernah pindah ke
    MySQL 8, jadikan properti itu kondisional terhadap `self.connection.mysql_is_mariadb`
    dulu, baru tambah job `mysql:8.0`.
-4. **Versi Python dev di luar rentang resmi Django.** Mesin ini memakai 3.14.6 dengan
+3. **Versi Python dev di luar rentang resmi Django.** Mesin ini memakai 3.14.6 dengan
    Django 5.2.17; dukungan resmi 5.2 adalah 3.10–3.13. CI sengaja menguji keduanya supaya
    kita tahu kalau 3.14 jadi masalah.
 
@@ -141,10 +151,14 @@ Catatan yang belum diterapkan (butuh keputusan, bukan bug):
 Tiga jalur dicoba dan hanya satu yang bekerja (tercatat supaya tidak mengulang jalan buntu):
 
 - Konektor MCP GitHub **tidak punya** tool untuk run hasil `push`; `get_check_runs` hanya
-  bekerja lewat nomor PR. `WebFetch` ke halaman `/actions` → 404 (repo privat, tanpa login).
+  bekerja lewat nomor PR. `WebFetch` ke halaman `/actions` dulu menghasilkan 404 ketika repo
+  masih privat; sejak repo publik (terkonfirmasi 2026-10-23: `/`, `/actions`, dan
+  `/actions/runs` API semuanya menjawab 200 tanpa token) panggilan anonim juga cukup.
   Tool browser yang ada membuka sesi Chrome terpisah yang tidak ikut login GitHub.
 - Yang bekerja: **Git Bash** + kredensial yang sudah tersimpan di Git Credential Manager,
-  untuk panggilan read-only:
+  untuk panggilan read-only. Header `Authorization` di bawah kini opsional karena read
+  publik diizinkan; ia tetap berguna kalau repo dikembalikan ke privat atau kalau
+  terkena batas tarif API anonim.
 
   ```bash
   TOKEN=$(printf 'protocol=https\nhost=github.com\n\n' \

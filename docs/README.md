@@ -74,9 +74,9 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Modul terpisah dari `views.py` | `akses.py` (penentu peran), `throttle.py` (pembatas + IP proxy), `uploads.py` (gerbang unggah), `ocr_worker.py` (thread OCR), `kartu_pdf.py` (gambar kartu), `csv_utils.py` (pelindung ekspor), `keputusan.py` (transisi status) | `core/` |
 | Kunci rahasia | `DJANGO_SECRET_KEY` wajib diisi saat `DJANGO_DEBUG=0`; *server* gagal saat *start* daripada berjalan dengan kunci bawaan yang terlihat di repositori | `sipper/settings.py` |
 | Isian formulir | Atribut `autocomplete` (`username`, `current-password`, `new-password`, `name`, `email`, `tel`) dipasang pada formulir masuk, daftar, ganti sandi, dan reset sandi lewat `core/forms.py`, supaya pengelola sandi dapat mengisi otomatis | `core/forms.py`, `templates/login.html`, `templates/register_v2.html` |
-| Teks antarmuka | Tidak ada nama atau surel pengembang yang tertinggal di *placeholder*, contoh pengisian, atau teks bantuan; penjaga statis `test_no_maintainer_pii_in_public_strings` menolak regenerasi | `core/tests.py` |
+| Teks antarmuka | Tidak ada nama atau surel pengembang yang tertinggal di *placeholder*, contoh pengisian, atau teks bantuan; `test_ui_tidak_mencantumkan_data_pribadi_penyusun` memindai seluruh `templates/*.html` dan menolak regenerasi | `core/tests.py`, `templates/` |
 | Navigasi layar kecil | *Breakpoint* 900 px memindahkan tautan petugas ke baris kedua yang bisa digeser (bukan `display: none`), dengan garis gulir tipis di tabel lebar | `static/css/style.css` |
-| Visibilitas repositori | privat — proyek ini menyimpan data turunan KTP | pengaturan repositori GitHub |
+| Visibilitas repositori | publik — yang dibuka untuk umum hanya sumber dan dokumentasinya; data warga (`media/`), rahasia (`.env`), dan basis data dikecualikan lewat `.gitignore` | pengaturan repositori GitHub |
 
 ---
 

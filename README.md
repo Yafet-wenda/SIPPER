@@ -22,7 +22,7 @@
 | Basis data | MariaDB 10.4 (bawaan XAMPP) melalui PyMySQL; SQLite tersedia sebagai jalur uji cepat |
 | Pengujian | 164 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
 | Integrasi berkelanjutan | GitHub Actions — lihat [Pengujian dan CI](#-pengujian-dan-ci) dan [`docs/ci-status.md`](docs/ci-status.md) |
-| Visibilitas | Repo privat, karena sistem memuat data turunan KTP warga |
+| Visibilitas | Repo publik (kode + dokumentasi sebagai portofolio tugas); data warga tidak pernah masuk repositori |
 
 ---
 
@@ -187,7 +187,7 @@ Akun warga dan petugas memakai model bawaan Django (`auth.User`). Di atasnya sis
 ### 2. Clone Repositori dan Lingkungan Virtual
 
 ```bash
-# Repo privat — gunakan akun yang punya akses.
+# Repo publik — tidak perlu izin akses.
 git clone https://github.com/Yafet-wenda/SIPPER.git
 cd SIPPER
 
@@ -343,7 +343,8 @@ terhapus. Cadangan dibuat lebih dulu dengan `python manage.py backup_db`.
 
 1. **Batasan akademis**: SIPPER dikembangkan khusus untuk memenuhi tugas proyek mata kuliah Workshop Pemrograman Framework, Politeknik Elektronika Negeri Surabaya (PENS).
 2. **Bukan dokumen legal utama**: kartu digital SIPPER **bukan** pengganti KTP-el, Kartu Keluarga, maupun Surat Keterangan Pindah Warga Negara Indonesia (SKPWNI) resmi terbitan Dukcapil.
-3. **Integrasi data**: sistem ini tidak terhubung langsung ke basis data nasional Dukcapil. Data yang diproses adalah data yang diunggah warga sendiri, sehingga repositori ini sengaja dipertahankan **privat** dan berkas unggahan tidak pernah dilayani sebagai berkas publik.
+3. **Integrasi data**: sistem ini tidak terhubung langsung ke basis data nasional Dukcapil. Data yang diproses adalah data yang diunggah warga sendiri.
+4. **Pemisahan kode dan data**: repositori ini **publik** dan hanya berisi sumber beserta dokumentasinya. Berkas hasil unggahan warga (`media/`), konfigurasi rahasia (`.env`), basis data (`*.sqlite3`), dan direktori hasil `collectstatic` (`staticfiles/`) dikecualikan lewat `.gitignore` sehingga tidak pernah ikut naik, dan berkas unggahan tidak pernah dilayani sebagai berkas publik. Penjaga statis `test_ui_tidak_mencantumkan_data_pribadi_penyusun` di `core/tests.py` memindai seluruh `templates/*.html` dan menolak bila nama atau surel penyusun tertinggal di teks antarmuka.
 
 ---
 

@@ -4,6 +4,9 @@ name: CI
 # - Job "cek cepat" memakai SQLite (tanpa service) untuk umpan balik dalam ~1 menit.
 # - Job "paritas MariaDB" memakai server MariaDB, sesuai produksi (XAMPP) dan
 #   shim versi di sipper/__init__.py.
+# - Aksi pihak ketiga dipin ke SHA commit, bukan nama tag: tag seperti `v4` bisa
+#   dipindah ke commit lain oleh pemiliknya, dan repositori ini publik.
+#   Versi manusia tetap ditulis di komentar belakang SHA.
 on:
   push:
     branches: [master]
@@ -44,10 +47,10 @@ jobs:
       DB_NAME: tmp/sipper_ci.sqlite3
     steps:
       - name: Ambil kode
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Pasang Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -111,10 +114,10 @@ jobs:
       DB_PORT: '3306'
     steps:
       - name: Ambil kode
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Pasang Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.14'
           cache: pip
