@@ -81,6 +81,17 @@ class KartuDigital(models.Model):
     def is_valid(self):
         return self.status == 'aktif' and self.berlaku_sampai >= timezone.now().date()
 
+    @classmethod
+    def lewat_tempo(cls):
+        """Kartu yang masih tercatat aktif padahal tanggal berlakunya sudah lewat.
+
+        :meth:`is_valid` selalu menilai dari tanggal, jadi tampilan tidak pernah
+        salah. Barisnya sendiri baru berubah status ketika ada yang memindai
+        kartunya — itu sebabnya :mod:`core.management.commands.refresh_card_status`
+        memakai pemeriksaan yang sama lewat jalur terjadwal, bukan menunggu warga.
+        """
+        return cls.objects.filter(status='aktif', berlaku_sampai__lt=timezone.now().date())
+
     def __str__(self):
         return f'Kartu {self.kode} - {self.penduduk.nama}'
 

@@ -20,7 +20,7 @@
 | Penyusun | Yafet Wenda (NRP 3125521058), Muhammad Ai Nur Haaq (NRP 3125521052) |
 | Rerangka | Django 5.2 dengan aplikasi utama `core` dan aplikasi penunjang `ai_ocr` (tinjauan hasil OCR) |
 | Basis data | MariaDB 10.4 (bawaan XAMPP) melalui PyMySQL; SQLite tersedia sebagai jalur uji cepat |
-| Pengujian | 164 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
+| Pengujian | 170 pengujian otomatis terhadap MariaDB, seluruhnya lolos |
 | Integrasi berkelanjutan | GitHub Actions — lihat [Pengujian dan CI](#-pengujian-dan-ci) dan [`docs/ci-status.md`](docs/ci-status.md) |
 | Visibilitas | Repo publik (kode + dokumentasi sebagai portofolio tugas); data warga tidak pernah masuk repositori |
 
@@ -120,7 +120,7 @@ SIPPER/
 │   ├── tests.py                    # Pengujian alur utama
 │   ├── tests_pdf.py                # Pengujian keluaran PDF
 │   ├── tests_llm.py                # Test router LLM + fallback
-│   └── management/commands/        # backup_db, clean_data, promote_officer, send_test_email
+│   └── management/commands/        # backup_db, clean_data, promote_officer, refresh_card_status, send_test_email
 │
 ├── ai_ocr/                         # Aplikasi penunjang: panel tinjauan hasil OCR
 │   ├── models.py                   # Proxy model TinjauanOcr atas core.Dokumen
@@ -153,6 +153,11 @@ SIPPER/
 ├── tools/                          # Skrip bantu (penyelarasan sandi basis data)
 │
 ├── .env.example                    # Templat konfigurasi lingkungan
+├── dev.bat                         # runserver dengan DJANGO_DEBUG=1
+├── prod.bat                        # nyalakan MariaDB, collectstatic, waitress, Apache
+├── backup.bat                      # cadangan JSON + retensi 14 berkas
+├── maintenance-daily.bat           # refresh_card_status (penutupan kartu kedaluwarsa)
+├── register-backup-task.bat        # daftar kedua pekerjaan harian ke Scheduled Tasks
 ├── manage.py                       # utilitas CLI Django
 ├── requirements.txt                # Dependensi Python
 └── README.md                       # Dokumentasi utama repositori
@@ -219,14 +224,16 @@ DB_PORT=3306
 DJANGO_SECRET_KEY=ganti-dengan-nilai-acak-panjang
 DJANGO_DEBUG=0
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1
-DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1
-DJANGO_SECURE_COOKIES=0
-DJANGO_SECURE_SSL_REDIRECT=0
-DJANGO_HSTS_SECONDS=0
+DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1,https://localhost,https://127.0.0.1
+DJANGO_SECURE_COOKIES=1
+DJANGO_SECURE_SSL_REDIRECT=1
+DJANGO_HSTS_SECONDS=300
 DJANGO_EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
 ```
 
-Tiga nilai terakhir (`DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`) sengaja dimatikan untuk XAMPP lokal yang belum memakai TLS. Dengan begitu `http://` tetap hidup dan phpMyAdmin pada port 80 tetap terjangkau, meskipun sertifikat lokal yang ada masih *self-signed*.
+`DJANGO_SECRET_KEY` perlu minimal 50 karakter; di bawah itu Django menolak start dengan `DJANGO_DEBUG=0`. Tiga nilai keamanan (`DJANGO_SECURE_COOKIES`, `DJANGO_SECURE_SSL_REDIRECT`, `DJANGO_HSTS_SECONDS`) dinyalakan karena Apache pada mesin ini sudah serving TLS di `:443` memakai sertifikat bawaan XAMPP yang *self-signed*. `DJANGO_HSTS_SECONDS` di mesin pengembangan sengaja 300 detik, bukan setahun, supaya percobaan mudah ditarik kembali: peramban mengingat paksa `https://localhost` selama nilai itu. `http://` tetap hidup sebagai alihan 301 ke `https://`.
+
+Kalau suatu saat TLS dilepas atau belum terpasang di mesin target, turunkan ketiga nilai menjadi `0` lalu nyalakan ulang waitress — tanpa itu Django menolak mengirim apa pun lewat `http://`.
 
 ### 5. Jalankan Migrasi dan Peladen Pengembangan
 
@@ -256,7 +263,9 @@ python manage.py test
 DB_ENGINE=sqlite python manage.py test
 ```
 
-Sebanyak 164 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR, statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), prapemilahan AI (rumus skor NIK 45% / nama 30% / keterbacaan 25% dan ambang 85% yang ketat, parser KTP, jalur OCR, serta panel tinjauan `ai_ocr` termasuk penolakan akses warga dan jaminan mesin tidak pernah mengubah status berkas), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
+Sebanyak 170 pengujian menutup alur daftar dan masuk, pengajuan, unggah berkas (termasuk penolakan berkas melebihi 5 MB), peninjauan petugas — termasuk aturan tolak/perlu-perbaikan wajib catatan di antrean maupun halaman detail, dan kembali ke status menunggu — kartu dan QR (termasuk pemaksaan status `expired` di basis data, baik lewat halaman validasi maupun perintah `refresh_card_status`, dan jaminan kartu yang sudah kedaluwarsa tidak dihidupkan kembali otomatis), statistik, ekspor, dasbor admin (tema, live-stats khusus staf, badge status, filter waktu, dan aksi massal *Setujui* yang melewati jalur keputusan tunggal sehingga kartu terbit, email jalan, dan audit tercatat), asisten chat dua mesin (LLM Gemini dengan cadangan rule-based; seluruh jalur jaringannya di-mock sehingga suite tetap jalan offline), prapemilahan AI (rumus skor NIK 45% / nama 30% / keterbacaan 25% dan ambang 85% yang ketat, parser KTP, jalur OCR — termasuk batas waktu 60 detik per panggilan Tesseract agar berkas rusak tidak menahan pekerja, serta panel tinjauan `ai_ocr` termasuk penolakan akses warga dan jaminan mesin tidak pernah mengubah status berkas), serta laporan PDF petugas — termasuk penolakan akses anonim dan akses warga biasa, isi berkas, jejak audit, dan penanganan karakter di luar WinAnsi.
+
+`manage.py test` sendiri adalah satu-satunya keadaan ketika `SECURE_SSL_REDIRECT`, *cookie secure*, dan HSTS dilonggarkan (lihat `sipper/settings.py`). Test client Django berbicara lewat HTTP polos, jadi tanpa pengecualian itu setiap permintaan pulang berkode 301 dan seluruh suite merah tanpa ada fungsi yang benar-benar rusak. Pengecualian terikat pada nama anak-perintah `test`, sehingga `runserver` dan waitress tetap memakai konfigurasi produksi yang ketat.
 
 GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pull request* ke `master`, dan dapat dipicu manual lewat `workflow_dispatch`. Ada tiga *job*:
 
@@ -274,7 +283,7 @@ GitHub Actions menjalankan `.github/workflows/ci.yml` pada setiap *push* dan *pu
 
 Implementasi aktif memakai aplikasi Django `core` plus aplikasi penunjang `ai_ocr` (hanya proxy model dan tampilan admin, tanpa tabel baru) dengan **MariaDB bawaan XAMPP (10.4)** pada port 3306. Django 5.2 resmi mensyaratkan MariaDB 10.5, sehingga `sipper/__init__.py` memuat *shim* kompatibilitas kecil: menurunkan gerbang versi minimum dan mematikan dukungan `INSERT ... RETURNING` yang belum tersedia di 10.4. Fitur yang sudah berjalan mencakup akun masyarakat dan petugas, pengajuan, unggah dokumen maksimal 5 MB, prapemilahan berkas oleh mesin (OCR KTP lalu skor kecocokan terhadap isian formulir; hasil di bawah ambang 85% ditandai *Perlu review manual*, tanpa pernah mengubah status berkas), peninjauan dokumen, riwayat pemutakhiran, kartu QR, kartu PDF, statistik, ekspor CSV, reset sandi, pencadangan, dan pemindai QR.
 
-Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80)** → *reverse proxy* → **waitress (:8099)**. TLS (:443) belum dipasang di rangkaian ini, karena itu *cookie aman* dan *HTTPS-redirect* sengaja dimatikan sampai sertifikat benar-benar serving. Aset `/static/` dilayani Alias Apache dengan *fallback* WhiteNoise sehingga tetap tampil baik pada `runserver` maupun waitress. Berkas `/media/` **tidak pernah** dilayani secara langsung: unggahan warga hanya dapat diunduh melalui `/dokumen/<pk>/file/` yang memeriksa status masuk dan kepemilikan, sambil menulis catatan audit.
+Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** → *reverse proxy* → **waitress (:8099)**. TLS sudah aktif memakai sertifikat *self-signed* bawaan XAMPP, sehingga `http://` dibalas 301 ke `https://`, *cookie* sesi dan CSRF ber-flag `Secure`, dan `Strict-Transport-Security` dikirim. Karena Django berada di belakang proxy, `SECURE_PROXY_SSL_HEADER` hanya bisa dipercaya bila Apache mengirim penandanya; itu dilakukan dengan satu baris `RequestHeader set X-Forwarded-Proto "https"` yang bersyarat di `apache/sipper-httpd.conf`. Aset `/static/` dilayani Alias Apache dengan *fallback* WhiteNoise sehingga tetap tampil baik pada `runserver` maupun waitress. Berkas `/media/` **tidak pernah** dilayani secara langsung: unggahan warga hanya dapat diunduh melalui `/dokumen/<pk>/file/` yang memeriksa status masuk dan kepemilikan, sambil menulis catatan audit.
 
 ### Menjalankan Lokal
 
@@ -296,7 +305,9 @@ powershell -ExecutionPolicy Bypass -File scripts\install-apache-config.ps1 -Rest
 
 Skrip itu menyalakan `mod_proxy_http` (bawaan XAMPP dimuat tapi dikomentari), menyalin `apache/sipper-httpd.conf` menjadi `conf/extra/httpd-sipper.conf` dengan `__PROJECT_ROOT__` sudah diganti lokasi folder proyek, menambahkan baris `Include` ke `httpd.conf`, lalu membatalkan seluruh perubahannya sendiri kalau `httpd -t` menolak hasil susunan. Lokasi XAMPP dideteksi otomatis (`C:\`, `D:\`, `F:\`) atau lewat `-ApacheHome`.
 
-Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, collectstatic, waitress, Apache). Skrip itu juga menyetel profil produksi di lingkungan prosesnya (`DJANGO_DEBUG=0`, host dan origin pada port 80, cookie aman dan HTTPS-redirect dimatikan selama Apache belum serving TLS), sehingga isi `.env` untuk dua hal itu tidak ikut terpakai. Nilai yang **tidak** disetel `prod.bat` — `DB_HOST`, `DJANGO_EMAIL_BACKEND`, `CLAMAV_*` — tetap dibaca dari `.env`. Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
+Pencadangan data dibuat dengan `python manage.py backup_db`, dan tersedia `prod.bat` untuk menyalakan seluruh rangkaian secara berurutan (MariaDB, collectstatic, waitress, Apache). Skrip itu juga menyetel profil produksi di lingkungan prosesnya (`DJANGO_DEBUG=0` plus `DJANGO_ALLOWED_HOSTS` dan `DJANGO_CSRF_TRUSTED_ORIGINS` untuk `localhost`), sehingga isi `.env` untuk dua hal itu tidak ikut terpakai. Tiga nilai TLS **sengaja tidak** disetel di sana: `set` di `prod.bat` mengalahkan `.env` dan python-dotenv tidak bisa menimpanya, jadi paksa-nol di skrip itulah yang membuat situs tetap melayani HTTP polos padahal `.env` sudah menyatakan sebaliknya. Nilai yang **tidak** disetel `prod.bat` — tiga flag TLS, `DB_HOST`, `DJANGO_EMAIL_BACKEND`, `CLAMAV_*` — tetap dibaca dari `.env`. Kredensial koneksi pengembangan berada di `.env` (`DB_USER=sipper_app`, `DB_PASSWORD` baca dari berkas itu, host `127.0.0.1:3306`, basis data `sipper_db`) dan berkas tersebut tidak di-*commit*.
+
+Dua pekerjaan harian berjalan sebagai *Scheduled Task* Windows setelah `register-backup-task.bat` dijalankan sekali: **SIPPER backup harian** (06:30, `backup.bat` → `manage.py backup_db --keep 14`) dan **SIPPER penutupan kartu** (06:35, `maintenance-daily.bat` → `manage.py refresh_card_status`, yang menandai kartu kedaluwarsa sebagai `expired` walau pemiliknya tidak pernah membuka halaman validasi). Verifikasi dengan `schtasks /Query /TN "SIPPER backup harian" /V /FO LIST`.
 
 ### URL Utama
 

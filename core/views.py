@@ -499,9 +499,11 @@ def validate_card(request, code):
     card = KartuDigital.objects.select_related('penduduk').filter(kode=code).first()
     if not card:
         raise Http404('Kartu tidak ditemukan')
-    if card.status == 'aktif' and card.berlaku_sampai < timezone.now().date():
+    # Satu perintah UPDATE untuk dua keperluan: memeriksa dan menyimpan. Nilai di
+    # objek ikut diselaraskan supaya template melihat kartu yang sudah kedaluwarsa,
+    # bukan salinan lama dari awal permintaan.
+    if KartuDigital.lewat_tempo().filter(pk=card.pk).update(status='expired'):
         card.status = 'expired'
-        card.save(update_fields=['status'])
     # Tautan "data lengkap" hanya disiapkan bila yang memindai petugas yang sudah
     # login. Pengunjung anonim tetap melihat halaman validasi publik seperti
     # semula: NIK tersamar, tanpa jalan masuk ke data kependudukan penuh.

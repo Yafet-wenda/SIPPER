@@ -13,6 +13,7 @@ from django.contrib.auth.models import User
 from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.management import call_command
 from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, override_settings
 from io import BytesIO
@@ -1343,3 +1344,57 @@ class PasfotoKartuTests(TestCase):
         self.client.force_login(boss)
         isi = self.client.get(f'/admin/core/penduduk/{card.penduduk_id}/change/').content.decode()
         self.assertIn(f'/penduduk/{card.penduduk_id}/pasfoto/', isi)
+
+
+class PerbaruiStatusKartuTests(TestCase):
+    """Penjadwal menutup kartu yang lewat tempo tanpa menunggu ada yang memindai.
+
+    Halaman validasi sudah menyimpan status 'expired' (lihat
+    test_expired_card_is_persisted_as_expired), tetapi itu hanya terjadi untuk
+    kartu yang benar-benar dibuka. Baris lain tetap tercatat 'aktif' dan
+    menyesatkan setiap pemeriksa yang menyaring kolom status.
+    """
+
+    def kartu(self, kode, berlaku_sampai, nik, status='aktif'):
+        orang = Penduduk.objects.create(
+            nama=f'Warga {kode}', nik=nik, daerah_asal='Sentani',
+            kota_tujuan='Surabaya', tujuan='pekerjaan')
+        return KartuDigital.objects.create(penduduk=orang, kode=kode,
+                                           berlaku_sampai=berlaku_sampai, status=status)
+
+    def status_semua(self):
+        return dict(KartuDigital.objects.values_list('kode', 'status'))
+
+    def test_kartu_lewat_tempo_ditutup_meski_tidak_pernah_dipindai(self):
+        self.kartu('SPR-LAMA-1', '2020-01-01', '9101010101010101')
+        self.kartu('SPR-BARU-1', '2027-01-01', '9101010101010102')
+        self.kartu('SPR-MATI-1', '2020-01-01', '9101010101010103', status='nonaktif')
+        keluaran = io.StringIO()
+
+        call_command('refresh_card_status', stdout=keluaran)
+
+        self.assertEqual(self.status_semua(),
+                         {'SPR-LAMA-1': 'expired', 'SPR-BARU-1': 'aktif', 'SPR-MATI-1': 'nonaktif'},
+                         'hanya kartu aktif yang sudah lewat tanggal yang berubah')
+        self.assertIn('1 kartu', keluaran.getvalue())
+
+    def test_kering_saja_tidak_menulis_apa_pun(self):
+        self.kartu('SPR-KERING-1', '2019-06-06', '9101010101010111')
+        keluaran = io.StringIO()
+
+        call_command('refresh_card_status', '--dry-run', stdout=keluaran)
+
+        self.assertEqual(self.status_semua(), {'SPR-KERING-1': 'aktif'})
+        self.assertIn('dry-run', keluaran.getvalue())
+        self.assertIn('SPR-KERING-1', keluaran.getvalue(), 'dry-run harus menyebutkan kartunya')
+
+    def test_dijalankan_dua_kali_tidak_menemukan_lagi(self):
+        self.kartu('SPR-DUA-KALI', '2018-02-02', '9101010101010112')
+        keluaran = io.StringIO()
+
+        call_command('refresh_card_status', stdout=keluaran)
+        kedua = io.StringIO()
+        call_command('refresh_card_status', stdout=kedua)
+
+        self.assertEqual(self.status_semua(), {'SPR-DUA-KALI': 'expired'})
+        self.assertIn('0 kartu', kedua.getvalue())

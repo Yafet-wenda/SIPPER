@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -75,6 +76,21 @@ SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 X_FRAME_OPTIONS = 'DENY'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# Test client Django berbicara lewat HTTP polos ke host `testserver`, jadi
+# SECURE_SSL_REDIRECT di atas akan mengubah SETIAP permintaan jadi 301 dan
+# seluruh suite gagal tanpa ada yang salah secara fungsional. Flag-flag itu
+# tetap wajib di produksi (Apache + TLS), jadi pengecualian dibuat sempit:
+# hanya untuk proses `manage.py test`, bukan untuk runserver atau waitress.
+MENJALANKAN_TEST = len(sys.argv) > 1 and sys.argv[1] == 'test'
+if MENJALANKAN_TEST:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 EMAIL_BACKEND = os.getenv('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('DJANGO_EMAIL_HOST', '')

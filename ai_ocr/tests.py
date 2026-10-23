@@ -99,6 +99,64 @@ class ParserKtpTests(TestCase):
         self.assertEqual(parse_ktp_parser({'text': teks}).get('nik'), '9101010101010101')
 
 
+class BatasWaktuOcrTests(TestCase):
+    """Tesseract yang menggantung tidak boleh memegang slot antrean selamanya.
+
+    core/ocr_worker.py hanya membolehkan dua OCR berjalan serentak, jadi satu
+    proses Tesseract tanpa batas waktu sanggup menghentikan seluruh antrean
+    unggahan. Batas waktunya dilewatkan ke pytesseract, yang membunuh proses anak
+    lalu menaikkan TesseractError — kedua hal itu diuji di sini tanpa memerlukan
+    biner Tesseract, karena CI tidak mempasangnya.
+    """
+
+    def data_penuh(self):
+        """Keluaran image_to_data yang lolos kedua ambang (>=50 karakter, conf>30)."""
+        kata = ['KARTU', 'TANDA', 'PENDUDUK', 'SEMENJAM', 'LEKAT', 'KEPENDUDUKAN', 'NASIONAL']
+        return {'text': kata, 'conf': ['96'] * len(kata)}
+
+    def test_jalur_polos_meneruskan_batas_waktu(self):
+        panggilan = []
+
+        def catat(img, lang=None, config='', output_type=None, timeout=None):
+            panggilan.append({'config': config, 'timeout': timeout})
+            return self.data_penuh()
+
+        with mock.patch.object(ocr_processor.Image, 'open', return_value=mock.Mock(mode='RGB')), \
+             mock.patch.object(ocr_processor.pytesseract, 'image_to_data', catat):
+            hasil = ocr_processor.extract_text_from_image('ktp.png')
+
+        self.assertEqual(len(panggilan), 1, 'hasil bagus tidak perlu dicoba ulang')
+        self.assertEqual(panggilan[0]['timeout'], ocr_processor.BATAS_WAKTU_OCR)
+        self.assertGreater(hasil['confidence'], 0)
+
+    def test_jalur_agresif_meneruskan_batas_waktu_di_setiap_mode_psm(self):
+        panggilan = []
+
+        def menggantung(img, lang=None, config='', output_type=None, timeout=None):
+            panggilan.append(timeout)
+            raise ocr_processor.pytesseract.TesseractError(-9, 'berjalan terlalu lama')
+
+        with mock.patch.object(ocr_processor.Image, 'open', return_value=mock.Mock(mode='RGB')), \
+             mock.patch.object(ocr_processor, 'preprocess_image', return_value=mock.Mock()), \
+             mock.patch.object(ocr_processor.pytesseract, 'image_to_data', menggantung):
+            hasil = ocr_processor.extract_text_from_image('foto-ktp.jpg', aggressive_preprocess=True)
+
+        self.assertEqual(len(panggilan), 4, 'empat mode PSM dicoba, bukan satu lalu menyerah')
+        self.assertEqual(set(panggilan), {ocr_processor.BATAS_WAKTU_OCR})
+        self.assertEqual(hasil['text'], '', 'waktu habis harus jadi hasil kosong, bukan galat yang naik')
+        self.assertIn('error', hasil)
+
+    def test_waktu_habis_di_jalur_polos_tidak_menaikkan_galat(self):
+        """Pemanggil (utas latar) mengharapkan dict, bukan ledakan TesseractError."""
+        with mock.patch.object(ocr_processor.Image, 'open', return_value=mock.Mock(mode='RGB')), \
+             mock.patch.object(ocr_processor.pytesseract, 'image_to_data',
+                               side_effect=ocr_processor.pytesseract.TesseractError(-9, 'waktu habis')):
+            hasil = ocr_processor.extract_text_from_image('ktp.png')
+
+        self.assertEqual(hasil['confidence'], 0)
+        self.assertIn('waktu habis', hasil['error'])
+
+
 @override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
 class JalurPemrosesanTests(TestCase):
     """Proses berkas: pilihan praproses, berkas PDF, dan penulisan hasil."""

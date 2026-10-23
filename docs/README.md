@@ -49,7 +49,7 @@ terhadap kode (rute diambil dari `core/urls.py`).
 
 ---
 
-## ✅ Fakta terkini — diverifikasi 16 Oktober 2026
+## ✅ Fakta terkini — diverifikasi 23 Oktober 2026
 
 Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 
@@ -60,8 +60,8 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Basis data | MariaDB 10.4 bawaan XAMPP, *port* 3306 | `sipper/__init__.py` (gerbang versi diturunkan lewat *shim*) |
 | Arsitektur aplikasi | dua aplikasi milik proyek: `core` (seluruh logika bisnis) dan `ai_ocr` (panel tinjauan hasil OCR, tanpa tabel sendiri) | `sipper/settings.py` (`INSTALLED_APPS`) |
 | Model | 7 model tabel nyata: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole`; ditambah 1 *proxy model* `TinjauanOcr` di `ai_ocr` yang membaca baris `core_dokumen` yang sama | `core/models.py`, `ai_ocr/models.py` |
-| Pengujian | 164 pengujian, seluruhnya lulus | `python manage.py test` di atas MariaDB (108 di `core/tests.py`, 14 di `core/tests_pdf.py`, 8 di `core/tests_llm.py`, 34 di `ai_ocr/tests.py`) |
-| Baca OPTIK | Tesseract OCR 5.4 (berkas *binary* di luar repositori) melalui `pytesseract`, dengan pra-proses OpenCV | `core/ocr_processor.py`, `requirements.txt` (`pytesseract`, `opencv-python-headless`, `numpy`) |
+| Pengujian | 170 pengujian, seluruhnya lulus | `python manage.py test` di atas MariaDB (111 di `core/tests.py`, 14 di `core/tests_pdf.py`, 8 di `core/tests_llm.py`, 37 di `ai_ocr/tests.py`) |
+| Baca OPTIK | Tesseract OCR 5.4 (berkas *binary* di luar repositori) melalui `pytesseract`, dengan pra-proses OpenCV; tiap panggilan dibatasi `BATAS_WAKTU_OCR = 60` detik sehingga berkas rusak berhenti sebagai hasil kosong, bukan menggantung | `core/ocr_processor.py`, `requirements.txt` (`pytesseract`, `opencv-python-headless`, `numpy`) |
 | Prapemilahan AI | Skor kecocokan teks OCR KTP vs isian formulir: NIK 45%, nama 30%, keterbacaan 25%; di atas 85% berlabel *Valid*, sisanya *Perlu review manual*. Mesin hanya menulis kolom `ai_*`, tidak pernah `Dokumen.status` | `core/ai_verifikasi.py`, `ai_ocr/admin.py` |
 | CI | 3 *job* — `cek-cepat` pada Python 3.13 dan 3.14 (SQLite) serta `paritas-mariadb` (MariaDB 10.11) | `.github/workflows/ci.yml` |
 | Gaya | CSS tulisan sendiri: `static/css/style.css` dan `static/css/admin.css` | `static/`, `templates/base.html` |
@@ -77,6 +77,11 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 | Teks antarmuka | Tidak ada nama atau surel pengembang yang tertinggal di *placeholder*, contoh pengisian, atau teks bantuan; `test_ui_tidak_mencantumkan_data_pribadi_penyusun` memindai seluruh `templates/*.html` dan menolak regenerasi | `core/tests.py`, `templates/` |
 | Navigasi layar kecil | *Breakpoint* 900 px memindahkan tautan petugas ke baris kedua yang bisa digeser (bukan `display: none`), dengan garis gulir tipis di tabel lebar | `static/css/style.css` |
 | Visibilitas repositori | publik — yang dibuka untuk umum hanya sumber dan dokumentasinya; data warga (`media/`), rahasia (`.env`), dan basis data dikecualikan lewat `.gitignore` | pengaturan repositori GitHub |
+| TLS | Aktif di mesin pengembangan: Apache melayani `:443` dengan sertifikat *self-signed* bawaan XAMPP, `http://` dibalas 301, *cookie* sesi/CSRF ber-flag `Secure`, dan HSTS dikirim (`DJANGO_HSTS_SECONDS=300`, sengaja pendek agar mudah ditarik kembali). `manage.py check --deploy` bersih. | `.env`, `apache/sipper-httpd.conf`, `sipper/settings.py:69-92` |
+| Penanda HTTPS di belakang proxy | `SECURE_PROXY_SSL_HEADER` hanya aman bila Apache benar-benar mengirim `X-Forwarded-Proto`; itu disetel dengan `RequestHeader set X-Forwarded-Proto "https" "expr=%{HTTPS} == 'on'"` sehingga permintaan `:80` tidak ikut diberi penanda. | `apache/sipper-httpd.conf`, `sipper/settings.py:77` |
+| Pengecualian test runner | `manage.py test` melonggarkan `SECURE_SSL_REDIRECT`, *cookie secure*, dan HSTS; tanpa itu setiap permintaan test client (HTTP polos) pulang 301 dan seluruh suite merah. Pengecualian terikat pada argumen `test`, jadi `runserver`/waitress tetap ketat. | `sipper/settings.py:80-92` |
+| Status kedaluwarsa kartu | Kartu `aktif` yang `berlaku_sampai`-nya lewat ditandai `expired` di basis data — atomik lewat `KartuDigital.lewat_tempo().update(...)` saat halaman validasi dibuka, dan sapuan harian `refresh_card_status` untuk kartu yang tidak pernah dibuka. Status `expired` tidak pernah dihidupkan otomatis. | `core/models.py:84-86`, `core/views.py:502`, `core/management/commands/refresh_card_status.py` |
+| Pekerjaan harian | Dua *Scheduled Task* Windows setelah `register-backup-task.bat`: "SIPPER backup harian" 06:30 (`backup.bat`) dan "SIPPER penutupan kartu" 06:35 (`maintenance-daily.bat`) | `register-backup-task.bat`, `backup.bat`, `maintenance-daily.bat` |
 
 ---
 

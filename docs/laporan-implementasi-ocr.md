@@ -79,6 +79,11 @@ ocr_processed_at = models.DateTimeField(null=True, blank=True)
 - `OCR_CONCURRENCY = threading.BoundedSemaphore(2)` membatasi hanya dua proses
   Tesseract yang berjalan beriringan, supaya satu petugas yang menyortir banyak
   berkas tidak menghabiskan seluruh mesin
+- Setiap panggilan Tesseract dibatasi `BATAS_WAKTU_OCR = 60` detik
+  (`core/ocr_processor.py`); saat lewat waktu pytesseract membunuh proses anak dan
+  menaikkan `TesseractError`, yang diubah menjadi hasil kosong ber-`error` alih-alih
+  menjatuhkan utas. Jalur agresif mencoba empat mode PSM, jadi plafon teoritis satu
+  berkas sekitar empat menit — bukan tanpa batas seperti sebelumnya
 - Non-blocking upload experience; auto-trigger saat dokumen diunggah
   (jalur ini dipakai `core/views.py`, `core/admin_site.py`, dan `ai_ocr/admin.py`)
 - Setiap akhir proses menulis jejak `AuditLog` (`ocr_processed`, `ocr_dilewati`,

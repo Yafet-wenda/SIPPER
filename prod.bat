@@ -18,9 +18,10 @@ rem  lain, set lebih dulu:  set XAMPP_HOME=E:\xampp
 rem
 rem  Nilai DJANGO_* di bawah menimpa isi .env, karena python-dotenv tidak
 rem  menimpa variabel yang sudah ada di lingkungan. Yang ditimpa hanyalah
-rem  DJANGO_DEBUG, ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS dan tiga nilai
-rem  keamanan HTTPS - jadi .env boleh tetap DJANGO_DEBUG=1 untuk dev.bat.
-rem  Nilai lain (DB_HOST, DJANGO_EMAIL_BACKEND, dst) tetap dibaca dari .env.
+rem  DJANGO_DEBUG, DJANGO_ALLOWED_HOSTS, dan DJANGO_CSRF_TRUSTED_ORIGINS -
+rem  jadi .env boleh tetap DJANGO_DEBUG=1 untuk dev.bat. Nilai lain
+rem  (DB_HOST, DJANGO_EMAIL_BACKEND, dan tiga nilai keamanan TLS) tetap
+rem  dibaca dari .env.
 rem =====================================================================
 cd /D "%~dp0"
 
@@ -33,12 +34,14 @@ echo        XAMPP: %XAMPP_HOME%
 rem --- profil produksi -------------------------------------------------------
 if not defined DJANGO_DEBUG set "DJANGO_DEBUG=0"
 if not defined DJANGO_ALLOWED_HOSTS set "DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1"
-if not defined DJANGO_CSRF_TRUSTED_ORIGINS set "DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1"
-rem  Apache di sini masih HTTP biasa. Baru setelah TLS terpasang dan
-rem  X-Forwarded-Proto dikirim, tiga nilai berikut boleh jadi 1.
-if not defined DJANGO_SECURE_SSL_REDIRECT set "DJANGO_SECURE_SSL_REDIRECT=0"
-if not defined DJANGO_SECURE_COOKIES set "DJANGO_SECURE_COOKIES=0"
-if not defined DJANGO_HSTS_SECONDS set "DJANGO_HSTS_SECONDS=0"
+if not defined DJANGO_CSRF_TRUSTED_ORIGINS set "DJANGO_CSRF_TRUSTED_ORIGINS=http://localhost,http://127.0.0.1,https://localhost,https://127.0.0.1"
+rem  Tiga nilai TLS (DJANGO_SECURE_SSL_REDIRECT, DJANGO_SECURE_COOKIES,
+rem  DJANGO_HSTS_SECONDS) SENGAJA tidak dipaksa di sini. `set` di blok ini
+rem  berlaku sebagai variabel lingkungan proses, dan python-dotenv tidak menimpa
+rem  yang sudah ada -- jadi selama ini angka itulah yang menang atas .env, bukan
+rem  sebaliknya. Apache sudah melayani :443 dan mengirim X-Forwarded-Proto
+rem  (apache/sipper-httpd.conf), maka keputusannya dikembalikan ke .env; tanpa
+rem  .env sekalipun settings.py sudah gagal-tertutup ke nilai aman saat DEBUG=0.
 
 rem  Cari assignment yang benar-benar berisi, bukan sekadar ada barisnya:
 rem  "DJANGO_SECRET_KEY=" kosong juga membuat Django menolak start. findstr
@@ -71,14 +74,17 @@ rem  SECURE_PROXY_SSL_HEADER tidak pernah punya bukti HTTPS.
 netstat -ano | findstr "127.0.0.1:8099" | findstr "LISTENING" >NUL
 if errorlevel 1 (start "SIPPER waitress" "%~dp0.venv\Scripts\python.exe" -m waitress --host=127.0.0.1 --port=8099 --threads=8 --trusted-proxy=127.0.0.1 --trusted-proxy-headers=x-forwarded-for --trusted-proxy-headers=x-forwarded-proto sipper.wsgi:application) else (echo       sudah jalan, dilewati)
 
-echo [4/4] Apache di port 80
+echo [4/4] Apache di port 80 (alihan) dan 443 (TLS)
 if not exist "%XAMPP_HOME%\apache\conf\extra\httpd-sipper.conf" echo       PERHATIAN: conf\extra\httpd-sipper.conf belum dipasang - http://localhost tidak akan meneruskan ke waitress. Jalankan install-apache-config.ps1 di baris paling atas.
 tasklist /FI "IMAGENAME eq httpd.exe" | findstr /I "httpd.exe" >NUL
 if errorlevel 1 (start "Apache" "%XAMPP_HOME%\apache_start.bat") else (echo       sudah jalan, dilewati - kalau konfigurasi baru saja dipasang, tutup jendela konsol Apache lalu jalankan apache_start.bat lagi)
 
 echo.
-echo Tunggu beberapa detik lalu buka  http://localhost
-echo Cek cepat                   http://localhost/health/
+echo Tunggu beberapa detik lalu buka  https://localhost
+echo   Sertifikatnya masih bawaan XAMPP, jadi peramban menampilkan peringatan
+echo   "sambungan Anda tidak privat" - lanjutkan; itu bukan galat aplikasi.
+echo   http://localhost dibalas 301 ke alamat yang sama di atas https.
+echo Cek cepat                   https://localhost/health/
 echo phpMyAdmin tetap di  http://localhost/phpmyadmin/  - login pakai sipper_app
 echo.
 pause

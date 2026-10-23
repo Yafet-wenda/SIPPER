@@ -35,6 +35,15 @@ AMBAT_PREPROCESS = 70.0
 # dicoba ulang dengan praproses ringan.
 AMBAT_HASIL_POLOS = 50.0
 
+# Batas waktu satu panggilan Tesseract, dalam detik. Tanpa ini proses yang
+# menggantung (gambar rusak, tessdata hilang) menahan salah satu dari dua slot
+# semaphore core/ocr_worker.py selamanya, dan antrean OCR berhenti untuk semua
+# warga. pytesseract membunuh proses anak saat batas lewat lalu menaikkan
+# TesseractError, yang sudah ditangkap pemanggil sebagai hasil kosong ber-error.
+# Jalur agresif mencoba empat mode PSM, jadi plafon teoritis satu dokumen
+# sekitar 4 x nilai ini.
+BATAS_WAKTU_OCR = 60
+
 
 def preprocess_image(image_path, aggressive=False):
     """
@@ -103,13 +112,13 @@ def extract_text_from_image(image_path, lang='ind+eng', aggressive_preprocess=Fa
             return _extract_with_best_psm(processed_img, lang)
         
         # Untuk gambar digital: coba tanpa preprocessing, gunakan PSM 3 (auto)
-        data = pytesseract.image_to_data(img, lang=lang, config='--oem 3 --psm 3', output_type=pytesseract.Output.DICT)
+        data = pytesseract.image_to_data(img, lang=lang, config='--oem 3 --psm 3', output_type=pytesseract.Output.DICT, timeout=BATAS_WAKTU_OCR)
         result = _build_result(data)
         
         # Jika hasil buruk, fallback ke preprocessing ringan
         if result['confidence'] < AMBAT_HASIL_POLOS or len(result['text']) < 50:
             processed_img = preprocess_image(image_path, aggressive=False)
-            data = pytesseract.image_to_data(processed_img, lang=lang, config='--oem 3 --psm 3', output_type=pytesseract.Output.DICT)
+            data = pytesseract.image_to_data(processed_img, lang=lang, config='--oem 3 --psm 3', output_type=pytesseract.Output.DICT, timeout=BATAS_WAKTU_OCR)
             result = _build_result(data)
         
         return result
@@ -133,7 +142,9 @@ def _extract_with_best_psm(img, lang):
     for psm in psm_modes:
         try:
             config = f'--oem 3 --psm {psm}'
-            data = pytesseract.image_to_data(img, lang=lang, config=config, output_type=pytesseract.Output.DICT)
+            data = pytesseract.image_to_data(img, lang=lang, config=config,
+                                             output_type=pytesseract.Output.DICT,
+                                             timeout=BATAS_WAKTU_OCR)
             result = _build_result(data)
             
             if result['confidence'] > best_confidence and len(result['text']) > 50:
