@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django import forms
 from django.contrib import admin
+from django.contrib.admin.forms import AdminAuthenticationForm
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
@@ -21,11 +22,27 @@ from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemuta
 from .keputusan import terapkan_status
 
 
+class FormMasukAdmin(AdminAuthenticationForm):
+    """Terjemahan id-id Django untuk pesan ini sudah menulis frasa 'nama
+    pengguna' sekaligus menyisipkan label kolom, jadi tampilannya berulang:
+    'Masukkan nama pengguna nama pengguna dan sandi yang benar.' Pesan ditulis
+    ulang di sini supaya halaman masuk tidak menampilkan kalimat cacat."""
+
+    error_messages = {
+        **AdminAuthenticationForm.error_messages,
+        'invalid_login': (
+            'Masukkan nama pengguna dan sandi yang benar untuk akun staf. '
+            'Huruf besar/kecil berpengaruh.'
+        ),
+    }
+
+
 class SipperAdminSite(admin.AdminSite):
     site_header = 'SIPPER Administration'
     site_title = 'SIPPER Admin'
     index_title = 'Pusat kendali layanan'
     index_template = 'admin/sipper_index_v3.html'
+    login_form = FormMasukAdmin
 
     def get_urls(self):
         urls = super().get_urls()

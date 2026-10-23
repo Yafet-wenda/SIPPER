@@ -1,0 +1,454 @@
+{% extends 'admin/base_site.html' %}
+{% load i18n static %}
+
+{# Halaman masuk petugas. Sengaja tidak memakai tata letak standar admin:
+   foto hero landing dipakai lagi di sini supaya petugas mengenali sistemnya
+   sebelum masuk. Kolom kiri = merek, kolom kanan = kartu formulir. #}
+
+{% block title %}Masuk · Sipper Administration{% endblock %}
+
+{% block bodyclass %}sip-login{% endblock %}
+
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block content_subtitle %}{% endblock %}
+{% block nav-breadcrumbs %}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  {% comment %}
+    admin/css/login.css tidak dimuat: aturannya mengunci #container ke 460px
+    dan menata header transparan, dua hal yang di sini kami gambar ulang.
+    Catatan: komentar {# ... #} Django hanya satu baris, jadi pakai blok ini.
+  {% endcomment %}
+  {{ form.media }}
+  <style>
+    body.sip-login {
+      background: #091411;
+    }
+
+    body.sip-login #container {
+      min-height: 100dvh;
+    }
+
+    body.sip-login #header,
+    body.sip-login #footer {
+      display: none;
+    }
+
+    body.sip-login #main {
+      display: block;
+    }
+
+    body.sip-login #content-start,
+    body.sip-login #content {
+      padding: 0;
+      margin: 0;
+      width: auto;
+    }
+
+    /* --------------------------------------------------------- panggung */
+
+    .sip-login-stage {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(24px, 5vw, 64px);
+    }
+
+    .sip-login-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      transform-origin: 100% 50%;
+      background: #0c1a16 url("{% static 'img/banner-hero.jpg' %}?v=2") 62% 42% / cover no-repeat;
+      will-change: transform;
+    }
+
+    /* Gelap dari kiri atas supaya teks merek terbaca, dibuka di tengah agar
+       foto masih terlihat, lalu ditutup lagi di kanan supaya kartu formulir
+       tidak bertumpuk dengan grafis kartu pada foto. */
+    .sip-login-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        radial-gradient(125% 95% at 10% 6%, rgba(9, 20, 17, .97) 0%, rgba(9, 20, 17, .80) 44%, rgba(9, 20, 17, .52) 100%),
+        linear-gradient(90deg, rgba(9, 20, 17, .30) 0%, rgba(9, 20, 17, .08) 46%, rgba(9, 20, 17, .58) 100%),
+        linear-gradient(180deg, rgba(9, 20, 17, .55) 0, rgba(9, 20, 17, 0) 26%, rgba(9, 20, 17, .62) 100%);
+    }
+
+    .sip-login-shell {
+      position: relative;
+      z-index: 2;
+      width: min(1080px, 100%);
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: clamp(28px, 5vw, 72px);
+      align-items: center;
+    }
+
+    /* ------------------------------------------------------------ merek */
+
+    .sip-login-brand {
+      color: #dcebe1;
+    }
+
+    .sip-login-back {
+      display: flex;
+      width: fit-content;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+      font-family: var(--sip-display);
+      font-size: .78rem;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #9fc3b1;
+      border-bottom: 1px solid transparent;
+      padding-bottom: 2px;
+    }
+
+    .sip-login-back:hover,
+    .sip-login-back:focus {
+      color: #ffffff;
+      border-bottom-color: var(--sip-amber);
+    }
+
+    .sip-login-logo {
+      width: 58px;
+      height: 58px;
+      object-fit: contain;
+      margin: 26px 0 18px;
+      padding: 9px;
+      background: rgba(247, 248, 243, .94);
+      border-radius: 16px;
+      box-shadow: 0 10px 26px rgba(0, 0, 0, .35);
+    }
+
+    .sip-login-eyebrow {
+      font-family: var(--sip-display);
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: #b7d9c8;
+      margin: 0 0 12px;
+    }
+
+    .sip-login-brand h1 {
+      font-family: var(--sip-display);
+      font-size: clamp(30px, 4.1vw, 50px);
+      line-height: 1.06;
+      letter-spacing: -.02em;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    .sip-login-brand h1 em {
+      font-style: normal;
+      color: var(--sip-amber);
+    }
+
+    .sip-login-lede {
+      max-width: 34ch;
+      margin: 16px 0 0;
+      font-size: 1rem;
+      line-height: 1.6;
+      color: #b9cfc4;
+    }
+
+    .sip-login-list {
+      list-style: none;
+      margin: 24px 0 0;
+      padding: 0;
+      display: grid;
+      gap: 9px;
+      font-size: .88rem;
+      color: #a8c2b5;
+    }
+
+    .sip-login-list li {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sip-login-list li::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--sip-amber);
+      box-shadow: 0 0 0 4px rgba(217, 154, 43, .18);
+    }
+
+    /* ------------------------------------------------------------- kartu */
+
+    .sip-login-card {
+      background: rgba(10, 24, 20, .74);
+      border: 1px solid rgba(183, 217, 200, .2);
+      border-radius: 20px;
+      padding: clamp(22px, 3vw, 34px);
+      box-shadow: 0 26px 64px rgba(0, 0, 0, .46);
+      backdrop-filter: blur(14px) saturate(1.15);
+      -webkit-backdrop-filter: blur(14px) saturate(1.15);
+    }
+
+    .sip-login-card > header h2 {
+      font-family: var(--sip-display);
+      font-size: 1.12rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #ffffff;
+      margin: 0;
+    }
+
+    .sip-login-card > header p {
+      margin: 10px 0 22px;
+      font-size: .88rem;
+      line-height: 1.55;
+      color: #9dbcae;
+    }
+
+    .sip-login-card .form-row {
+      margin: 0 0 16px;
+      padding: 0;
+    }
+
+    .sip-login-card label {
+      display: block;
+      font-family: var(--sip-display);
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: #9fc3b1;
+      margin: 0 0 8px;
+    }
+
+    .sip-login-card input[type="text"],
+    .sip-login-card input[type="password"] {
+      box-sizing: border-box;
+      width: 100%;
+      padding: 13px 14px;
+      font-family: var(--sip-body);
+      font-size: 1rem;
+      color: #eef6f0;
+      background: rgba(255, 255, 255, .06);
+      border: 1px solid rgba(183, 217, 200, .24);
+      border-radius: 12px;
+      transition: border-color .16s ease, box-shadow .16s ease, background .16s ease;
+    }
+
+    .sip-login-card input[type="text"]::placeholder,
+    .sip-login-card input[type="password"]::placeholder {
+      color: #7d998c;
+    }
+
+    .sip-login-card input[type="text"]:focus,
+    .sip-login-card input[type="password"]:focus {
+      outline: none;
+      background: rgba(255, 255, 255, .1);
+      border-color: var(--sip-amber);
+      box-shadow: 0 0 0 3px rgba(217, 154, 43, .22);
+    }
+
+    .sip-login-card .errornote,
+    .sip-login-card ul.errorlist li {
+      margin: 0 0 14px;
+      padding: 12px 14px;
+      font-size: .88rem;
+      line-height: 1.5;
+      color: #ffd8cd;
+      background: rgba(227, 107, 81, .16);
+      border: 1px solid rgba(227, 107, 81, .46);
+      border-radius: 12px;
+    }
+
+    .sip-login-card ul.errorlist {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .sip-login-card .submit-row {
+      margin: 22px 0 0;
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+
+    .sip-login-card input[type="submit"] {
+      width: 100%;
+      margin: 0;
+      padding: 14px 18px;
+      font-family: var(--sip-display);
+      font-size: .95rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: #221604;
+      background: linear-gradient(180deg, #e8ac40, var(--sip-amber));
+      border: 0;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 12px 26px rgba(217, 154, 43, .26);
+      transition: transform .16s ease, box-shadow .16s ease, filter .16s ease;
+    }
+
+    .sip-login-card input[type="submit"]:hover,
+    .sip-login-card input[type="submit"]:focus {
+      outline: none;
+      transform: translateY(-1px);
+      filter: brightness(1.05);
+      box-shadow: 0 16px 32px rgba(217, 154, 43, .34);
+    }
+
+    .sip-login-foot {
+      margin: 20px 0 0;
+      text-align: center;
+      font-size: .82rem;
+      color: #86a394;
+    }
+
+    .sip-login-foot a {
+      color: #b7d9c8;
+      font-weight: 600;
+    }
+
+    .sip-login-foot a:hover,
+    .sip-login-foot a:focus {
+      color: #ffffff;
+    }
+
+    /* --------------------------------------------------------- gerak */
+
+    @keyframes sip-login-drift {
+      from { transform: scale(1); }
+      to { transform: scale(1.05); }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .sip-login-bg {
+        animation: sip-login-drift 34s ease-in-out infinite alternate;
+      }
+    }
+
+    /* ------------------------------------------------------ responsif */
+
+    @media (max-width: 900px) {
+      .sip-login-shell {
+        grid-template-columns: 1fr;
+        gap: 26px;
+      }
+
+      .sip-login-lede {
+        max-width: 46ch;
+      }
+
+      .sip-login-logo {
+        margin-top: 18px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .sip-login-stage {
+        padding: 28px 18px 34px;
+        align-items: flex-start;
+      }
+
+      /* Potret ponsel: sama seperti hero landing, pakai hasil potongan
+         vertikal supaya wajah dan kartu tidak terpotong oleh "cover". */
+      .sip-login-bg {
+        background-image: url("{% static 'img/banner-hero-mobile.jpg' %}?v=2");
+        background-position: 50% 40%;
+      }
+
+      .sip-login-brand h1 {
+        font-size: clamp(26px, 8vw, 34px);
+      }
+
+      .sip-login-list {
+        display: none;
+      }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="sip-login-stage">
+    <div class="sip-login-bg" aria-hidden="true"></div>
+    <div class="sip-login-scrim" aria-hidden="true"></div>
+
+    <div class="sip-login-shell">
+      <section class="sip-login-brand">
+        <a class="sip-login-back" href="{% url 'core:home' %}">&larr; Beranda SIPPER</a>
+
+        <img class="sip-login-logo" src="{% static 'img/logo-sipper.png' %}?v=2" alt="Logo SIPPER">
+
+        <p class="sip-login-eyebrow">Sistem Informasi Penduduk Perantauan</p>
+        <h1>Pusat kendali<br><em>layanan petugas</em></h1>
+        <p class="sip-login-lede">
+          Periksa berkas, putuskan pengajuan, dan terbitkan kartu digital
+          penduduk perantauan dalam satu konsol.
+        </p>
+        <ul class="sip-login-list">
+          <li>Khusus akun staf yang diberi hak akses</li>
+          <li>Setiap tindakan tercatat pada log audit</li>
+        </ul>
+      </section>
+
+      <section class="sip-login-card">
+        <header>
+          <h2>Sipper Administration</h2>
+          <p>Masukkan nama pengguna dan sandi akun staf Anda. Huruf besar/kecil berpengaruh.</p>
+        </header>
+
+        {% if form.errors and not form.non_field_errors %}
+          <p class="errornote">Perbaiki isian di bawah ini.</p>
+        {% endif %}
+
+        {% for error in form.non_field_errors %}
+          <p class="errornote">{{ error }}</p>
+        {% endfor %}
+
+        {% if user.is_authenticated %}
+          <p class="errornote">
+            Anda sudah masuk sebagai {{ username }}, tetapi tidak punya hak akses ke halaman ini.
+            Masuk dengan akun lain?
+          </p>
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form">
+          {% csrf_token %}
+          <div class="form-row">
+            {{ form.username.errors }}
+            {{ form.username.label_tag }}
+            {{ form.username }}
+          </div>
+          <div class="form-row">
+            {{ form.password.errors }}
+            {{ form.password.label_tag }}
+            {{ form.password }}
+            <input type="hidden" name="next" value="{{ next }}">
+          </div>
+          <div class="submit-row">
+            <input type="submit" value="Masuk">
+          </div>
+        </form>
+
+        <p class="sip-login-foot">
+          Bukan petugas? <a href="{% url 'core:login' %}">Masuk warga</a>
+        </p>
+      </section>
+    </div>
+  </div>
+{% endblock %}
