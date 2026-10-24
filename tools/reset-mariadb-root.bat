@@ -50,9 +50,12 @@ echo [3/4] Jendela mysql akan terbuka. Ketik baris berikut SATU PER SATU:
 echo.
 echo         FLUSH PRIVILEGES;
 echo         ALTER USER 'root'@'localhost' IDENTIFIED BY 'sandi-baru';
+echo         ALTER USER 'root'@'127.0.0.1' IDENTIFIED BY 'sandi-baru';
+echo         ALTER USER 'root'@'::1' IDENTIFIED BY 'sandi-baru';
 echo         FLUSH PRIVILEGES;
 echo.
-echo   Ganti 'sandi-baru' dengan pilihan Anda sendiri.
+echo   Ganti 'sandi-baru' dengan pilihan Anda sendiri (sama untuk ketiganya).
+echo   Baris ::1 bisa gagal kalau IPv6 mati - itu tidak masalah, lanjut saja.
 echo   Setelah selesai ketik:  exit
 echo.
 pause
