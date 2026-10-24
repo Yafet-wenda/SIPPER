@@ -246,9 +246,12 @@ python manage.py createsuperuser
 
 # atau cukup dev.bat (menyetel DJANGO_DEBUG=1 lalu runserver_tls)
 python manage.py runserver_tls 127.0.0.1:8000
+
+# kebiasaan lama tetap aman: manage.py mengalihkan namanya ke runserver_tls
+python manage.py runserver 127.0.0.1:8000
 ```
 
-Buka peramban melalui `https://127.0.0.1:8000/`. `runserver_tls` (`core/management/commands/runserver_tls.py`) adalah `runserver` biasa yang socket-nya dibungkus TLS memakai sertifikat *self-signed* — dibuat sekali di `tmp/dev-tls/` (dikecualikan `.gitignore`, SAN `localhost` + `127.0.0.1`). Pilihannya https karena peramban modern menaikkan URL yang diketik tanpa skema menjadi https, jadi peladen http polos di port itu tidak pernah tersentuh. Penerbit sertifikat bukan CA, jadi kunjungan pertama menampilkan peringatan kepercayaan: tekan *Advanced → Proceed*. Kalau memang ingin http polos, `python manage.py runserver 127.0.0.1:8000` tetap tersedia. Perlu diingat bawaan `DJANGO_DEBUG` sekarang 0, jadi menjalankan peladen langsung tanpa `set "DJANGO_DEBUG=1"` berjalan dalam mode produksi (halaman galat ringkas, tanpa *traceback*).
+Buka peramban melalui `https://127.0.0.1:8000/`. `runserver_tls` (`core/management/commands/runserver_tls.py`) adalah `runserver` biasa yang socket-nya dibungkus TLS memakai sertifikat *self-signed* — dibuat sekali di `tmp/dev-tls/` (dikecualikan `.gitignore`, SAN `localhost` + `127.0.0.1`). Pilihannya https karena peramban modern menaikkan URL yang diketik tanpa skema menjadi https, jadi peladen http polos di port itu tidak pernah tersentuh; karena itu `manage.py` juga mengganti `runserver` menjadi `runserver_tls` sebelum perintah dicari. Penerbit sertifikat bukan CA, jadi kunjungan pertama menampilkan peringatan kepercayaan: tekan *Advanced → Proceed*. Perlu diingat bawaan `DJANGO_DEBUG` sekarang 0, jadi menjalankan peladen langsung tanpa `set "DJANGO_DEBUG=1"` berjalan dalam mode produksi (halaman galat ringkas, tanpa *traceback*).
 
 ---
 
@@ -294,7 +297,7 @@ Rangkaian lokal pada mesin pengembangan: peramban → **Apache (:80 dan :443)** 
 dev.bat    # runserver_tls dengan DJANGO_DEBUG=1; lihat catatan di bawah
 ```
 
-Bawaan `DJANGO_DEBUG` di `sipper/settings.py` adalah **0** (fail-closed): proses yang terlanjur dijalankan tanpa variabel lingkungan `DJANGO_DEBUG` tidak boleh menyajikan *traceback* SQL. Karena itu pengembangan memakai `dev.bat`, yang menyetel `DJANGO_DEBUG=1` di lingkungan prosesnya sebelum `runserver_tls` — versi `runserver` dengan TLS *self-signed* supaya `https://127.0.0.1:8000/` (bentuk yang diminta peramban) benar-benar dilayani. `dev.bat` juga mematikan HSTS untuk proses itu; kalau tidak, peramban mengunci host `127.0.0.1` dan tidak lagi menawarkan tombol untuk melewati peringatan sertifikat. Kalau perlu menjalankan `manage.py runserver` langsung, set lebih dulu: `set "DJANGO_DEBUG=1"`.
+Bawaan `DJANGO_DEBUG` di `sipper/settings.py` adalah **0** (fail-closed): proses yang terlanjur dijalankan tanpa variabel lingkungan `DJANGO_DEBUG` tidak boleh menyajikan *traceback* SQL. Karena itu pengembangan memakai `dev.bat`, yang menyetel `DJANGO_DEBUG=1` di lingkungan prosesnya sebelum `runserver_tls` — versi `runserver` dengan TLS *self-signed* supaya `https://127.0.0.1:8000/` (bentuk yang diminta peramban) benar-benar dilayani; `manage.py` juga mengganti `runserver` menjadi `runserver_tls`, jadi mengetik perintah lama pun hasilnya sama. `dev.bat` juga mematikan HSTS untuk proses itu; kalau tidak, peramban mengunci host `127.0.0.1` dan tidak lagi menawarkan tombol untuk melewati peringatan sertifikat. Kalau perlu menjalankan `manage.py runserver` langsung, set lebih dulu: `set "DJANGO_DEBUG=1"`.
 
 Bentuk produksi perlu satu langkah tambahan per mesin, karena Apache harus tahu cara mem-*proxy* ke waitress:
 
