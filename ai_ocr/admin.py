@@ -15,6 +15,7 @@ from django.utils.html import format_html, format_html_join
 from django.utils.timezone import localtime
 
 from core.admin_site import EksporCSVMixin, RentangWaktuFilter, sipper_admin
+from core.csv_utils import waktu_wib
 from core.ai_verifikasi import AMBAT_VALID, JENIS_BERNILAI, baris_perbandingan, nilai_berkas
 from core.models import AuditLog
 from core.ocr_worker import picu_async
@@ -147,7 +148,7 @@ class TinjauanOcrAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Prapemilahan', lambda o: o.get_ai_prescreen_display()),
         ('Confidence OCR', lambda o: '' if o.ocr_confidence is None else str(o.ocr_confidence)),
         ('NIK dari OCR', lambda o: o.extracted_nik or ''),
-        ('Diproses pada', lambda o: localtime(o.ocr_processed_at).isoformat() if o.ocr_processed_at else ''),
+        ('Diproses pada (WIB)', lambda o: waktu_wib(o.ocr_processed_at)),
         ('Catatan', lambda o: o.ai_verification_notes or ''),
     )
 

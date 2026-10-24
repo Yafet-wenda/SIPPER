@@ -807,8 +807,29 @@ class AdminExportCSVTests(TestCase):
         self.assertEqual(response['Content-Type'], 'text/csv')
         self.assertIn('attachment', response['Content-Disposition'])
         isi = self.rows(response)
-        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
+        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim (WIB)', 'Catatan'])
         self.assertTrue(any('Ani Lestari' in baris for baris in isi[1:]))
+
+    def test_export_times_are_wib_not_utc(self):
+        from datetime import datetime, timezone as tz
+        pengajuan = Pengajuan.objects.create(penduduk=self.warga, status='disetujui')
+        pengajuan.submitted_at = datetime(2026, 10, 24, 10, 30, tzinfo=tz.utc)
+        pengajuan.save(update_fields=['submitted_at'])
+        self.client.force_login(self.superuser)
+        isi = self.rows(self.client.get('/admin/core/pengajuan/export.csv/'))
+        baris = [b for b in isi[1:] if 'Ani Lestari' in b[0]][0]
+        self.assertEqual(baris[isi[0].index('Dikirim (WIB)')], '2026-10-24 17:30:00 WIB')
+
+    def test_petugas_report_time_is_wib(self):
+        from datetime import datetime, timezone as tz
+        pengajuan = Pengajuan.objects.create(penduduk=self.warga, status='disetujui')
+        pengajuan.submitted_at = datetime(2026, 10, 24, 10, 30, tzinfo=tz.utc)
+        pengajuan.save(update_fields=['submitted_at'])
+        self.client.force_login(self.superuser)
+        isi = self.rows(self.client.get('/petugas/?export=csv'))
+        self.assertEqual(isi[0][-1], 'Dikirim (WIB)')
+        self.assertTrue(any('2026-10-24 17:30:00 WIB' in baris for baris in isi[1:]),
+                        'laporan petugas harus memakai jam WIB')
 
     def test_export_respects_changelist_status_filter(self):
         Pengajuan.objects.create(penduduk=self.warga, status='disetujui')
@@ -850,7 +871,7 @@ class AdminExportCSVTests(TestCase):
         self.assertEqual(response.status_code, 200)
         isi = self.rows(response)
         self.assertEqual(len(isi), 1, 'filter tak cocok harus menghasilkan CSV tanpa baris data')
-        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim', 'Catatan'])
+        self.assertEqual(isi[0], ['Warga', 'NIK', 'Status', 'Dikirim (WIB)', 'Catatan'])
 
 
 class AdminDokumenFormTests(TestCase):

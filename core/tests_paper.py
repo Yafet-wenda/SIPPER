@@ -10,10 +10,13 @@ uji (peng-hash-an sandi tidak terlibat pada jalur yang diukur).
 
 Hasil per kasus ditulis ke paper/uji1-kasus.csv dan paper/uji2-kasus.csv,
 ringkasan agregat ke paper/ringkasan-eksperimen.json, supaya tabel artikel
-dibangun dari data yang sama persis dengan yang direkam saat uji.
+dibangun dari data yang sama persis dengan yang direkam saat uji. Berkas-berkas
+itu sudah di-commit dan dikutip artikel, jadi penulisan hanya terjadi bila
+`PAPER_UJI_SIMPAN=1` — lihat tulis_csv().
 """
 import csv
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -104,6 +107,11 @@ class UjiPaperTests(TestCase):
 
     @classmethod
     def tulis_csv(cls):
+        if os.getenv('PAPER_UJI_SIMPAN') != '1':
+            # Angka di paper/uji*-kasus.csv adalah yang dikutip artikel konferensi, dan
+            # latensi berbeda tiap jalan. Run test biasa tidak boleh menimpanya; untuk
+            # regenerasi sadar: PAPER_UJI_SIMPAN=1 manage.py test core.tests_paper.
+            return
         PAPER_DIR.mkdir(parents=True, exist_ok=True)
         if cls.rows_uji1:
             kolom = ['urutan', 'kategori', 'nama', 'nik', 'hasil_acuan', 'hasil_aktual',

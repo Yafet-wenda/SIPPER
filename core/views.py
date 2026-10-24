@@ -32,7 +32,7 @@ from django.views.decorators.http import require_POST
 from django.contrib.auth.models import User
 from . import chatbot, kartu_pdf, llm, pdf_report
 from .akses import is_officer
-from .csv_utils import sel_aman
+from .csv_utils import sel_aman, waktu_wib
 from .keputusan import terapkan_status
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
 from .ocr_worker import picu_async
@@ -315,11 +315,11 @@ def officer(request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="laporan-pengajuan.csv"'
         writer = csv.writer(response)
-        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Dikirim'])
+        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Dikirim (WIB)'])
         for item in applications:
             writer.writerow([sel_aman(item.penduduk.nama), item.penduduk.nik, sel_aman(item.penduduk.daerah_asal),
                              sel_aman(item.penduduk.kota_tujuan), sel_aman(item.penduduk.tujuan),
-                             item.get_status_display(), item.submitted_at.isoformat()])
+                             item.get_status_display(), waktu_wib(item.submitted_at)])
         return response
     if request.method == 'POST':
         # Kolom id datang dari tombol form. Nilai yang bukan angka membuat

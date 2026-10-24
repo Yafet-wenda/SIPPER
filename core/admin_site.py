@@ -13,7 +13,7 @@ from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.utils.html import format_html
 from django.urls import path, reverse
 from django.db.models import Count
-from .csv_utils import sel_aman
+from .csv_utils import sel_aman, waktu_wib
 from .ai_verifikasi import AMBAT_VALID
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
 from .keputusan import terapkan_status
@@ -348,7 +348,7 @@ class PendudukAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Kota tujuan', 'kota_tujuan'),
         ('Tujuan', lambda o: o.get_tujuan_display()),
         ('Status', lambda o: o.get_status_display()),
-        ('Terdaftar', lambda o: o.created_at.isoformat()),
+        ('Terdaftar (WIB)', lambda o: waktu_wib(o.created_at)),
     )
 
 
@@ -369,7 +369,7 @@ class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Warga', lambda o: o.penduduk.nama),
         ('NIK', lambda o: o.penduduk.nik),
         ('Status', lambda o: o.get_status_display()),
-        ('Dikirim', lambda o: o.submitted_at.isoformat() if o.submitted_at else ''),
+        ('Dikirim (WIB)', lambda o: waktu_wib(o.submitted_at)),
         ('Catatan', 'catatan'),
     )
 
@@ -442,7 +442,7 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Jenis', lambda o: o.get_jenis_display()),
         ('Status', lambda o: o.get_status_display()),
         ('Ukuran', 'ukuran'),
-        ('Diunggah', lambda o: o.uploaded_at.isoformat() if o.uploaded_at else ''),
+        ('Diunggah (WIB)', lambda o: waktu_wib(o.uploaded_at)),
     )
 
     @admin.display(description='File')
@@ -513,7 +513,7 @@ class KartuDigitalAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Kode', 'kode'),
         ('Warga', lambda o: o.penduduk.nama),
         ('Status', lambda o: o.get_status_display()),
-        ('Berlaku sampai', lambda o: o.berlaku_sampai.isoformat() if o.berlaku_sampai else ''),
+        ('Berlaku sampai', lambda o: waktu_wib(o.berlaku_sampai)),
     )
 
     @admin.display(boolean=True, description='Valid saat ini')
@@ -532,7 +532,7 @@ class PemutakhiranAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Warga', lambda o: o.penduduk.nama),
         ('Tujuan lama', lambda o: (o.data_lama or {}).get('kota_tujuan', '-')),
         ('Tujuan baru', lambda o: (o.data_baru or {}).get('kota_tujuan', '-')),
-        ('Waktu', lambda o: o.created_at.isoformat()),
+        ('Waktu (WIB)', lambda o: waktu_wib(o.created_at)),
     )
 
     @admin.display(description='Tujuan lama')
@@ -553,7 +553,7 @@ class AuditLogAdmin(EksporCSVMixin, admin.ModelAdmin):
     readonly_fields = ('user', 'aksi', 'deskripsi', 'created_at')
     list_select_related = ('user',)
     csv_columns = (
-        ('Waktu', lambda o: o.created_at.isoformat()),
+        ('Waktu (WIB)', lambda o: waktu_wib(o.created_at)),
         ('Pengguna', lambda o: (o.user.get_full_name() or o.user.username) if o.user else '-'),
         ('Aksi', 'aksi'),
         ('Deskripsi', 'deskripsi'),
