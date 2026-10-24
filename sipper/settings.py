@@ -91,6 +91,18 @@ if MENJALANKAN_TEST:
     SECURE_HSTS_INCLUDE_SUBDOMAINS = False
     SECURE_HSTS_PRELOAD = False
 
+# Mode pengembangan (DJANGO_DEBUG=1): tiga flag TLS dimatikan berapa pun isi
+# .env, supaya `runserver` polos tetap bisa dibuka lewat http://127.0.0.1:8000.
+# Produksi tetap ketat: prod.bat memaksa DJANGO_DEBUG=0 sebelum waitress mulai,
+# sehingga blok ini tidak pernah menyentuh bentuk produksi.
+if DEBUG:
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.getenv('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 EMAIL_BACKEND = os.getenv('DJANGO_EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = os.getenv('DJANGO_EMAIL_HOST', '')
