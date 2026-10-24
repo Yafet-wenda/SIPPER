@@ -1,0 +1,101 @@
+﻿urutan,kategori,nama,nik,hasil_acuan,hasil_aktual,sesuai,baris_penduduk_baru,pesan_sistem,ms
+1,unik,Andi Saputra,0000000000000001,diterima,diterima,True,ya,302 -> /dashboard/,149.2
+2,unik,Siti Rahayu,0000000000000002,diterima,diterima,True,ya,302 -> /dashboard/,47.4
+3,unik,Budi Santoso,0000000000000003,diterima,diterima,True,ya,302 -> /dashboard/,7.2
+4,unik,Dewi Lestari,0000000000000004,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+5,unik,Agus Prasetyo,0000000000000005,diterima,diterima,True,ya,302 -> /dashboard/,5.8
+6,unik,Rina Wulandari,0000000000000006,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+7,unik,Eko Susanto,0000000000000007,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+8,unik,Fitri Handayani,0000000000000008,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+9,unik,Joko Priyanto,0000000000000009,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+10,unik,Sri Wahyuni,0000000000000010,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+11,unik,Hendra Gunawan,0000000000000011,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+12,unik,Maya Anggraini,0000000000000012,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+13,unik,Rudi Hartono,0000000000000013,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+14,unik,Lia Permata Sari,0000000000000014,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+15,unik,Tono Wijaya,0000000000000015,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+16,unik,Warga Sintetis 016,0000000000000016,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+17,unik,Warga Sintetis 017,0000000000000017,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+18,unik,Warga Sintetis 018,0000000000000018,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+19,unik,Warga Sintetis 019,0000000000000019,diterima,diterima,True,ya,302 -> /dashboard/,6.6
+20,unik,Warga Sintetis 020,0000000000000020,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+21,unik,Warga Sintetis 021,0000000000000021,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+22,unik,Warga Sintetis 022,0000000000000022,diterima,diterima,True,ya,302 -> /dashboard/,5.6
+23,unik,Warga Sintetis 023,0000000000000023,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+24,unik,Warga Sintetis 024,0000000000000024,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+25,unik,Warga Sintetis 025,0000000000000025,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+26,unik,Warga Sintetis 026,0000000000000026,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+27,unik,Warga Sintetis 027,0000000000000027,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+28,unik,Warga Sintetis 028,0000000000000028,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+29,unik,Warga Sintetis 029,0000000000000029,diterima,diterima,True,ya,302 -> /dashboard/,5.8
+30,unik,Warga Sintetis 030,0000000000000030,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+31,unik,Warga Sintetis 031,0000000000000031,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+32,unik,Warga Sintetis 032,0000000000000032,diterima,diterima,True,ya,302 -> /dashboard/,6.1
+33,unik,Warga Sintetis 033,0000000000000033,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+34,unik,Warga Sintetis 034,0000000000000034,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+35,unik,Warga Sintetis 035,0000000000000035,diterima,diterima,True,ya,302 -> /dashboard/,6.7
+36,unik,Warga Sintetis 036,0000000000000036,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+37,unik,Warga Sintetis 037,0000000000000037,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+38,unik,Warga Sintetis 038,0000000000000038,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+39,unik,Warga Sintetis 039,0000000000000039,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+40,unik,Warga Sintetis 040,0000000000000040,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+41,unik,Warga Sintetis 041,0000000000000041,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+42,unik,Warga Sintetis 042,0000000000000042,diterima,diterima,True,ya,302 -> /dashboard/,6.6
+43,unik,Warga Sintetis 043,0000000000000043,diterima,diterima,True,ya,302 -> /dashboard/,5.8
+44,unik,Warga Sintetis 044,0000000000000044,diterima,diterima,True,ya,302 -> /dashboard/,6.1
+45,unik,Warga Sintetis 045,0000000000000045,diterima,diterima,True,ya,302 -> /dashboard/,5.8
+46,unik,Warga Sintetis 046,0000000000000046,diterima,diterima,True,ya,302 -> /dashboard/,6.6
+47,unik,Warga Sintetis 047,0000000000000047,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+48,unik,Warga Sintetis 048,0000000000000048,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+49,unik,Warga Sintetis 049,0000000000000049,diterima,diterima,True,ya,302 -> /dashboard/,7.9
+50,unik,Warga Sintetis 050,0000000000000050,diterima,diterima,True,ya,302 -> /dashboard/,6.1
+51,unik,Warga Sintetis 051,0000000000000051,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+52,unik,Warga Sintetis 052,0000000000000052,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+53,unik,Warga Sintetis 053,0000000000000053,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+54,unik,Warga Sintetis 054,0000000000000054,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+55,unik,Warga Sintetis 055,0000000000000055,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+56,unik,Warga Sintetis 056,0000000000000056,diterima,diterima,True,ya,302 -> /dashboard/,6.6
+57,unik,Warga Sintetis 057,0000000000000057,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+58,unik,Warga Sintetis 058,0000000000000058,diterima,diterima,True,ya,302 -> /dashboard/,6.1
+59,unik,Warga Sintetis 059,0000000000000059,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+60,unik,Warga Sintetis 060,0000000000000060,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+61,unik,Warga Sintetis 061,0000000000000061,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+62,unik,Warga Sintetis 062,0000000000000062,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+63,unik,Warga Sintetis 063,0000000000000063,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+64,unik,Warga Sintetis 064,0000000000000064,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+65,unik,Warga Sintetis 065,0000000000000065,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+66,unik,Warga Sintetis 066,0000000000000066,diterima,diterima,True,ya,302 -> /dashboard/,15.5
+67,unik,Warga Sintetis 067,0000000000000067,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+68,unik,Warga Sintetis 068,0000000000000068,diterima,diterima,True,ya,302 -> /dashboard/,6.5
+69,unik,Warga Sintetis 069,0000000000000069,diterima,diterima,True,ya,302 -> /dashboard/,54.1
+70,unik,Warga Sintetis 070,0000000000000070,diterima,diterima,True,ya,302 -> /dashboard/,7.2
+71,duplikat,Andi Saputra,0000000000000001,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,14.8
+72,duplikat,Siti Rahayu,0000000000000002,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,4.2
+73,duplikat,Budi Santoso,0000000000000003,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,4.1
+74,duplikat,Dewi Lestari,0000000000000004,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.9
+75,duplikat,Agus Prasetyo,0000000000000005,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,4.1
+76,duplikat,Rina Wulandari,0000000000000006,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.7
+77,duplikat,Eko Susanto,0000000000000007,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.7
+78,duplikat,Fitri Handayani,0000000000000008,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,4.0
+79,duplikat,Joko Priyanto,0000000000000009,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.8
+80,duplikat,Sri Wahyuni,0000000000000010,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.9
+81,duplikat,Pemohon Lain 11,0000000000000011,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.8
+82,duplikat,Pemohon Lain 12,0000000000000012,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,4.8
+83,duplikat,Pemohon Lain 13,0000000000000013,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.9
+84,duplikat,Pemohon Lain 14,0000000000000014,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.7
+85,duplikat,Pemohon Lain 15,0000000000000015,ditolak,ditolak,True,tidak,NIK tersebut sudah terdaftar.,3.8
+86,nama mirip,Andi Saputro,0000000000000071,diterima,diterima,True,ya,302 -> /dashboard/,6.0
+87,nama mirip,Siti Rahayuningsih,0000000000000072,diterima,diterima,True,ya,302 -> /dashboard/,49.5
+88,nama mirip,Budi Santosa,0000000000000073,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+89,nama mirip,Dewi Lestari Putri,0000000000000074,diterima,diterima,True,ya,302 -> /dashboard/,6.7
+90,nama mirip,Agus Prasetio,0000000000000075,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+91,nama mirip,Rina Wulandari Hapsari,0000000000000076,diterima,diterima,True,ya,302 -> /dashboard/,6.3
+92,nama mirip,Eko Susanti,0000000000000077,diterima,diterima,True,ya,302 -> /dashboard/,5.9
+93,nama mirip,Fitri Handayani Sari,0000000000000078,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+94,nama mirip,Joko Priyatno,0000000000000079,diterima,diterima,True,ya,302 -> /dashboard/,6.4
+95,nama mirip,Sri Wahyuningsih,0000000000000080,diterima,diterima,True,ya,302 -> /dashboard/,5.8
+96,nama mirip,Hendra Gunarto,0000000000000081,diterima,diterima,True,ya,302 -> /dashboard/,6.1
+97,nama mirip,Maya Anggraini Puspita,0000000000000082,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+98,nama mirip,Rudi Hartanto,0000000000000083,diterima,diterima,True,ya,302 -> /dashboard/,6.2
+99,nama mirip,Lia Permata Sari Dewi,0000000000000084,diterima,diterima,True,ya,302 -> /dashboard/,5.7
+100,nama mirip,Toni Wijaya,0000000000000085,diterima,diterima,True,ya,302 -> /dashboard/,5.9

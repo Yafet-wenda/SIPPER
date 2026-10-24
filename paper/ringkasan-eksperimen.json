@@ -1,0 +1,58 @@
+{
+  "dibuat": "2026-10-24T12:01:43",
+  "lingkungan": {
+    "engine": "django.db.backends.mysql",
+    "nama_database_uji": "test_sipper_db",
+    "host": "127.0.0.1"
+  },
+  "uji1": {
+    "total_entri": 100,
+    "unik": {
+      "diuji": 70,
+      "diterima": 70
+    },
+    "duplikat": {
+      "diuji": 15,
+      "terdeteksi": 15,
+      "terlewat": 0
+    },
+    "nama_mirip": {
+      "diuji": 15,
+      "diterima": 15,
+      "salah_tolak": 0
+    },
+    "latensi_ms": {
+      "median": 6.1,
+      "p95": 14.8
+    }
+  },
+  "uji2": {
+    "total_skenario": 20,
+    "per_kategori": {
+      "sah": {
+        "diuji": 4,
+        "sesuai": 4
+      },
+      "tidak lengkap": {
+        "diuji": 5,
+        "sesuai": 5
+      },
+      "menunggu verifikasi": {
+        "diuji": 3,
+        "sesuai": 3
+      },
+      "ditolak": {
+        "diuji": 3,
+        "sesuai": 3
+      },
+      "akun lain": {
+        "diuji": 5,
+        "sesuai": 5
+      }
+    },
+    "latensi_ms": {
+      "median": 3.5,
+      "p95": 15.6
+    }
+  }
+}
