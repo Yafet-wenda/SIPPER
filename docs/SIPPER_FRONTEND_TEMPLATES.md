@@ -1,6 +1,6 @@
 # Workspace Implementation Note
 
-The current runnable templates are in the root `templates/` directory and use `base.html`, `home.html`, `application_v2.html`, `citizen_dashboard_v4.html`, `application_detail_v2.html`, and related active variants. The original multi-app template examples below remain reference material for future refactoring.
+Templat yang benar-benar berjalan ada di root `templates/` (`landing.html` sebagai beranda, `dashboard.html`, `officer.html`, `login.html`, `register_v2.html`, `scan_card.html`, dan seterusnya). Contoh templat multi-aplikasi di bawah ini adalah materi rujukan historis untuk refactoring — jangan dianggap spesifikasi antarmuka saat ini.
 
 # SIPPER - Frontend Templates & Components
 ## HTML Templates & JavaScript Implementation
@@ -753,7 +753,7 @@ function initializeFileUpload() {
 }
 
 // ============================================
-// Bootstrap Tooltips
+// Bootstrap Tooltips (contoh historis — proyek saat ini tidak memakai Bootstrap)
 // ============================================
 
 function initializeTooltips() {
@@ -972,7 +972,8 @@ def api_perantau_status(request):
 
 ## 📱 Responsive Design Breakpoints
 
-Tema hijau SIPPER menggunakan Bootstrap 5 breakpoints:
+Desain historis memakai breakpoints gaya Bootstrap 5 (proyek saat ini memakai CSS
+tulisan sendiri dengan *breakpoint* 900 px yang ditentukan di `static/css/style.css`):
 - **xs**: < 576px (Mobile)
 - **sm**: ≥ 576px (Tablet)
 - **md**: ≥ 768px (Tablet Landscape)

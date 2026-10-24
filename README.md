@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.13%20%7C%203.14-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 [![Django](https://img.shields.io/badge/Django-5.2-092E20?style=for-the-badge&logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![MariaDB](https://img.shields.io/badge/MariaDB-10.4%20%28XAMPP%29-4479A1?style=for-the-badge&logo=mariadb&logoColor=white)](https://mariadb.org/)
-[![License](https://img.shields.io/badge/License-Academic-blue?style=for-the-badge)](#-batasan-sistem-dan-disclaimer)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
 
 ---
 
@@ -76,7 +76,7 @@ Pra-verifikasi yang berjalan saat ini **berbasis aturan di Django**: validasi st
 
 | Layer | Teknologi | Fungsi |
 | :--- | :--- | :--- |
-| Bahasa | `Python 3.13` / `3.14` | Logika *backend* utama; kedua versi diuji di CI |
+| Bahasa | `Python 3.12` (pengembangan lokal), `3.13`/`3.14` (CI) | Logika *backend* utama; dua versi terakhir diuji di CI |
 | Rerangka | `Django 5.2` | MVT, ORM, autentikasi, admin |
 | Basis data | `MariaDB 10.4` (XAMPP) atau keluarga MySQL | Penyimpanan data relasional warga, pengajuan, dan dokumen |
 | Penghubung basis data | `PyMySQL` | Driver Django ORM ke MySQL/MariaDB |
@@ -145,7 +145,7 @@ SIPPER/
 ├── media/                          # Berkas unggahan dan QR terhasil (di-gitignore)
 ├── docs/                           # 📚 Dokumentasi teknis
 │   ├── SIPPER_FULLSTACK_GUIDE.md   # Panduan arsitektur dan alur API
-│   ├── SIPPER_FRONTEND_TEMPLATES.md# Spesifikasi templat antarmuka
+│   ├── SIPPER_FRONTEND_TEMPLATES.md # Spesifikasi templat antarmuka
 │   ├── SIPPER_SETUP_DEPLOYMENT.md  # Panduan instalasi dan penerapan
 │   ├── SIPPER_QUICK_REFERENCE.md   # Ringkasan perintah baris
 │   └── ci-status.md                # Status dan riwayat hasil CI

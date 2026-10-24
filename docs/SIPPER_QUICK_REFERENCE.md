@@ -261,10 +261,10 @@ GET  /health/                     - Cek kesehatan + koneksi basis data
 
 | Component | Recommended | Minimum |
 |-----------|------------|---------|
-| Python | 3.13 / 3.14 (keduanya diuji di CI) | 3.12 |
+| Python | 3.13 / 3.14 (keduanya diuji di CI; lokal memakai 3.12) | 3.12 |
 | Django | 5.2.x (`Django>=5.2,<6.0`) | 5.2 |
-| MySQL/MariaDB | MariaDB 10.11 (CI) / MySQL 8 | MariaDB 10.5* |
-| Bootstrap | 5.3+ | 5.1 |
+| MySQL/MariaDB | MariaDB 10.11 (CI) / 10.4+ (XAMPP lokal) | MariaDB 10.5* |
+| CSS | Tulisan sendiri (`static/css/`) — tanpa Bootstrap | — |
 
 \* Django 5.2 mensyaratkan MariaDB 10.5. Mesin XAMPP lokal memakai 10.4, jadi
 `sipper/__init__.py` memuat *shim* yang menurunkan gerbang versi dan mematikan
@@ -430,7 +430,7 @@ for query in ctx:
 - **Django REST Framework**: https://www.django-rest-framework.org/
 
 ### Frontend Resources
-- **Bootstrap 5**: https://getbootstrap.com/
+- **Bootstrap 5** (hanya rujukan historis — proyek ini memakai CSS tulisan sendiri): https://getbootstrap.com/
 - **Font Awesome**: https://fontawesome.com/
 - **Can I Use**: https://caniuse.com/
 

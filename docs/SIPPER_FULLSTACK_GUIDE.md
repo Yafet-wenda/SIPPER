@@ -7,8 +7,8 @@ The runnable workspace currently uses the `sipper` project package and a single 
 
 **Status:** Rujukan historis (bukan spesifikasi berjalan)  
 **Version:** 1.0.0  
-**Tech Stack yang diuraikan di bawah:** Python 3.10+, Django 4.2, MySQL 8.0, Bootstrap 5  
-**Yang berjalan sekarang:** Python 3.13/3.14, Django 5.2, MariaDB 10.4 (XAMPP), CSS
+**Tech Stack yang diuraikan di bawah (rancangan lama):** Python 3.10+, Django 4.2, MySQL 8.0, Bootstrap 5 — versi-versi ini hanya konteks historis, JANGAN dipakai untuk pemasangan baru  
+**Yang berjalan sekarang:** Python 3.12 (lokal) / 3.13–3.14 (CI), Django 5.2, MariaDB 10.4 (XAMPP), CSS
 tulisan sendiri tanpa Bootstrap, satu aplikasi `core` plus panel `ai_ocr`  
 **Author:** Development Team  
 **Last Updated:** 2024 — blok *settings* di bagian 4 adalah rancangan lama: nilai

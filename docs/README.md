@@ -55,8 +55,8 @@ Angka dan nama berikut dibaca langsung dari kode, bukan dari dokumen.
 
 | Aspek | Nilai sebenarnya | Sumber |
 | :--- | :--- | :--- |
-| Bahasa pemrograman | Python 3.14.6 pada `.venv` | `py --version` di dalam *venv* |
-| Rerangka web | Django 5.2.17 | `requirements.txt` (`Django>=5.2,<6.0`) |
+| Bahasa pemrograman | Python 3.12.3 pada `.venv` lokal; CI menguji 3.13 dan 3.14 | `python --version` di dalam *venv*, `.github/workflows/ci.yml` |
+| Rerangka web | Django 5.2.18 | `requirements.txt` (`Django>=5.2,<6.0`) |
 | Basis data | MariaDB 10.4 bawaan XAMPP, *port* 3306 | `sipper/__init__.py` (gerbang versi diturunkan lewat *shim*) |
 | Arsitektur aplikasi | dua aplikasi milik proyek: `core` (seluruh logika bisnis) dan `ai_ocr` (panel tinjauan hasil OCR, tanpa tabel sendiri) | `sipper/settings.py` (`INSTALLED_APPS`) |
 | Model | 7 model tabel nyata: `Penduduk`, `Pengajuan`, `KartuDigital`, `Dokumen`, `AuditLog`, `Pemutakhiran`, `UserRole`; ditambah 1 *proxy model* `TinjauanOcr` di `ai_ocr` yang membaca baris `core_dokumen` yang sama | `core/models.py`, `ai_ocr/models.py` |
@@ -92,17 +92,17 @@ baris tertentu supaya mudah diverifikasi ulang sebelum dokumennya disunting.
 
 | Klaim pada dokumen | Kenyataan di kode | Lokasi klaim |
 | :--- | :--- | :--- |
-| Django 4.2 | Django 5.2.17 | `SIPPER_FULLSTACK_GUIDE.md:10,61` (di QUICK_REFERENCE sudah dikoreksi 23 Okt 2026) |
-| MySQL 8.0 | MariaDB 10.4 (XAMPP). *Shim* menolak MySQL 8, jadi klaim ini justru menyesatkan saat pemasangan. | `SIPPER_FULLSTACK_GUIDE.md:10` (di QUICK_REFERENCE sudah dikoreksi) |
-| Bootstrap 5 | Tidak ada Bootstrap sama sekali di `templates/` dan `static/`; gaya memakai CSS tulisan sendiri. | `SIPPER_FULLSTACK_GUIDE.md:10,67,457,542,627,1697,1751`; `SIPPER_FRONTEND_TEMPLATES.md:756,975`; `SIPPER_QUICK_REFERENCE.md:431` (daftar tautan sumber umum) |
+| Django 4.2 | Django 5.2.18 | `SIPPER_FULLSTACK_GUIDE.md:10,61` — baris tumpukan sudah diberi label "rancangan lama" (dikoreksi 24 Okt 2026) |
+| MySQL 8.0 | MariaDB 10.4 (XAMPP). *Shim* menolak MySQL 8, jadi klaim ini justru menyesatkan saat pemasangan. | `SIPPER_FULLSTACK_GUIDE.md:10` — sudah berlabel "rancangan lama" (24 Okt 2026); tabel QUICK_REFERENCE sudah memakai MariaDB |
+| Bootstrap 5 | Tidak ada Bootstrap sama sekali di `templates/` dan `static/`; gaya memakai CSS tulisan sendiri. | Setiap penyebutan di FULLSTACK/FRONTEND/QUICK_REFERENCE kini berlabel "historis/rancangan lama" (24 Okt 2026) |
 | `static/js/main.js` | Berkasnya tidak ada, dan tidak satu pun *template* memuatnya. | `SIPPER_FRONTEND_TEMPLATES.md:640`; `SIPPER_FULLSTACK_GUIDE.md:459,1757` (peta berkas QUICK_REFERENCE sudah diperbaiki) |
 | LangChain 0.0.300 dan OpenAI 0.27.8 untuk prapemeriksaan pintar | Kedua paket tidak ada di `requirements.txt`. Yang berjalan sekarang adalah aturan validasi NIK serta pemeriksaan ukuran dan jenis berkas. | `SIPPER_FULLSTACK_GUIDE.md:70-71,669,2306`; `SIPPER_SETUP_DEPLOYMENT.md:160` |
 | Multi-*app*: `users`, `perantau`, `verifikasi`, `kartu` | Dua aplikasi: `core` memegang seluruh rute dan model, `ai_ocr` hanya menambah panel tinjauan OCR di admin. Tidak ada satu pun dari empat nama *app* lama itu. | `SIPPER_FULLSTACK_GUIDE.md:88`; `SIPPER_FRONTEND_TEMPLATES.md:12` |
-| Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan memakai 3.14. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
+| Python 3.10 sebagai prasyarat minimum | Benar untuk Django 5.2, tetapi CI menguji 3.13 dan 3.14 sementara pengembangan lokal memakai 3.12.3. | `SIPPER_FULLSTACK_GUIDE.md:10,33` |
 | Rute `/api/status/` dan `/api/perantau/status/` | `api_status` dihapus: tidak satu pun templat memanggilnya dan isinya (status pengajuan milik diri sendiri) sudah tersedia di dasbor. | `core/urls.py` |
 
-Rekam jejak CI berada di `ci-status.md`. Sampai 16 Oktober 2026 repositori punya 22
-*run* workflow `CI`: 19 berkesimpulan **success** dan 3 (`#7`, `#8`, `#16`) `cancelled`
+Rekam jejak CI berada di `ci-status.md`. Sampai 24 Oktober 2026 repositori punya 32
+*run* workflow `CI`: 29 berkesimpulan **success** dan 3 (`#7`, `#8`, `#16`) `cancelled`
 karena gerbang `concurrency` dengan `cancel-in-progress: true` membatalkan run lama dari
 *push* yang sama sebelum ada langkah yang selesai. Tidak ada satu pun *run* yang
 *failure*. Tabel per-*run* di `ci-status.md` masih berhenti di #10; baris sisanya belum
