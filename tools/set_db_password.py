@@ -90,14 +90,17 @@ def main():
                 # Akun hilang: buat ulang dengan hak minimal pada satu basis data saja,
                 # sama seperti saat pengerasan stack dulu.
                 cursor.execute(f"CREATE USER {quoted_account(app_user)}@{quoted_account('localhost')} IDENTIFIED BY %s", (new_password,))
-                cursor.execute(
-                    f"GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, REFERENCES, "
-                    f"CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, TRIGGER "
-                    f"ON {quoted_account(db_name)}.* TO {quoted_account(app_user)}@{quoted_account('localhost')}"
-                )
+                for basis in (db_name, f'test_{db_name}'):
+                    cursor.execute(
+                        f"GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, DROP, REFERENCES, "
+                        f"CREATE TEMPORARY TABLES, LOCK TABLES, EXECUTE, CREATE VIEW, SHOW VIEW, TRIGGER "
+                        f"ON {quoted_account(basis)}.* TO {quoted_account(app_user)}@{quoted_account('localhost')}"
+                    )
                 hosts = ['localhost']
             for db_host in hosts:
-                cursor.execute(f"SET PASSWORD FOR {quoted_account(app_user)}@{quoted_account(db_host)} = %s", (new_password,))
+                # MariaDB 10.4 menolak bentuk SET PASSWORD FOR ... = 'teks' dengan
+                # galat 1372 (literal dibaca sebagai hash), jadi ALTER USER dipakai.
+                cursor.execute(f"ALTER USER {quoted_account(app_user)}@{quoted_account(db_host)} IDENTIFIED BY %s", (new_password,))
             cursor.execute('FLUSH PRIVILEGES')
         print(f'Password {app_user} diganti untuk host: {", ".join(hosts)}.')
     finally:

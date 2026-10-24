@@ -74,11 +74,12 @@ def main():
             if not hosts:
                 raise SystemExit(f'Akun {app_user} tidak ada di MariaDB - pakai tools\\set_db_password.py.')
             for db_host in hosts:
-                cursor.execute(
-                    f'GRANT {PRIVILEGES} ON {quoted_account(db_name)}.* '
-                    f'TO {quoted_account(app_user)}@{quoted_account(db_host)}'
-                )
-                print(f'GRANT dijalankan untuk {app_user}@{db_host}.')
+                for basis in (db_name, f'test_{db_name}'):
+                    cursor.execute(
+                        f'GRANT {PRIVILEGES} ON {quoted_account(basis)}.* '
+                        f'TO {quoted_account(app_user)}@{quoted_account(db_host)}'
+                    )
+                print(f'GRANT dijalankan untuk {app_user}@{db_host} (basis {db_name} dan test_{db_name}).')
             cursor.execute('FLUSH PRIVILEGES')
     finally:
         connection.close()
