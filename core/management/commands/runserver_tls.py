@@ -45,7 +45,7 @@ def sertifikat_dev():
 
 
 def server_tls(base_cls, crt, key):
-    """Kelas server yang membungkus socket-nya sendiri dengan TLS sesudah listen."""
+    """Kelas server yang membungkus socket pendengarannya dengan TLS sesudah listen."""
     konteks = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     konteks.load_cert_chain(certfile=str(crt), keyfile=str(key))
 
@@ -65,3 +65,19 @@ class Command(RunserverCommand):
         crt, key = sertifikat_dev()
         self.server_cls = server_tls(self.server_cls, crt, key)
         super().handle(*args, **options)
+
+    def get_handler(self, *args, **options):
+        """Laporkan skema https ke Django.
+
+        `wsgiref` menebak skema dari SERVER_PORT (lihat wsgiref.util.guess_scheme), jadi
+        peladen TLS di port 8000 tetap mengaku 'http'. Tanpa koreksi ini Django menilai
+        Origin `https://127.0.0.1:8000` dari peramban sebagai lintas-origin dan menolak
+        SETIAP POST dengan 403 — formulir masuk dan daftar tidak bisa dipakai.
+        """
+        handler = super().get_handler(*args, **options)
+
+        def handler_tls(environ, start_response):
+            environ['wsgi.url_scheme'] = 'https'
+            return handler(environ, start_response)
+
+        return handler_tls
