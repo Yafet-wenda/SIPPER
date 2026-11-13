@@ -63,6 +63,17 @@
         Foto Kartu Keluarga <small>PDF, JPG, PNG / maksimal 5 MB</small>
         <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png" required>
       </label>
+      {% if gemini_ocr_available %}
+        <div class="full">
+          <p>Dengan persetujuan, KTP dikirim ke Google Gemini bila OCR lokal gagal/meragukan atau data utamanya belum lengkap; setiap KK dikirim untuk membaca tabel anggota keluarga secara rinci. PDF KTP/KK juga dikirim karena OCR lokal belum mendukung PDF. Tanpa persetujuan, dokumen hanya diproses lokal dan PDF tidak terbaca OCR. Pasfoto tidak dikirim.</p>
+          <label>
+            <input type="checkbox" name="izin_gemini_ocr">
+            Saya menyetujui KTP/KK yang saya unggah dikirim ke Google Gemini sesuai kondisi di atas.
+          </label>
+        </div>
+      {% else %}
+        <p class="full">Gemini OCR nonaktif. KTP/KK hanya diproses di server ini.</p>
+      {% endif %}
       <label class="full">
         Pasfoto <small>opsional — JPG atau PNG / maksimal 5 MB, dipakai untuk kartu digital</small>
         <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png">

@@ -68,7 +68,9 @@ Perpindahan penduduk antar daerah untuk studi, pekerjaan, maupun bisnis bersifat
 
 ### 🤖 Pra-verifikasi Otomatis
 
-Pra-verifikasi yang berjalan saat ini **berbasis aturan di Django**: validasi struktur NIK, kelengkapan isian, tipe dan ukuran berkas, serta pencatatan audit. Di halaman detail petugas ada **Asisten Verifikasi Dokumen** dengan dua mesin: bila `GEMINI_API_KEY` diisi di `.env`, pertanyaan dijawab LLM cloud Google Gemini (percakapan dan ringkasan konteks pengajuan dikirim ke Google); tanpa kunci — atau setiap kali Gemini gagal — asisten otomatis jatuh ke mesin aturan lokal yang jalan sepenuhnya offline.
+Pra-verifikasi yang berjalan saat ini **berbasis aturan di Django**: validasi struktur NIK, kelengkapan isian, tipe dan ukuran berkas, serta pencatatan audit. Di halaman detail petugas ada **Asisten Verifikasi Dokumen** dengan dua mesin: bila `GEMINI_API_KEY` diisi di `.env`, pertanyaan dan 12 giliran percakapan terakhir dapat dikirim ke LLM cloud Google Gemini setelah email dan rangkaian 10–16 digit yang dikenali disamarkan. Konteks pengajuan dibatasi ke status dan metadata agregat dokumen; identitas dan nilai OCR mentah tidak disertakan. Nama atau alamat dalam percakapan tidak dapat disamarkan secara andal, jadi petugas tidak boleh memasukkan data identitas.
+
+OCR lokal memakai Tesseract. Jalur Gemini Vision hibrida bersifat opt-in terpisah: set `GEMINI_OCR_ENABLED=1` hanya setelah kunci dirotasi dan kebijakan persetujuan tersedia. KTP yang pemiliknya setuju dikirim ke Gemini jika OCR lokal gagal, confidence rendah, atau field utama tidak terbaca; KK yang disetujui dikirim untuk membaca tabel anggota keluarga secara rinci. PDF KTP/KK yang disetujui juga dapat diproses lewat Gemini. Pasfoto dan dokumen jenis lain tidak dikirim. Tanpa persetujuan, pemrosesan tetap lokal; PDF belum dapat dibaca Tesseract. Panel petugas menampilkan mesin OCR yang digunakan dan menyajikan anggota KK sebagai daftar terstruktur. Hasil Gemini tidak memiliki confidence terkalibrasi dan tidak menentukan keaslian dokumen, sehingga tetap harus diperiksa petugas.
 
 ---
 
@@ -333,8 +335,7 @@ Dua pekerjaan harian berjalan sebagai *Scheduled Task* Windows setelah `register
 
 ### Administrasi
 
-Akun superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan. Petugas biasa bekerja di `/petugas/`; peran mereka disimpan sebagai baris `UserRole` yang dibaca `core.akses.is_officer` (satu-satunya tempat pertanyaan "apakah akun ini petugas" dijawab), tanpa menyentuh tabel autentikasi.
-
+Acount superuser memakai `/admin/` sebagai pusat kendali. Dasbor admin menampilkan statistik langsung yang diperbarui setiap 5 detik (`REFRESH_MS` pada `static/js/admin-dashboard.js`), pengajuan terbaru, aktivitas audit, dan jumlah dokumen yang menunggu peninjauan. Setiap model memiliki pencarian, filter, paginasi, dan aksi massal yang relevan. Petugas biasa bekerja di `/petugas/`; peran mereka disimpan sebagai baris `UserRole` yang dibaca `core.akses.is_officer` (satu-satunya tempat pertanyaan "apakah akun ini petugas" dijawab), tanpa menyentuh tabel autentikasi.
 
 Perintah pengelolaan:
 
@@ -371,6 +372,4 @@ terhapus. Cadangan dibuat lebih dulu dengan `python manage.py backup_db`.
 
 ---
 
-<p align="center">
-  <sub>Dibangun dengan Python dan Django untuk inovasi e-government.</sub>
-</p>
+*Dibangun dengan Python dan Django untuk inovasi e-government.*

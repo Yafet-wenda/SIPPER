@@ -40,12 +40,20 @@ def jalankan_ocr(dokumen_id):
                 return
             hasil = process_document(dokumen)
             if hasil['success']:
+                confidence = (
+                    f'{hasil["confidence"]}%'
+                    if hasil['confidence'] is not None else 'tidak tersedia'
+                )
+                skor = (
+                    f'{hasil["skor"]}%'
+                    if hasil['skor'] is not None else 'tidak dinilai'
+                )
                 AuditLog.objects.create(
                     aksi='ocr_processed',
                     deskripsi=(
                         f'OCR berhasil pada {dokumen.nama} '
-                        f'(confidence: {hasil["confidence"]}%, '
-                        f'skor kecocokan: {hasil["skor"]}%, '
+                        f'(sumber: {hasil["provider"]}, confidence Tesseract: {confidence}, '
+                        f'skor kecocokan: {skor}, '
                         f'prapemilahan: {hasil["prescreen"]})'
                     ),
                 )

@@ -29,6 +29,7 @@ karena pemanggil yang memformatnya):
 """
 import os
 import re
+from django.conf import settings
 
 from .ai_verifikasi import AMBAT_VALID
 
@@ -330,13 +331,25 @@ def _llm_aktif():
 
 
 def _jawab_privasi(konteks):
-    baris = ['Semua pemrosesan berkas dan OCR berjalan di server ini; Tesseract terpasang lokal.']
+    baris = ['Pembacaan awal memakai Tesseract lokal di server ini.']
     if _llm_aktif():
         baris.append(
-            'Perhatian: asisten ini kini memakai LLM cloud (Gemini). Pertanyaan Anda beserta '
-            'ringkasan data pengajuan (nama, NIK, rute) dikirim ke server Google untuk '
-            'menyusun jawaban. Kalau gagal, asisten jatuh ke mesin aturan yang sepenuhnya lokal.'
+            'Perhatian: asisten ini memakai LLM cloud (Gemini). Pertanyaan dan 12 giliran '
+            'percakapan terakhir dikirim ke Google setelah email serta rangkaian 10-16 digit '
+            'yang dikenali disamarkan. Konteks pengajuan dibatasi pada status, skor, dan '
+            'metadata dokumen; nama, NIK tersimpan, telepon, alamat, rute, catatan bebas, '
+            'kode kartu, dan nilai OCR mentah tidak disertakan dari konteks itu. Nama atau '
+            'alamat dalam pesan maupun riwayat chat tidak dapat disamarkan secara andal, '
+            'jadi jangan masukkan data identitas ke percakapan. Jika Gemini gagal, jawaban '
+            'beralih ke mesin aturan lokal.'
         )
+        if settings.GEMINI_OCR_ENABLED:
+            baris.append(
+                'Gemini OCR juga aktif: KTP yang disetujui warga dikirim jika hasil lokal '
+                'gagal/meragukan; setiap KK yang disetujui dikirim untuk membaca tabel '
+                'anggota keluarga. PDF KTP/KK hanya dapat dibaca lewat jalur ini. '
+                'Tanpa persetujuan warga, berkas tidak dikirim.'
+            )
     else:
         baris.append(
             'Asisten ini saat ini berjalan penuh di mesin aturan lokal — tidak ada pertanyaan '

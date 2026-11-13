@@ -190,6 +190,18 @@ def _validate_lampiran(request, files):
     return None
 
 
+def _waktu_persetujuan_gemini(request, files):
+    """Catat persetujuan hanya saat fitur tersedia dan warga memilihnya."""
+    ada_dokumen = any(files.get(field) for field, _ in LAMPILAN_UPLOAD)
+    if (
+        ada_dokumen
+        and request.POST.get('izin_gemini_ocr') == 'on'
+        and llm.ocr_vision_tersedia()
+    ):
+        return timezone.now()
+    return None
+
+
 @login_required(login_url='/login/')
 def application(request):
     if request.method == 'POST':
@@ -217,15 +229,26 @@ def application(request):
             messages.error(request, 'NIK tersebut sudah terdaftar.')
         else:
             try:
+                waktu_persetujuan = _waktu_persetujuan_gemini(request, files)
                 person = Penduduk.objects.create(user=request.user, nama=data['name'], nik=data['nik'], nomor_telepon=data['phone'], tanggal_mulai=_parse_date(data['tanggal_mulai']), perkiraan_kembali=_parse_date(data['perkiraan_kembali']), daerah_asal=data['origin'], kota_tujuan=data['destination'], tujuan=data['purpose'], foto=files['pasfoto'])
                 Pengajuan.objects.create(penduduk=person)
                 for field, _ in LAMPILAN_UPLOAD:
                     uploaded = files[field]
-                    doc = Dokumen.objects.create(penduduk=person, jenis=field, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
+                    doc = Dokumen.objects.create(
+                        penduduk=person, jenis=field, nama=os.path.basename(uploaded.name),
+                        file=uploaded, ukuran=uploaded.size,
+                        gemini_ocr_consent_at=waktu_persetujuan,
+                    )
                     # Trigger OCR processing di background
                     picu_async(doc.id)
                 jumlah_lampiran = len(LAMPILAN_UPLOAD) + (1 if files['pasfoto'] else 0)
                 AuditLog.objects.create(user=request.user, aksi='pengajuan', deskripsi=f'Pengajuan dibuat untuk {person.nama} dengan {jumlah_lampiran} lampiran.')
+                if waktu_persetujuan:
+                    AuditLog.objects.create(
+                        user=request.user,
+                        aksi='persetujuan_ocr_gemini',
+                        deskripsi='Warga menyetujui pemrosesan KTP/KK yang meragukan melalui Gemini OCR.',
+                    )
             except IntegrityError:
                 messages.error(request, 'NIK tersebut sudah terdaftar.')
                 return render(request, 'application_v3.html', {'name': request.user.first_name, 'tujuan_pilihan': Penduduk.TUJUAN})
@@ -245,6 +268,7 @@ def resubmit_application(request, pk):
         files = {field: request.FILES.get(field) for field, _ in SEMUA_LAMPILAN}
         if _validate_lampiran(request, files):
             return redirect('core:dashboard')
+        waktu_persetujuan = _waktu_persetujuan_gemini(request, files)
         # Sengaja tidak lewat terapkan_status: fungsi itu mencatat siapa petugas
         # yang memverifikasi dan mengirim surat keputusan, sedangkan di sini yang
         # bergerak warga yang melengkapi berkasnya sendiri.
@@ -262,7 +286,10 @@ def resubmit_application(request, pk):
                 existing.ukuran = uploaded.size
                 existing.status = 'pending'
                 existing.file = uploaded
-                existing.save(update_fields=['nama', 'ukuran', 'status', 'file'])
+                existing.gemini_ocr_consent_at = waktu_persetujuan
+                existing.save(update_fields=[
+                    'nama', 'ukuran', 'status', 'file', 'gemini_ocr_consent_at',
+                ])
                 # Trigger OCR ulang untuk dokumen yang diganti
                 picu_async(existing.id)
                 # Penggantian FileField tidak menghapus berkas lama, jadi
@@ -270,7 +297,11 @@ def resubmit_application(request, pk):
                 # warga yang sudah tidak dipakai.
                 default_storage.delete(nama_lama)
             else:
-                doc = Dokumen.objects.create(penduduk=item.penduduk, jenis=field, nama=os.path.basename(uploaded.name), file=uploaded, ukuran=uploaded.size)
+                doc = Dokumen.objects.create(
+                    penduduk=item.penduduk, jenis=field, nama=os.path.basename(uploaded.name),
+                    file=uploaded, ukuran=uploaded.size,
+                    gemini_ocr_consent_at=waktu_persetujuan,
+                )
                 picu_async(doc.id)
         if files['pasfoto']:
             nama_lama = item.penduduk.foto.name
@@ -281,6 +312,12 @@ def resubmit_application(request, pk):
             if nama_lama:
                 default_storage.delete(nama_lama)
         AuditLog.objects.create(user=request.user, aksi='kirim_ulang', deskripsi=f'Pengajuan {item.penduduk.nama} dikirim ulang.')
+        if waktu_persetujuan:
+            AuditLog.objects.create(
+                user=request.user,
+                aksi='persetujuan_ocr_gemini',
+                deskripsi='Warga menyetujui pemrosesan KTP/KK yang diganti melalui Gemini OCR.',
+            )
         messages.success(request, 'Pengajuan berhasil dikirim ulang untuk ditinjau.')
     return redirect('core:dashboard')
 
@@ -634,6 +671,7 @@ def api_ocr_result(request, pk):
         'jenis': dokumen.jenis,
         'status': dokumen.status,
         'ocr_text': dokumen.ocr_text or '',
+        'ocr_provider': dokumen.ocr_provider,
         'ocr_confidence': dokumen.ocr_confidence,
         'extracted_nik': dokumen.extracted_nik,
         'extracted_data': dokumen.extracted_data,

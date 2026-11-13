@@ -250,6 +250,29 @@ def ekstrak_dengan_pilihan_praproses(file_path, lang='ind+eng'):
     return polos
 
 
+def _parse_berdasarkan_jenis(ocr_result, jenis):
+    if jenis == 'ktp':
+        return parse_ktp_data(ocr_result)
+    if jenis == 'kk':
+        return parse_kk_data(ocr_result)
+    return {}
+
+
+def _perlu_gemini(ocr_result, parsed_data, jenis):
+    if ocr_result.get('error') or not ocr_result.get('text'):
+        return True
+    if ocr_result.get('confidence', 0) < AMBAT_PREPROCESS:
+        return True
+    if jenis == 'ktp':
+        field_utama_ktp = (
+            'nik', 'nama', 'tempat_tgl_lahir', 'jenis_kelamin', 'alamat',
+        )
+        return any(not parsed_data.get(field) for field in field_utama_ktp)
+    # Parser lokal KK belum membaca tabel anggota keluarga, jadi pembacaan
+    # rinci tetap memerlukan Vision selama warga memberi persetujuan.
+    return not parsed_data.get('anggota_keluarga')
+
+
 def process_document(dokumen_obj):
     """Proses lengkap: ekstrak teks, parse field KTP/KK, lalu nilai kecocokannya.
 
@@ -274,42 +297,64 @@ def process_document(dokumen_obj):
         _tandai_belum_dinilai(dokumen_obj, f'Berkas hilang dari penyimpanan: {os.path.basename(file_path)}')
         return {'success': False, 'error': f'File tidak ditemukan: {file_path}'}
 
-    # Tesseract hanya menerima gambar. PDF dulunya gagal dengan pesan error PIL
-    # yang tidak menjelaskan apa pun di log; sekarang sebabnya ditulis terang.
-    if file_path.lower().endswith('.pdf'):
-        catatan = (
-            'Berkas PDF belum bisa dibaca OCR: Tesseract menerima gambar, '
-            'ekstraksi halaman PDF belum dipasang. Unggah ulang halaman terkait '
-            'sebagai JPG/PNG bila ingin dinilai mesin.'
-        )
-        _tandai_belum_dinilai(dokumen_obj, catatan)
-        return {'success': False, 'skipped': True, 'error': catatan}
-
-    # Tentukan jenis dokumen
     jenis = dokumen_obj.jenis
+    pdf = file_path.lower().endswith('.pdf')
+    if pdf:
+        ocr_result = {
+            'text': '',
+            'confidence': None,
+            'error': 'PDF tidak dapat dibaca Tesseract lokal.',
+        }
+    else:
+        ocr_result = ekstrak_dengan_pilihan_praproses(file_path)
+    parsed_data = _parse_berdasarkan_jenis(ocr_result, jenis)
+    provider = 'tesseract'
+    gemini_error = ''
 
-    # Ekstrak teks
-    ocr_result = ekstrak_dengan_pilihan_praproses(file_path)
+    from . import llm
+    izin_gemini = (
+        jenis in {'ktp', 'kk'}
+        and bool(dokumen_obj.gemini_ocr_consent_at)
+        and llm.ocr_vision_diaktifkan()
+        and _perlu_gemini(ocr_result, parsed_data, jenis)
+    )
+    if izin_gemini:
+        try:
+            hasil_gemini = llm.baca_dokumen_gemini(
+                file_path, jenis,
+                disetujui=bool(dokumen_obj.gemini_ocr_consent_at),
+            )
+        except llm.LlmTidakTersedia as galat:
+            gemini_error = str(galat)
+        else:
+            ocr_result = {
+                'text': hasil_gemini['text'],
+                # Gemini tidak menyediakan confidence score kalibrasi setara
+                # Tesseract, jadi jangan menyamarkan perkiraan model sebagai skor.
+                'confidence': None,
+            }
+            parsed_data = hasil_gemini['fields']
+            provider = 'gemini'
 
     if ocr_result.get('error'):
-        _tandai_belum_dinilai(dokumen_obj, f'Teks berkas gagal dibaca mesin: {ocr_result["error"]}')
+        penyebab = f'Teks berkas gagal dibaca mesin: {ocr_result["error"]}'
+        if gemini_error:
+            penyebab += f' Gemini OCR juga gagal: {gemini_error}'
+        elif pdf and jenis in {'ktp', 'kk'} and not izin_gemini:
+            penyebab += (
+                ' Gemini OCR hanya berjalan jika fitur diaktifkan dan pemilik '
+                'dokumen menyetujui pengiriman ke Google.'
+            )
+        _tandai_belum_dinilai(dokumen_obj, penyebab)
         return {
             'success': False,
-            'error': f'OCR gagal: {ocr_result["error"]}',
+            'skipped': pdf and not izin_gemini,
+            'error': penyebab,
         }
-
-    # Parse data berdasarkan jenis. parse_ktp_data diambil dari core/ktp_parser.py:
-    # satu-satunya versi yang mengenal format kolom. File ini dulu mendefinisikan
-    # ulang nama yang sama sehingga parser lengkap itu tidak pernah terpakai.
-    if jenis == 'ktp':
-        parsed_data = parse_ktp_data(ocr_result)
-    elif jenis == 'kk':
-        parsed_data = parse_kk_data(ocr_result)
-    else:
-        parsed_data = {}
 
     # Update model
     dokumen_obj.ocr_text = ocr_result['text']
+    dokumen_obj.ocr_provider = provider
     dokumen_obj.ocr_confidence = ocr_result['confidence']
     dokumen_obj.extracted_nik = parsed_data.get('nik')
     dokumen_obj.extracted_data = parsed_data
@@ -319,12 +364,22 @@ def process_document(dokumen_obj):
     # dengan isian formulir, lalu tentukan Valid / Perlu review manual dari
     # ambang 85%.
     hasil = nilai_berkas(
-        dokumen_obj.penduduk, parsed_data, ocr_result['confidence'], jenis,
+        dokumen_obj.penduduk, parsed_data, ocr_result.get('confidence') or 0, jenis,
     )
     dokumen_obj.ai_score = hasil['skor']
     dokumen_obj.ai_prescreen = hasil['prescreen']
     dokumen_obj.ai_verified = hasil['prescreen'] == 'valid'
     dokumen_obj.ai_verification_notes = hasil['catatan']
+    if provider == 'gemini':
+        dokumen_obj.ai_verification_notes += (
+            ' Dibaca dengan Gemini Vision karena hasil Tesseract meragukan. '
+            'Confidence Tesseract tidak tersedia; hasil wajib diperiksa petugas '
+            'dan bukan penilaian keaslian dokumen.'
+        )
+    elif gemini_error:
+        dokumen_obj.ai_verification_notes += (
+            f' Gemini OCR gagal ({gemini_error}); hasil Tesseract dipakai.'
+        )
 
     # Hanya kolom hasil OCR/AI yang ditulis. Simpan penuh akan menimpa kolom lain
     # dengan isi salinan yang dibaca thread ini sebelum Tesseract jalan — prosesnya
@@ -333,7 +388,7 @@ def process_document(dokumen_obj):
     # mengubah status dokumen"; janji itu hanya benar kalau status tidak ikut
     # ditulis kembali, walaupun nilainya basi.
     dokumen_obj.save(update_fields=[
-        'ocr_text', 'ocr_confidence', 'extracted_nik', 'extracted_data',
+        'ocr_text', 'ocr_provider', 'ocr_confidence', 'extracted_nik', 'extracted_data',
         'ocr_processed_at', 'ai_score', 'ai_prescreen', 'ai_verified',
         'ai_verification_notes',
     ])
@@ -342,6 +397,7 @@ def process_document(dokumen_obj):
         'success': True,
         'ocr_text': ocr_result['text'],
         'confidence': ocr_result['confidence'],
+        'provider': provider,
         'parsed_data': parsed_data,
         'ai_verified': dokumen_obj.ai_verified,
         'skor': dokumen_obj.ai_score,

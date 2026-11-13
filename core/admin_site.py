@@ -429,11 +429,11 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
     search_fields = ('nama', 'penduduk__nama', 'penduduk__nik')
     list_per_page = 25
     actions = (mark_documents_valid,)
-    readonly_fields = ('uploaded_at', 'ukuran', 'file_link')
+    readonly_fields = ('uploaded_at', 'ukuran', 'file_link', 'gemini_ocr_consent_at')
     list_select_related = ('penduduk',)
     # Keluaran mesin (core/ocr_processor.py): hanya dibaca, tidak diketik tangan.
     FIELD_MESIN = (
-        'ocr_text', 'ocr_confidence', 'extracted_nik', 'extracted_data',
+        'ocr_text', 'ocr_provider', 'ocr_confidence', 'extracted_nik', 'extracted_data',
         'ai_verified', 'ai_verification_notes', 'ocr_processed_at',
     )
     csv_columns = (
@@ -473,7 +473,9 @@ class DokumenAdmin(EksporCSVMixin, admin.ModelAdmin):
                 'classes': ('collapse',),
                 'fields': self.FIELD_MESIN,
             }),
-            ('Metadata berkas', {'fields': ('uploaded_at', 'ukuran', 'file_link')}),
+            ('Metadata berkas', {
+                'fields': ('uploaded_at', 'ukuran', 'file_link', 'gemini_ocr_consent_at'),
+            }),
         )
 
     def get_readonly_fields(self, request, obj=None):

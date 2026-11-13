@@ -45,6 +45,14 @@
               Ganti foto Kartu Keluarga <small>kosongkan bila sudah benar</small>
               <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png">
             </label>
+            {% if gemini_ocr_available %}
+              <label class="full">
+                <input type="checkbox" name="izin_gemini_ocr">
+                Saya menyetujui KTP baru dikirim ke Google Gemini bila OCR lokal gagal/meragukan atau data utamanya belum lengkap, dan setiap KK baru dikirim untuk membaca tabel anggota keluarga.
+              </label>
+            {% else %}
+              <p>Gemini OCR nonaktif. KTP/KK hanya diproses di server ini.</p>
+            {% endif %}
             <label class="full">
               Ganti pasfoto <small>JPG atau PNG, kosongkan bila sudah benar</small>
               <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png">

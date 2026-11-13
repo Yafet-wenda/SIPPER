@@ -110,9 +110,19 @@ class Dokumen(models.Model):
     ukuran = models.PositiveIntegerField(default=0, verbose_name='ukuran')
     status = models.CharField(max_length=20, choices=STATUS, default='pending', verbose_name='status')
     uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name='diunggah pada')
+    gemini_ocr_consent_at = models.DateTimeField(
+        null=True, blank=True, verbose_name='persetujuan pemrosesan OCR Gemini',
+    )
     
     # Field untuk hasil OCR dan verifikasi AI
     ocr_text = models.TextField(blank=True, null=True, verbose_name='teks hasil OCR')
+    ocr_provider = models.CharField(
+        max_length=16,
+        choices=[('', 'Belum tersedia'), ('tesseract', 'Tesseract'), ('gemini', 'Gemini Vision')],
+        blank=True,
+        default='',
+        verbose_name='mesin OCR',
+    )
     ocr_confidence = models.FloatField(null=True, blank=True, verbose_name='confidence OCR')
     extracted_nik = models.CharField(max_length=16, blank=True, null=True, verbose_name='NIK dari OCR')
     extracted_data = models.JSONField(default=dict, blank=True, verbose_name='data terstruktur dari OCR')

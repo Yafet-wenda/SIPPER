@@ -63,6 +63,13 @@ class SipperFlowTests(TestCase):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get('/petugas/').status_code, 302)
 
+    def test_scan_card_page_provides_camera_and_manual_lookup(self):
+        response = self.client.get('/scan-kartu/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="qr-reader"')
+        self.assertContains(response, 'Html5QrcodeSupportedFormats.QR_CODE')
+        self.assertContains(response, 'action="/kartu/"')
+
     def test_invalid_nik_does_not_create_record(self):
         self.client.force_login(self.user)
         response = self.client.post('/pengajuan/', {'name': 'Citizen', 'nik': '123', 'origin': 'Jayapura', 'destination': 'Surabaya', 'purpose': 'pekerjaan'})
@@ -136,7 +143,7 @@ class SipperFlowTests(TestCase):
         application.refresh_from_db()
         self.assertEqual(application.status, 'menunggu')
 
-    def post_document(self, uploaded, other=None):
+    def post_document(self, uploaded, other=None, *, consent_gemini=False):
         """Kirim pengajuan lengkap. `uploaded` dipakai untuk KTP, `other` untuk KK.
 
         Defaultnya KK yang sah supaya tes yang menguji satu berkas tidak
@@ -145,6 +152,8 @@ class SipperFlowTests(TestCase):
         data = {'name': 'Citizen', 'nik': '9101010101010101', 'origin': 'Jayapura',
                 'destination': 'Surabaya', 'purpose': 'pekerjaan',
                 'ktp': uploaded, 'kk': other if other is not None else self.png_upload('kk.png')}
+        if consent_gemini:
+            data['izin_gemini_ocr'] = 'on'
         return self.client.post('/pengajuan/', data)
 
     def test_application_requires_both_ktp_and_kk(self):
@@ -185,6 +194,38 @@ class SipperFlowTests(TestCase):
         self.assertEqual(documents, [('kk', 'kk.png'), ('ktp', 'ktp.png')])
         self.assertEqual(Dokumen.objects.get(jenis='ktp').get_jenis_display(), 'KTP')
         self.assertEqual(Dokumen.objects.get(jenis='kk').get_jenis_display(), 'Kartu Keluarga')
+        self.assertTrue(all(
+            doc.gemini_ocr_consent_at is None for doc in Dokumen.objects.all()
+        ))
+
+    def test_application_records_explicit_gemini_ocr_consent(self):
+        self.client.force_login(self.user)
+        with mock.patch('core.views.picu_async'), \
+             mock.patch('core.views.llm.ocr_vision_tersedia', return_value=True):
+            response = self.post_document(
+                self.png_upload('ktp.png'), consent_gemini=True,
+            )
+
+        self.assertRedirects(response, '/dashboard/')
+        self.assertEqual(Dokumen.objects.count(), 2)
+        self.assertTrue(all(
+            doc.gemini_ocr_consent_at is not None for doc in Dokumen.objects.all()
+        ))
+        self.assertEqual(AuditLog.objects.filter(aksi='persetujuan_ocr_gemini').count(), 1)
+
+    def test_checkbox_tidak_mencatat_persetujuan_bila_gemini_nonaktif(self):
+        self.client.force_login(self.user)
+        with mock.patch('core.views.picu_async'), \
+             mock.patch('core.views.llm.ocr_vision_tersedia', return_value=False):
+            response = self.post_document(
+                self.png_upload('ktp.png'), consent_gemini=True,
+            )
+
+        self.assertRedirects(response, '/dashboard/')
+        self.assertTrue(all(
+            doc.gemini_ocr_consent_at is None for doc in Dokumen.objects.all()
+        ))
+        self.assertFalse(AuditLog.objects.filter(aksi='persetujuan_ocr_gemini').exists())
 
     def test_upload_rejects_unsupported_extension(self):
         self.client.force_login(self.user)

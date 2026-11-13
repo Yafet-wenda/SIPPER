@@ -10,7 +10,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from core import ocr_processor
+from core import llm, ocr_processor
 from core.ai_verifikasi import (
     AMBAT_VALID, JENIS_BERNILAI, baris_perbandingan, hitung_skor, nilai_berkas,
 )
@@ -214,6 +214,72 @@ class JalurPemrosesanTests(TestCase):
         self.assertEqual(doc.ai_prescreen, 'belum_dinilai')
         self.assertIn('PDF', doc.ai_verification_notes)
 
+    def test_ktp_meragukan_memakai_gemini_hanya_dengan_persetujuan(self):
+        doc = self.berkas()
+        doc.gemini_ocr_consent_at = timezone.now()
+        doc.save(update_fields=['gemini_ocr_consent_at'])
+        teks = 'NIK 9101010101010101 Nama ANI LESTARI'
+        with override_settings(GEMINI_OCR_ENABLED=True), mock.patch.dict(
+            'os.environ', {'GEMINI_API_KEY': 'kunci-uji-palsu'},
+        ), mock.patch.object(
+            ocr_processor, 'ekstrak_dengan_pilihan_praproses',
+            return_value={'text': 'bacaan lokal tidak lengkap', 'confidence': 40.0},
+        ), mock.patch.object(
+            llm, 'baca_dokumen_gemini',
+            return_value={'text': teks, 'fields': {
+                'nik': '9101010101010101', 'nama': 'Ani Lestari',
+            }},
+        ) as gemini:
+            hasil = ocr_processor.process_document(doc)
+
+        doc.refresh_from_db()
+        gemini.assert_called_once_with(doc.file.path, 'ktp', disetujui=True)
+        self.assertEqual(hasil['provider'], 'gemini')
+        self.assertIsNone(hasil['confidence'], 'confidence Gemini tidak diklaim sebagai skor Tesseract')
+        self.assertEqual(doc.ocr_text, teks)
+        self.assertEqual(doc.ocr_provider, 'gemini')
+        self.assertEqual(doc.ai_prescreen, 'review',
+                         'hasil Gemini selalu ditahan untuk pemeriksaan petugas')
+        self.assertIn('bukan penilaian keaslian', doc.ai_verification_notes)
+
+    def test_ktp_tidak_dikirim_ke_gemini_tanpa_persetujuan(self):
+        doc = self.berkas()
+        with override_settings(GEMINI_OCR_ENABLED=True), \
+             mock.patch.object(
+                 ocr_processor, 'ekstrak_dengan_pilihan_praproses',
+                 return_value={'text': 'bacaan lokal tidak lengkap', 'confidence': 30.0},
+             ), mock.patch.object(llm, 'baca_dokumen_gemini') as gemini:
+            hasil = ocr_processor.process_document(doc)
+
+        gemini.assert_not_called()
+        self.assertEqual(hasil['provider'], 'tesseract')
+        self.assertEqual(hasil['confidence'], 30.0)
+
+    def test_pdf_kk_disetujui_dibaca_gemini_dan_harus_ditinjau_manual(self):
+        doc = self.berkas('kk-scan.pdf', 'kk')
+        doc.gemini_ocr_consent_at = timezone.now()
+        doc.save(update_fields=['gemini_ocr_consent_at'])
+        with override_settings(GEMINI_OCR_ENABLED=True), mock.patch.dict(
+            'os.environ', {'GEMINI_API_KEY': 'kunci-uji-palsu'},
+        ), mock.patch.object(
+            llm, 'baca_dokumen_gemini',
+            return_value={'text': 'KARTU KELUARGA', 'fields': {
+                'no_kk': '9101010101010101',
+                'nama_kepala_keluarga': 'Ani Lestari',
+                'anggota_keluarga': [{'nama': 'Ani Lestari', 'nik': '9101010101010101'}],
+            }},
+        ) as gemini:
+            hasil = ocr_processor.process_document(doc)
+
+        doc.refresh_from_db()
+        gemini.assert_called_once_with(doc.file.path, 'kk', disetujui=True)
+        self.assertTrue(hasil['success'])
+        self.assertEqual(hasil['provider'], 'gemini')
+        self.assertIsNone(doc.ocr_confidence)
+        self.assertEqual(doc.ocr_provider, 'gemini')
+        self.assertEqual(doc.extracted_data['anggota_keluarga'][0]['nama'], 'Ani Lestari')
+        self.assertEqual(doc.ai_prescreen, 'belum_dinilai')
+
     def test_hasil_ktp_dinilai_dan_tersimpan_di_model(self):
         doc = self.berkas()
         teks = ('NIK 9101010101010101 Nama ANI LESTARI Tempat/Tgl Lahir SENTANI, '
@@ -223,6 +289,7 @@ class JalurPemrosesanTests(TestCase):
             hasil = ocr_processor.process_document(doc)
         doc.refresh_from_db()
         self.assertTrue(hasil['success'])
+        self.assertEqual(doc.ocr_provider, 'tesseract')
         self.assertEqual(doc.extracted_nik, '9101010101010101')
         self.assertEqual(doc.ai_prescreen, 'valid')
         self.assertTrue(doc.ai_verified)

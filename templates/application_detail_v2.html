@@ -160,7 +160,7 @@
             <h3 style="margin-bottom: 12px; font-size: 16px;">Teks Hasil OCR</h3>
             <div id="ocr-text-container" style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 13px; line-height: 1.6;"></div>
             <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
-              <span style="font-size: 14px; color: #6b7280;">Confidence:</span>
+              <span style="font-size: 14px; color: #6b7280;">Sumber / confidence:</span>
               <span id="ocr-confidence" style="font-weight: 600; color: #059669;"></span>
             </div>
             <button id="btn-reprocess-ocr" class="button button-green" style="margin-top: 12px; font-size: 13px; padding: 8px 16px;">Proses Ulang OCR</button>
@@ -183,7 +183,7 @@
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 20px; color: white;">
         <h3 style="margin-bottom: 4px; font-size: 16px;">🤖 Asisten Verifikasi Dokumen</h3>
         <p style="margin: 0 0 14px; font-size: 12.5px; opacity: .85;">
-          Menjawab dari basis pengetahuan SIPPER dan data pengajuan ini. Bila <code>GEMINI_API_KEY</code> terpasang, jawaban disusun LLM Google Gemini — pertanyaan, 12 giliran percakapan terakhir, dan ringkasan data pengajuan ini ikut dikirim ke Google. Tanpa kunci, atau saat Gemini gagal, asisten jatuh ke mesin aturan yang jalan lokal di server. Label sumber jawaban tertera di tiap pesan.
+          Menjawab dari basis pengetahuan SIPPER dan metadata pengajuan. Bila <code>GEMINI_API_KEY</code> terpasang, pertanyaan, 12 giliran terakhir, dan metadata terbatas (status, skor, serta status dokumen) dikirim ke Google Gemini. Email dan rangkaian 10–16 digit yang dikenali disamarkan; konteks pengajuan tidak menyertakan nama, NIK tersimpan, alamat, rute, catatan bebas, kode kartu, atau nilai OCR mentah. Nama/alamat dalam pesan maupun riwayat chat tidak dapat disamarkan secara andal—jangan masukkan data identitas. Tanpa kunci, atau saat Gemini gagal, asisten memakai mesin aturan lokal. Label sumber jawaban tertera di tiap pesan.
         </p>
         <div id="chat-messages" class="chat-log" role="log" aria-live="polite" aria-relevant="additions"
              style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 16px; height: 260px; overflow-y: auto; margin-bottom: 12px;"></div>
@@ -191,7 +191,7 @@
         <form id="chat-form" autocomplete="off" style="display: flex; gap: 8px;">
           <label class="sr-only" for="chat-input">Tulis pertanyaan untuk asisten verifikasi</label>
           <input type="text" id="chat-input" name="pesan" maxlength="{{ CHAT_MAX_PANJANG }}"
-                 placeholder="Tanyakan status, confidence, NIK, atau kelengkapan dokumen…"
+                 placeholder="Tanyakan status, confidence, atau kelengkapan dokumen…"
                  style="flex: 1; padding: 10px 14px; border: none; border-radius: 8px; background: rgba(255,255,255,0.9); color: #1f2937; font-size: 14px;">
           <button type="submit" id="btn-send-chat"
                   style="padding: 10px 20px; border: none; border-radius: 8px; background: #fbbf24; color: #1f2937; font-weight: 600; cursor: pointer;">Kirim</button>
@@ -233,11 +233,14 @@
       }
       
       panel.style.display = 'block';
-      statusEl.textContent = 'Selesai';
+      const isGemini = data.ocr_provider === 'gemini';
+      statusEl.textContent = 'Selesai · ' + (isGemini ? 'Gemini Vision' : 'Tesseract');
       
       // Display OCR text
       document.getElementById('ocr-text-container').textContent = data.ocr_text || 'Tidak ada teks';
-      document.getElementById('ocr-confidence').textContent = (data.ocr_confidence || 0).toFixed(1) + '%';
+      document.getElementById('ocr-confidence').textContent = isGemini
+        ? 'Gemini Vision (tanpa confidence terkalibrasi)'
+        : (typeof data.ocr_confidence === 'number' ? data.ocr_confidence.toFixed(1) + '%' : '-');
       
       // Data terstruktur dibangun lewat DOM + textContent. Isinya berasal dari
       // hasil baca OCR atas berkas yang diunggah warga, jadi tidak boleh
@@ -256,7 +259,7 @@
           label.textContent = key.replace(/_/g, ' ').toUpperCase();
           const isi = document.createElement('td');
           isi.setAttribute('style', 'padding: 4px 0; font-weight: 500;');
-          isi.textContent = teksNilai(value);
+          renderNilaiTerstruktur(value, isi);
           row.append(label, isi);
           tbody.append(row);
         });
@@ -284,6 +287,29 @@
       if (value === null || value === undefined || value === '') return '-';
       if (typeof value === 'object') return JSON.stringify(value);
       return String(value);
+    }
+
+    function renderNilaiTerstruktur(value, container) {
+      if (!Array.isArray(value)) {
+        container.textContent = teksNilai(value);
+        return;
+      }
+      if (value.length === 0) {
+        container.textContent = '-';
+        return;
+      }
+      const list = document.createElement('ol');
+      list.setAttribute('style', 'margin: 0; padding-left: 20px;');
+      value.forEach(function (item) {
+        const row = document.createElement('li');
+        row.textContent = item && typeof item === 'object'
+          ? Object.entries(item).map(([field, fieldValue]) =>
+            field.replace(/_/g, ' ') + ': ' + teksNilai(fieldValue)
+          ).join(' · ')
+          : teksNilai(item);
+        list.append(row);
+      });
+      container.append(list);
     }
 
     // Reprocess OCR button

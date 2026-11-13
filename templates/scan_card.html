@@ -36,6 +36,8 @@
     const restartBtn = document.getElementById('scan-restart');
     let scanner = null;
     let starting = false;
+    let scanSelesai = false;
+    let qrTerakhirDitolak = '';
 
     function kameraGagal(pesan, bolehUlang) {
       scanStatus.textContent = pesan;
@@ -52,36 +54,66 @@
         kameraGagal('Kamera butuh koneksi aman (https atau localhost). Pakai input kode manual di bawah.', false);
         return;
       }
-      if (typeof Html5Qrcode === 'undefined') {
+      if (typeof Html5Qrcode === 'undefined' || typeof Html5QrcodeSupportedFormats === 'undefined') {
         starting = false;
         kameraGagal('Pustaka pemindai gagal dimuat. Pakai input kode manual di bawah.', false);
         return;
       }
 
       scanStatus.textContent = 'Meminta izin kamera...';
-      if (!scanner) scanner = new Html5Qrcode('qr-reader');
+      if (!scanner) {
+        scanner = new Html5Qrcode('qr-reader', {
+          verbose: false,
+          formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
+        });
+      }
       scanner.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: (vw, vh) => { const s = Math.max(120, Math.round(Math.min(vw, vh) * 0.7)); return { width: s, height: s }; } },
+        {
+          fps: 15,
+          qrbox: (vw, vh) => {
+            const sisi = Math.min(vw, vh, Math.max(120, Math.round(Math.min(vw, vh) * 0.7)));
+            return { width: sisi, height: sisi };
+          },
+        },
         text => {
+          if (scanSelesai) return;
+          let target;
           try {
-            const target = new URL(text, window.location.origin);
+            target = new URL(text, window.location.origin);
             if (target.origin !== window.location.origin || !/^\/kartu\/[^/]+\/$/.test(target.pathname)) {
               throw new Error('invalid QR');
             }
-            scanStatus.textContent = 'QR ditemukan. Membuka validasi...';
-            scanner.stop().finally(() => { window.location.href = target.href; });
-          } catch (error) {
-            scanStatus.textContent = 'QR bukan kartu SIPPER yang valid.';
+          } catch {
+            if (text !== qrTerakhirDitolak) {
+              qrTerakhirDitolak = text;
+              scanStatus.textContent = 'QR bukan kartu SIPPER yang valid.';
+            }
+            return;
           }
+          scanSelesai = true;
+          qrTerakhirDitolak = '';
+          restartBtn.hidden = true;
+          scanStatus.textContent = 'QR ditemukan. Membuka validasi...';
+          Promise.resolve().then(() => scanner.stop()).then(
+            () => { window.location.href = target.href; },
+            error => {
+              console.error('Kamera gagal dihentikan setelah QR terbaca.', error);
+              window.location.href = target.href;
+            }
+          );
         },
         () => {}
       ).then(() => {
         starting = false;
+        scanSelesai = false;
+        qrTerakhirDitolak = '';
         scanStatus.textContent = 'Kamera aktif. Arahkan QR pada kartu SIPPER.';
       }).catch(error => {
         starting = false;
-        const info = typeof error === 'string' ? error : ((error && error.name) || '');
+        const info = typeof error === 'string'
+          ? error
+          : [error && error.name, error && error.message].filter(Boolean).join(' ');
         if (/NotAllowedError|PermissionDeniedError/.test(info)) {
           kameraGagal('Izin kamera ditolak. Izinkan lewat ikon kamera di address bar, lalu klik Nyalakan kamera.', true);
         } else if (/NotFoundError|DevicesNotFoundError/.test(info)) {

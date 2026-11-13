@@ -119,6 +119,7 @@ DEFAULT_FROM_EMAIL = os.getenv('DJANGO_DEFAULT_FROM_EMAIL', 'SIPPER <no-reply@ex
 CLAMAV_ENABLED = os.getenv('CLAMAV_ENABLED', '0') == '1'
 CLAMAV_HOST = os.getenv('CLAMAV_HOST', '127.0.0.1')
 CLAMAV_PORT = int(os.getenv('CLAMAV_PORT', '3310'))
+GEMINI_OCR_ENABLED = os.getenv('GEMINI_OCR_ENABLED', '0') == '1'
 # Kejadian yang tidak lagi berhenti sebagai baris AuditLog saja. Semua jalur
 # kegagalan (OCR, ClamAV, pemotretan pasfoto) menulis ke log proses supaya
 # penyebab aslinya masih terbaca di jendela waitress saat petugas hanya

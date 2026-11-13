@@ -175,15 +175,15 @@ class TinjauanOcrAdmin(EksporCSVMixin, admin.ModelAdmin):
             # Sengaja tidak di-collapse: petugas membuka panel ini justru untuk
             # melihat isi berkas yang dibaca mesin. Kalau teksnya disembunyikan
             # di balik tautan "Tampilkan:", layar pertama terlihat kosong.
-            'description': 'Teks mentah di bawah adalah hasil baca Tesseract atas berkas, dasar dari skor di atas.',
-            'fields': ('teks_ocr', 'ocr_confidence', 'ai_score', 'ai_prescreen',
+            'description': 'Teks mentah di bawah adalah hasil baca mesin OCR atas berkas, dasar dari skor di atas.',
+            'fields': ('teks_ocr', 'ocr_provider', 'ocr_confidence', 'ai_score', 'ai_prescreen',
                        'ai_verified', 'ocr_processed_at'),
         })
         return (identitas, perbandingan, koreksi, mesin)
 
     readonly_fields = (
         'penduduk', 'nama', 'jenis', 'file_link', 'status',
-        'teks_ocr', 'ocr_text', 'ocr_confidence', 'ai_score', 'ai_prescreen', 'ai_verified',
+        'teks_ocr', 'ocr_text', 'ocr_provider', 'ocr_confidence', 'ai_score', 'ai_prescreen', 'ai_verified',
         'ocr_processed_at', 'tabel_perbandingan',
         # extracted_data tidak muncul di fieldset mana pun. Kalau dibiarkan ikut
         # form, Djangoanggap petugas mengosongkannya dan seluruh hasil bacaan
