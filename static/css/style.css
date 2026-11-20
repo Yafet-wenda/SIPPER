@@ -1104,6 +1104,28 @@ td small {
   font-weight: 500;
 }
 
+.nik-feedback {
+  display: block;
+  min-height: 1.4em;
+  margin-top: 6px;
+  color: #5b6f66;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.nik-feedback[data-state='valid'] {
+  color: var(--green);
+}
+
+.nik-feedback[data-state='invalid'],
+.nik-feedback[data-state='error'] {
+  color: var(--red);
+}
+
+.form-card input[aria-invalid='true'] {
+  border-bottom-color: var(--red);
+}
+
 /* Mobile - label lebih besar */
 @media (max-width: 720px) {
   .form-card label {

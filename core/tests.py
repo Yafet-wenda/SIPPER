@@ -59,16 +59,68 @@ class SipperFlowTests(TestCase):
         self.assertRedirects(response, '/dashboard/')
         self.assertTrue(response.wsgi_request.user.is_authenticated)
 
+    def test_application_form_exposes_live_nik_validation(self):
+        self.client.force_login(self.user)
+        response = self.client.get('/pengajuan/')
+        self.assertContains(response, 'id="application-nik"')
+        self.assertContains(response, 'data-validate-url="/api/validate-nik/"')
+        self.assertContains(response, 'id="nik-feedback" class="nik-feedback" role="status" aria-live="polite"')
+
+    def test_nik_validation_for_citizens_reports_format_without_registration(self):
+        Penduduk.objects.create(
+            user=self.user, nama='Citizen', nik='9101010101010101',
+            daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan',
+        )
+        self.client.force_login(self.user)
+        valid = self.client.get('/api/validate-nik/', {'nik': '9101010101010101'})
+        invalid = self.client.get('/api/validate-nik/', {'nik': '123'})
+        self.assertEqual(valid.json(), {'valid': True})
+        self.assertEqual(invalid.json(), {'valid': False})
+
+    def test_admin_login_accepts_email_and_username_directly(self):
+        admin_user = User.objects.create_user(
+            username='admin-login-name',
+            email='admin-login@example.com',
+            password='password123',
+            is_staff=True,
+        )
+        for identifier in ('admin-login-name', 'ADMIN-LOGIN@example.com'):
+            response = self.client.post('/admin/login/?next=/admin/', {
+                'username': identifier,
+                'password': 'password123',
+                'next': '/admin/',
+            })
+            self.assertRedirects(response, '/admin/')
+            self.assertEqual(response.wsgi_request.user.pk, admin_user.pk)
+            self.client.logout()
+
+    def test_admin_login_still_rejects_non_staff_account(self):
+        response = self.client.post('/admin/login/?next=/admin/', {
+            'username': self.user.username,
+            'password': 'password123',
+            'next': '/admin/',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.wsgi_request.user.is_authenticated)
+
     def test_citizen_cannot_open_officer_panel(self):
         self.client.force_login(self.user)
         self.assertEqual(self.client.get('/petugas/').status_code, 302)
 
     def test_scan_card_page_provides_camera_and_manual_lookup(self):
+        self.client.force_login(self.staff)
         response = self.client.get('/scan-kartu/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="qr-reader"')
         self.assertContains(response, 'Html5QrcodeSupportedFormats.QR_CODE')
         self.assertContains(response, 'action="/kartu/"')
+
+    def test_scan_card_page_requires_officer_access(self):
+        response = self.client.get('/scan-kartu/')
+        self.assertRedirects(response, '/login/?next=/scan-kartu/')
+        self.client.force_login(self.user)
+        response = self.client.get('/scan-kartu/')
+        self.assertRedirects(response, '/login/?next=/scan-kartu/')
 
     def test_invalid_nik_does_not_create_record(self):
         self.client.force_login(self.user)
@@ -261,6 +313,16 @@ class SipperFlowTests(TestCase):
         person.refresh_from_db()
         self.assertEqual(person.kota_tujuan, 'Bandung')
 
+    def test_pemutakhiran_tanpa_data_mengarahkan_ke_pengajuan(self):
+        self.client.force_login(self.user)
+        response = self.client.get('/pemutakhiran/')
+        self.assertRedirects(response, '/pengajuan/')
+
+    def test_histori_tanpa_data_mengarahkan_ke_pengajuan(self):
+        self.client.force_login(self.user)
+        response = self.client.get('/histori/')
+        self.assertRedirects(response, '/pengajuan/')
+
     def test_tujuan_menawarkan_pilihan_resmi(self):
         """Field tujuan menjadi choices, bukan teks bebas."""
         field = Penduduk._meta.get_field('tujuan')
@@ -358,6 +420,24 @@ class SipperFlowTests(TestCase):
         self.assertContains(dibuka, 'name="new_password1"')
         ditolak = self.client.get(urlparse(tautan.group(0)).path.replace('reset-password/', 'reset-password/x/'))
         self.assertEqual(ditolak.status_code, 404)
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend')
+    def test_send_test_email_reports_smtp_acceptance_not_inbox_delivery(self):
+        output = io.StringIO()
+        with mock.patch('core.management.commands.send_test_email.send_mail', return_value=1):
+            call_command('send_test_email', 'test@example.invalid', stdout=output)
+        self.assertIn('Server SMTP menerima pesan uji.', output.getvalue())
+        self.assertIn('belum membuktikan pesan masuk ke inbox', output.getvalue())
+        self.assertNotIn('test@example.invalid', output.getvalue())
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.console.EmailBackend')
+    def test_send_test_email_never_claims_console_delivery(self):
+        output = io.StringIO()
+        with mock.patch('core.management.commands.send_test_email.send_mail', return_value=1):
+            call_command('send_test_email', 'test@example.invalid', stdout=output)
+        self.assertIn('EMAIL_BACKEND masih console', output.getvalue())
+        self.assertIn('Pesan uji ditulis ke konsol; tidak ada email yang dikirim.', output.getvalue())
+        self.assertNotIn('test@example.invalid', output.getvalue())
 
     def test_resubmit_accepts_new_document_and_history_is_visible(self):
         person = Penduduk.objects.create(user=self.user, nama='History Citizen', nik='9707070707070707', daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan')

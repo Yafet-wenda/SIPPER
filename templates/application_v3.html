@@ -23,7 +23,10 @@
       </label>
       <label>
         NIK <small>16 digit</small>
-        <input name="nik" required inputmode="numeric" maxlength="16" placeholder="910101xxxxxxxxxx">
+        <input id="application-nik" name="nik" required inputmode="numeric" maxlength="16"
+               placeholder="910101xxxxxxxxxx" aria-describedby="nik-feedback"
+               data-validate-url="{% url 'core:api_validate_nik' %}">
+        <span id="nik-feedback" class="nik-feedback" role="status" aria-live="polite"></span>
       </label>
       <label>
         Nomor telepon <small>10-15 digit</small>
@@ -83,4 +86,92 @@
       </button>
     </form>
   </div>
+
+  <script>
+    const nikInput = document.getElementById('application-nik');
+    const nikStatus = document.getElementById('nik-feedback');
+    const nikValidationUrl = nikInput.dataset.validateUrl;
+    let nikValidationTimer;
+    let nikRequestController = null;
+    let nikRequestSequence = 0;
+
+    function setNikStatus(message, state = '') {
+      nikStatus.textContent = message;
+      nikStatus.dataset.state = state;
+      if (state === 'invalid') {
+        nikInput.setAttribute('aria-invalid', 'true');
+      } else if (state === 'valid') {
+        nikInput.setAttribute('aria-invalid', 'false');
+      } else {
+        nikInput.removeAttribute('aria-invalid');
+      }
+    }
+
+    nikInput.addEventListener('input', () => {
+      const nik = nikInput.value.trim();
+      const sequence = ++nikRequestSequence;
+      window.clearTimeout(nikValidationTimer);
+      if (nikRequestController) {
+        nikRequestController.abort();
+        nikRequestController = null;
+      }
+
+      if (!nik) {
+        setNikStatus('');
+        return;
+      }
+      if (!/^\d+$/.test(nik)) {
+        setNikStatus('NIK hanya boleh berisi angka.', 'invalid');
+        return;
+      }
+      if (nik.length !== 16) {
+        setNikStatus(`Masukkan 16 digit NIK (${nik.length}/16).`);
+        return;
+      }
+
+      setNikStatus('Memeriksa format NIK...', 'pending');
+      nikValidationTimer = window.setTimeout(async () => {
+        const controller = new AbortController();
+        nikRequestController = controller;
+        try {
+          const url = new URL(nikValidationUrl, window.location.origin);
+          url.searchParams.set('nik', nik);
+          const response = await fetch(url, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+            headers: { Accept: 'application/json' },
+            signal: controller.signal,
+          });
+          if (sequence !== nikRequestSequence) return;
+          if (response.status === 429) {
+            setNikStatus('Batas pemeriksaan tercapai. Format NIK tetap diperiksa saat pengajuan.', 'error');
+            return;
+          }
+          if (!response.ok) {
+            throw new Error(`Pemeriksaan NIK gagal (HTTP ${response.status}).`);
+          }
+          const result = await response.json();
+          if (typeof result.valid !== 'boolean') {
+            throw new Error('Respons pemeriksaan NIK tidak valid.');
+          }
+          if (sequence !== nikRequestSequence) return;
+          if (result.valid) {
+            setNikStatus('Format NIK sesuai. Ketersediaan NIK diperiksa saat pengajuan.', 'valid');
+          } else {
+            setNikStatus('Format NIK tidak valid; harus terdiri dari 16 digit angka.', 'invalid');
+          }
+        } catch (error) {
+          if (error.name === 'AbortError') return;
+          console.error('Pemeriksaan format NIK gagal.', error);
+          if (sequence === nikRequestSequence) {
+            setNikStatus('Pemeriksaan belum berhasil. Server tetap memvalidasi NIK saat pengajuan.', 'error');
+          }
+        } finally {
+          if (nikRequestController === controller) {
+            nikRequestController = null;
+          }
+        }
+      }, 350);
+    });
+  </script>
 {% endblock %}

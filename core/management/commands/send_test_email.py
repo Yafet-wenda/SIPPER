@@ -5,31 +5,44 @@ from django.core.management import BaseCommand
 
 
 class Command(BaseCommand):
-    help = 'Kirim satu email uji untuk membuktikan jalur SMTP benar-benar bekerja.'
+    help = 'Kirim satu email uji untuk memeriksa backend email.'
 
     def add_arguments(self, parser):
         parser.add_argument('ke', nargs='?', help='Alamat tujuan. Kosong = email superuser pertama.')
 
     def handle(self, *args, **options):
-        backend = settings.EMAIL_BACKEND.rsplit('.', 1)[-1]
+        backend_path = settings.EMAIL_BACKEND
+        backend = backend_path.rsplit('.', 1)[-1]
+        is_console = backend_path.endswith('.console.EmailBackend')
+        is_smtp = backend_path.endswith('.smtp.EmailBackend')
         target = options.get('ke') or User.objects.filter(is_superuser=True).order_by('id').values_list('email', flat=True).first()
         if not target:
             self.stderr.write(self.style.ERROR('Tidak ada alamat tujuan dan tidak ada superuser yang punya email.'))
             return
-        if backend == 'console':
-            self.stdout.write(self.style.WARNING('EMAIL_BACKEND masih console: email hanya dicetak, tidak benar-benar terkirim.'))
+        if is_console:
+            self.stdout.write(self.style.WARNING(
+                'EMAIL_BACKEND masih console: pesan hanya dicetak, tidak dikirim ke penerima.'
+            ))
         sent = send_mail(
             subject='SIPPER: uji jalur email',
             message=(
                 'Email ini dikirim oleh perintah `manage.py send_test_email`.\r\n'
-                'Kalau Anda membacanya di inbox, berarti notifikasi status dan '
-                'link reset password SIPPER (/lupa-password/) sudah bisa dipakai.\r\n'
+                'Pesan ini hanya menguji pengiriman email; tidak memuat data akun atau warga.\r\n'
             ),
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[target],
             fail_silently=False,
         )
-        if sent:
-            self.stdout.write(self.style.SUCCESS(f'Terkirim ke {target} lewat backend {backend}.'))
+        if sent and is_smtp:
+            self.stdout.write(self.style.SUCCESS(
+                'Server SMTP menerima pesan uji. Ini belum membuktikan pesan masuk ke inbox; '
+                'periksa Inbox, Spam, dan folder Semua Email.'
+            ))
+        elif sent and is_console:
+            self.stdout.write(self.style.WARNING('Pesan uji ditulis ke konsol; tidak ada email yang dikirim.'))
+        elif sent:
+            self.stdout.write(self.style.SUCCESS(
+                f'Backend {backend} menerima pesan uji; periksa kotak masuk untuk memastikan penerimaan.'
+            ))
         else:
-            self.stderr.write(self.style.ERROR(f'Backend {backend} menolak mengirim ke {target}.'))
+            self.stderr.write(self.style.ERROR(f'Backend {backend} tidak menerima pesan uji.'))

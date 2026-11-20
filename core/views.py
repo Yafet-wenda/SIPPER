@@ -80,12 +80,16 @@ def dashboard(request):
 
 @login_required(login_url='/login/')
 def update_data(request):
-    # Penduduk.user adalah ForeignKey, jadi akun lama bisa punya lebih dari satu
-    # baris penduduk. Ambil baris pertama (konsisten dengan dashboard) supaya
-    # halaman ini tidak 500 karena MultipleObjectsReturned pada data ganda warisan.
+    # Akun baru belum tentu sudah mengirim pengajuan, sehingga belum memiliki
+    # baris Penduduk. Jangan ubah kondisi ini menjadi 404: arahkan warga untuk
+    # melengkapi data pengajuan terlebih dahulu.
     person = Penduduk.objects.filter(user=request.user).order_by('id').first()
     if person is None:
-        raise Http404('Data perantauan belum ditemukan.')
+        if is_officer(request.user):
+            messages.info(request, 'Akun petugas tidak memiliki data perantauan pribadi.')
+            return redirect('core:dashboard')
+        messages.info(request, 'Lengkapi data pengajuan terlebih dahulu sebelum melakukan pemutakhiran.')
+        return redirect('core:application')
     if request.method == 'POST':
         old_data = {'daerah_asal': person.daerah_asal, 'kota_tujuan': person.kota_tujuan, 'tujuan': person.tujuan}
         person.daerah_asal = request.POST.get('origin', '').strip()
@@ -507,15 +511,19 @@ def card_qr(request, code):
 
 @login_required(login_url='/login/')
 def history(request):
-    # Alasan sama dengan update_data: baris penduduk ganda warisan tidak boleh
-    # membuat halaman histori 500. Pakai baris pertama yang sama dengan dashboard.
+    # Akun baru juga dapat membuka URL ini sebelum mengirim pengajuan. Jangan
+    # memunculkan 404; arahkan warga ke halaman pengajuan untuk melengkapi data.
     person = Penduduk.objects.filter(user=request.user).order_by('id').first()
     if person is None:
-        raise Http404('Data perantauan belum ditemukan.')
+        if is_officer(request.user):
+            messages.info(request, 'Akun petugas tidak memiliki histori pemutakhiran pribadi.')
+            return redirect('core:dashboard')
+        messages.info(request, 'Lengkapi data pengajuan terlebih dahulu sebelum melihat histori.')
+        return redirect('core:application')
     return render(request, 'history.html', {'updates': person.riwayat_pemutakhiran.all(), 'logs': AuditLog.objects.filter(user=request.user).order_by('-created_at')[:30]})
 
 
-@throttle_public
+@user_passes_test(is_officer, login_url='/login/')
 def scan_card(request):
     return render(request, 'scan_card.html')
 

@@ -11,7 +11,11 @@
         <p class="eyebrow">Ruang pribadi</p>
         <h1>Halo, {{ user.first_name }}.</h1>
       </div>
-      <a class="button button-green" href="{% url 'core:update_data' %}">Pemutakhiran</a>
+      {% if person %}
+        <a class="button button-green" href="{% url 'core:update_data' %}">Pemutakhiran</a>
+      {% else %}
+        <a class="button button-green" href="{% url 'core:application' %}">Lengkapi pengajuan</a>
+      {% endif %}
     </div>
 
     {% if person %}

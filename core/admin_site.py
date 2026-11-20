@@ -9,6 +9,7 @@ from django.contrib.auth.admin import GroupAdmin, UserAdmin
 from django.contrib.auth.models import Group, User
 from django.contrib.admin.options import IncorrectLookupParameters
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 from django.utils.html import format_html
 from django.urls import path, reverse
@@ -21,10 +22,7 @@ from .ocr_worker import picu_async
 
 
 class FormMasukAdmin(AdminAuthenticationForm):
-    """Terjemahan id-id Django untuk pesan ini sudah menulis frasa 'nama
-    pengguna' sekaligus menyisipkan label kolom, jadi tampilannya berulang:
-    'Masukkan nama pengguna nama pengguna dan sandi yang benar.' Pesan ditulis
-    ulang di sini supaya halaman masuk tidak menampilkan kalimat cacat."""
+    """Izinkan nama pengguna atau email, tetapi tetap hanya untuk akun staf."""
 
     error_messages = {
         **AdminAuthenticationForm.error_messages,
@@ -33,6 +31,16 @@ class FormMasukAdmin(AdminAuthenticationForm):
             'Huruf besar/kecil berpengaruh.'
         ),
     }
+
+    def clean(self):
+        identifier = self.cleaned_data.get('username', '').strip()
+        if identifier:
+            account = User.objects.filter(
+                Q(username__iexact=identifier) | Q(email__iexact=identifier)
+            ).order_by('pk').first()
+            if account:
+                self.cleaned_data['username'] = account.get_username()
+        return super().clean()
 
 
 class SipperAdminSite(admin.AdminSite):
