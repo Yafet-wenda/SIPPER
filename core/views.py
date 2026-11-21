@@ -38,6 +38,7 @@ from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemuta
 from .ocr_worker import picu_async
 from .ai_verifikasi import nilai_berkas
 from .services.ai_summary import OllamaSummaryError, summarize_application
+from .services.public_chat import PublicChatError, answer_public_chat
 from .throttle import client_ip, throttle_public
 from .uploads import (GAMBAR_SAJA, LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES,
                       SEMUA_LAMPILAN, valid_upload)
@@ -804,6 +805,76 @@ def api_pending_count(request):
             status='menunggu',
             assigned_to__isnull=True,
         ).count(),
+    })
+
+
+@require_POST
+@throttle_public(limit=30, window=60, json_error=True)
+def api_public_chat(request):
+    """Panduan publik SIPPER berbasis aturan, tanpa data identitas atau konteks warga."""
+    try:
+        muatan = json.loads(request.body.decode('utf-8') or '{}')
+    except (ValueError, UnicodeDecodeError):
+        muatan = request.POST
+    pesan = str((muatan or {}).get('pesan') or '').strip()
+    if not pesan:
+        return JsonResponse({'error': 'Pesan tidak boleh kosong.'}, status=400)
+    if len(pesan) > chatbot.MAX_PANJANG_PESAN:
+        return JsonResponse({'error': f'Maksimal {chatbot.MAX_PANJANG_PESAN} karakter.'}, status=400)
+
+    normal_pesan = chatbot._normalisasi(pesan)
+    kata_pribadi = (
+        'status saya', 'pengajuan saya', 'data saya', 'kartu saya',
+        'catatan saya', 'apa status', 'status pengajuan saya',
+    )
+    if any(fragmen in normal_pesan for fragmen in kata_pribadi):
+        return JsonResponse({
+            'jawaban': (
+                'Untuk melihat status atau catatan pengajuan milik Anda, masuk ke akun warga '
+                'kemudian buka Ringkasan/dashboard. Saya tidak dapat menampilkan data pribadi '
+                'tanpa identitas yang sedang login.'
+            ),
+            'kategori': 'status_pribadi',
+            'saran': ['Cara daftar akun', 'Cara ajukan data', 'Bagaimana kartu digital diterbitkan?'],
+            'versi': 'aturan-lokal',
+        })
+
+    hasil = chatbot.jawab(pesan, {})
+    if hasil['kategori'] in {
+        'cara_daftar', 'cara_pengajuan', 'dokumen_umum',
+        'verifikasi_warga', 'kirim_ulang', 'bantuan', 'sapaan',
+        'terima_kasih', 'kemampuan_diri', 'kartu_digital',
+    }:
+        jawaban = hasil['jawaban'].replace(
+            'Saya asisten verifikasi dokumen SIPPER',
+            'Saya asisten panduan SIPPER',
+        )
+        return JsonResponse({
+            'jawaban': jawaban,
+            'kategori': hasil['kategori'],
+            'saran': hasil['saran'],
+            'versi': 'aturan-lokal',
+        })
+
+    try:
+        jawaban = answer_public_chat(pesan)
+        return JsonResponse({
+            'jawaban': jawaban,
+            'kategori': 'umum',
+            'saran': ['Cara daftar akun', 'Cara ajukan data', 'Dokumen apa yang diperlukan?'],
+            'versi': 'ollama-lokal',
+        })
+    except PublicChatError:
+        hasil = chatbot.jawab(pesan, {})
+        jawaban = hasil['jawaban'].replace(
+            'Saya asisten verifikasi dokumen SIPPER',
+            'Saya asisten panduan SIPPER',
+        )
+    return JsonResponse({
+        'jawaban': jawaban,
+        'kategori': hasil['kategori'],
+        'saran': hasil['saran'],
+        'versi': 'aturan-lokal',
     })
 
 

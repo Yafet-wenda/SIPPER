@@ -50,10 +50,10 @@
         font-size: inherit !important;
       }
       .nav .nav-cta {
-        padding: inherit !important;
-        font-size: inherit !important;
-        text-align: left !important;
-        border-radius: 0 !important;
+        padding: 10px 16px !important;
+        font-size: 14px !important;
+        text-align: center !important;
+        border-radius: 999px !important;
         margin-top: 0 !important;
       }
     }
@@ -71,6 +71,23 @@
         right: 0 !important;
         background: rgba(9, 20, 17, 0.98) !important;
         flex-direction: column !important;
+        display: none !important;
+        padding: 12px 20px 16px !important;
+        border-top: 1px solid rgba(255,255,255,.10) !important;
+        z-index: 1000 !important;
+      }
+      .nav-links.active {
+        display: flex !important;
+      }
+      .nav-links > a,
+      .nav-links form {
+        width: 100% !important;
+        box-sizing: border-box;
+      }
+      .nav .nav-cta {
+        display: block;
+        width: 100% !important;
+        margin-top: 4px !important;
       }
     }
 

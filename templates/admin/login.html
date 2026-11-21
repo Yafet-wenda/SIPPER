@@ -79,9 +79,9 @@
       inset: 0;
       z-index: 1;
       background:
-        radial-gradient(125% 95% at 10% 6%, rgba(9, 20, 17, .97) 0%, rgba(9, 20, 17, .80) 44%, rgba(9, 20, 17, .52) 100%),
-        linear-gradient(90deg, rgba(9, 20, 17, .30) 0%, rgba(9, 20, 17, .08) 46%, rgba(9, 20, 17, .58) 100%),
-        linear-gradient(180deg, rgba(9, 20, 17, .55) 0, rgba(9, 20, 17, 0) 26%, rgba(9, 20, 17, .62) 100%);
+        radial-gradient(125% 95% at 10% 6%, rgba(9, 20, 17, .94) 0%, rgba(9, 20, 17, .74) 44%, rgba(9, 20, 17, .44) 100%),
+        linear-gradient(90deg, rgba(9, 20, 17, .24) 0%, rgba(9, 20, 17, .05) 46%, rgba(9, 20, 17, .50) 100%),
+        linear-gradient(180deg, rgba(9, 20, 17, .48) 0, rgba(9, 20, 17, 0) 26%, rgba(9, 20, 17, .54) 100%);
     }
 
     .sip-login-shell {
@@ -162,32 +162,6 @@
       font-size: 1rem;
       line-height: 1.6;
       color: #b9cfc4;
-    }
-
-    .sip-login-list {
-      list-style: none;
-      margin: 24px 0 0;
-      padding: 0;
-      display: grid;
-      gap: 9px;
-      font-size: .88rem;
-      color: #a8c2b5;
-    }
-
-    .sip-login-list li {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .sip-login-list li::before {
-      content: "";
-      width: 7px;
-      height: 7px;
-      flex: none;
-      border-radius: 50%;
-      background: var(--sip-amber);
-      box-shadow: 0 0 0 4px rgba(217, 154, 43, .18);
     }
 
     /* ------------------------------------------------------------- kartu */
@@ -376,11 +350,39 @@
         font-size: clamp(26px, 8vw, 34px);
       }
 
-      .sip-login-list {
-        display: none;
-      }
     }
   </style>
+{% endblock %}
+
+{% block extrabody %}
+  {{ block.super }}
+  <script>
+    (function () {
+      var input = document.querySelector('#login-form input[type="password"]');
+      if (!input || input.dataset.passwordToggle === 'ready') return;
+      input.dataset.passwordToggle = 'ready';
+
+      var wrap = document.createElement('span');
+      wrap.className = 'sip-password-wrap';
+      input.parentNode.insertBefore(wrap, input);
+      wrap.appendChild(input);
+
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'sip-password-toggle';
+      button.setAttribute('aria-label', 'Tampilkan password');
+      button.setAttribute('aria-pressed', 'false');
+      button.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M2.5 12s3.5-5 9.5-5 9.5 5 9.5 5-3.5 5-9.5 5-9.5-5-9.5-5Z"/><circle cx="12" cy="12" r="2.5"/></svg>';
+
+      button.addEventListener('click', function () {
+        var shown = input.type === 'text';
+        input.type = shown ? 'password' : 'text';
+        button.setAttribute('aria-pressed', String(!shown));
+        button.setAttribute('aria-label', shown ? 'Tampilkan password' : 'Sembunyikan password');
+      });
+      wrap.appendChild(button);
+    })();
+  </script>
 {% endblock %}
 
 {% block content %}
@@ -400,10 +402,6 @@
           Periksa berkas, putuskan pengajuan, dan terbitkan kartu digital
           penduduk perantauan dalam satu konsol.
         </p>
-        <ul class="sip-login-list">
-          <li>Khusus akun staf yang diberi hak akses</li>
-          <li>Setiap tindakan tercatat pada log audit</li>
-        </ul>
       </section>
 
       <section class="sip-login-card">

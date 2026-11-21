@@ -39,6 +39,7 @@ urlpatterns = [
     path('kartu/<str:code>/download/', views.download_card, name='download_card'),
     path('api/pending-count/', views.api_pending_count, name='api_pending_count'),
     path('api/landing-stats/', views.api_landing_stats, name='api_landing_stats'),
+    path('api/public-chat/', views.api_public_chat, name='api_public_chat'),
     path('api/validate-nik/', views.api_validate_nik, name='api_validate_nik'),
     path('api/ocr-result/<int:pk>/', views.api_ocr_result, name='api_ocr_result'),
     path('api/trigger-ocr/<int:pk>/', views.api_trigger_ocr, name='api_trigger_ocr'),

@@ -198,6 +198,58 @@ class SipperFlowTests(TestCase):
         self.assertEqual(application.status, 'disetujui')
         self.assertTrue(KartuDigital.objects.filter(penduduk=person).exists())
 
+    def test_public_chat_answers_public_application_steps(self):
+        for pertanyaan in (
+            'Bagaimana cara daftar akun?',
+            'Bagaimana cara mengajukan data?',
+            'Dokumen apa yang diperlukan?',
+        ):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': pertanyaan},
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertIn('jawaban', response.json())
+            self.assertEqual(response.json()['versi'], 'aturan-lokal')
+
+    def test_public_chat_does_not_disclose_private_status(self):
+        response = self.client.post(
+            '/api/public-chat/',
+            data={'pesan': 'Apa status pengajuan saya?'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('masuk ke akun', response.json()['jawaban'].lower())
+
+    def test_public_chat_answers_general_question_via_ollama(self):
+        with mock.patch(
+            'core.views.answer_public_chat',
+            return_value='Internet adalah jaringan komputer global.',
+        ):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': 'Apa itu internet?'},
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['versi'], 'ollama-lokal')
+        self.assertIn('jaringan komputer', response.json()['jawaban'].lower())
+
+    def test_public_chat_fallback_is_rule_based_when_ollama_is_offline(self):
+        from .services.public_chat import PublicChatError
+        with mock.patch(
+            'core.views.answer_public_chat',
+            side_effect=PublicChatError('Ollama lokal tidak dapat dihubungi.'),
+        ):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': 'Bagaimana cara mengajukan data?'},
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['versi'], 'aturan-lokal')
+
     def test_pending_count_api_reports_officer_queue_metrics(self):
         person = Penduduk.objects.create(
             user=self.user, nama='Live Citizen', nik='9202020202020205',

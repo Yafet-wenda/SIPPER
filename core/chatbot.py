@@ -452,6 +452,71 @@ def _jawab_kemampuan(konteks):
 
 ATURAN = [
     {
+        'id': 'cara_daftar',
+        'kata_kunci': ('cara daftar', 'buat akun', 'daftar akun', 'registrasi', 'mendaftar', 'buat akun baru',
+                        'daftar sipper', 'langkah daftar'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Cara membuat akun SIPPER:',
+            '1. Buka halaman Daftar atau klik "Mulai pendataan".',
+            '2. Isi nama lengkap, email aktif, dan password minimal 8 karakter.',
+            '3. Setelah berhasil, sistem otomatis membuka formulir pengajuan data.',
+            '4. Gunakan halaman Masuk jika akun sudah pernah dibuat.',
+        ]),
+        'saran': ['Bagaimana cara mengajukan data?', 'Dokumen apa yang diperlukan?'],
+    },
+    {
+        'id': 'cara_pengajuan',
+        'kata_kunci': ('cara pengajuan', 'cara ajukan', 'mengajukan data', 'ajukan data', 'pengajuan',
+                        'lampirkan dokumen', 'isi formulir', 'langkah pengajuan'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Alur pengajuan data perantauan:',
+            '1. Login, lalu buka Ajukan data atau Lengkapi pengajuan.',
+            '2. Isi nama sesuai identitas, NIK 16 digit, nomor telepon, daerah asal, kota tujuan, dan tujuan.',
+            '3. Unggah KTP dan Kartu Keluarga dalam format PDF/JPG/PNG, maksimal 5 MB tiap berkas.',
+            '4. Pasfoto bersifat opsional dan dipakai pada kartu digital.',
+            '5. Kirim pengajuan, lalu pantau statusnya di Ringkasan/dashboard.',
+            '6. Status menunggu berarti petugas belum mengambil keputusan.',
+        ]),
+        'saran': ['Berapa lama verifikasi?', 'Dokumen apa yang diperlukan?', 'Bagaimana kartu digital diterbitkan?'],
+    },
+    {
+        'id': 'dokumen_umum',
+        'kata_kunci': ('dokumen apa', 'syarat dokumen', 'berkas', 'ktp', 'kartu keluarga', 'unggah',
+                        'upload', 'pasfoto', 'ukuran berkas', 'format berkas'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Lampiran wajib: foto KTP dan foto Kartu Keluarga.',
+            'Format yang diterima: PDF, JPG, JPEG, atau PNG untuk KTP/KK.',
+            'Ukuran setiap berkas dibatasi maksimal 5 MB.',
+            'Pasfoto opsional, format JPG/PNG, dan digunakan pada kartu digital bila diunggah.',
+        ]),
+        'saran': ['Bagaimana cara mengajukan data?', 'Bagaimana cara kirim ulang?', 'Apakah dokumen bisa diganti?'],
+    },
+    {
+        'id': 'verifikasi_warga',
+        'kata_kunci': ('berapa lama', 'lama verifikasi', 'menunggu berapa', 'status pengajuan', 'tahapan',
+                        'alur verifikasi', 'diproses', 'setelah disetujui'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Tahapan pengajuan: Daftar akun -> Ajukan data -> Tunggu verifikasi -> Terbit kartu digital.',
+            'Status Menunggu: berkas sedang atau belum diperiksa petugas.',
+            'Status Perlu perbaikan atau Ditolak: baca catatan petugas di dashboard lalu kirim ulang berkas jika diminta.',
+            'Status Disetujui: kartu digital diterbitkan otomatis dan dapat dibuka dari Ringkasan.',
+        ]),
+        'saran': ['Bagaimana cara kirim ulang?', 'Bagaimana kartu digital diterbitkan?', 'Masuk ke dashboard di mana?'],
+    },
+    {
+        'id': 'kirim_ulang',
+        'kata_kunci': ('kirim ulang', 'perbaikan', 'ganti dokumen', 'ubah dokumen', 'unggah lagi',
+                        'ketentuan perbaikan'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Jika pengajuan berstatus Ditolak atau Perlu perbaikan:',
+            '1. Masuk ke dashboard/riwayat pengajuan.',
+            '2. Baca catatan petugas.',
+            '3. Ganti KTP, KK, atau pasfoto yang diminta.',
+            '4. Tekan Kirim ulang agar antrean kembali berstatus Menunggu.',
+        ]),
+        'saran': ['Apa status pengajuan saya?', 'Dokumen apa yang diperlukan?', 'Berapa lama verifikasi?'],
+    },
+    {
         'id': 'selisih_data',
         'kata_kunci': ('selisih', 'perbedaan', 'beda data', 'cocok tidak', 'cocokkan', 'bandingkan',
                        'bandingkan data', 'data warga dengan', 'perbandingan', 'samakah',
