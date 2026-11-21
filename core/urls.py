@@ -26,6 +26,7 @@ urlpatterns = [
     path('petugas/', views.officer, name='officer'),
     path('petugas/pengajuan/<int:pk>/', views.application_detail, name='application_detail'),
     path('petugas/pengajuan/<int:pk>/laporan.pdf', views.pengajuan_report_pdf, name='pengajuan_report_pdf'),
+    path('petugas/pengajuan/<int:pk>/ringkasan-ai/', views.application_ai_summary, name='application_ai_summary'),
     path('petugas/dokumen/<int:pk>/', views.document_review, name='document_review'),
     path('dokumen/<int:pk>/file/', views.document_file, name='document_file'),
     path('penduduk/<int:pk>/pasfoto/', views.penduduk_foto, name='penduduk_foto'),

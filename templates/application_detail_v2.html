@@ -156,6 +156,18 @@
 
     <section class="table-section detail-docs" style="margin-top:24px">
       <div class="section-label">
+        <h2>Ringkasan AI lokal</h2>
+        <span>Ollama / perangkat ini</span>
+      </div>
+      <div id="ai-summary-box" style="background:#f8f9fa;border:1px solid #e5e7eb;border-radius:10px;padding:16px">
+        <button type="button" id="btn-ai-summary" class="button button-green">Buat ringkasan pengajuan</button>
+        <p id="ai-summary-status" role="status" style="margin:10px 0 0;color:#6b7280"></p>
+        <pre id="ai-summary-output" style="display:none;white-space:pre-wrap;font-family:inherit;line-height:1.55;margin:12px 0 0"></pre>
+      </div>
+    </section>
+
+    <section class="table-section detail-docs" style="margin-top:24px">
+      <div class="section-label">
         <h2>Riwayat keputusan</h2>
         <span>{{ riwayat_keputusan|length }} perubahan</span>
       </div>
@@ -293,6 +305,37 @@
   </div>
 
   <script>
+    var aiSummaryButton = document.getElementById('btn-ai-summary');
+    if (aiSummaryButton) {
+      aiSummaryButton.addEventListener('click', function () {
+        aiSummaryButton.disabled = true;
+        var status = document.getElementById('ai-summary-status');
+        var output = document.getElementById('ai-summary-output');
+        status.textContent = 'Membuat ringkasan dengan Ollama lokal...';
+        output.style.display = 'none';
+        fetch('{% url "core:application_ai_summary" item.pk %}', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: {
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            'X-Requested-With': 'XMLHttpRequest'
+          }
+        }).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok) throw new Error(data.error || 'Ringkasan AI gagal dibuat.');
+            return data;
+          });
+        }).then(function (data) {
+          status.textContent = 'Ringkasan dibuat di perangkat lokal.';
+          output.textContent = data.summary;
+          output.style.display = 'block';
+        }).catch(function (error) {
+          status.textContent = error.message;
+        }).finally(function () {
+          aiSummaryButton.disabled = false;
+        });
+      });
+    }
     var catatanTemplate = document.getElementById('detail-catatan-template');
     if (catatanTemplate) {
       catatanTemplate.addEventListener('change', function () {

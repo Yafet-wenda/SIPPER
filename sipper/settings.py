@@ -119,6 +119,9 @@ CLAMAV_ENABLED = os.getenv('CLAMAV_ENABLED', '0') == '1'
 CLAMAV_HOST = os.getenv('CLAMAV_HOST', '127.0.0.1')
 CLAMAV_PORT = int(os.getenv('CLAMAV_PORT', '3310'))
 GEMINI_OCR_ENABLED = os.getenv('GEMINI_OCR_ENABLED', '0') == '1'
+OLLAMA_API_URL = os.getenv('OLLAMA_API_URL', 'http://127.0.0.1:11434')
+OLLAMA_MODEL = os.getenv('OLLAMA_MODEL', 'llama3.2:3b')
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv('OLLAMA_TIMEOUT_SECONDS', '30'))
 # Kejadian yang tidak lagi berhenti sebagai baris AuditLog saja. Semua jalur
 # kegagalan (OCR, ClamAV, pemotretan pasfoto) menulis ke log proses supaya
 # penyebab aslinya masih terbaca di jendela waitress saat petugas hanya

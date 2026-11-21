@@ -37,6 +37,7 @@ from .keputusan import terapkan_status
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole, RiwayatKeputusan
 from .ocr_worker import picu_async
 from .ai_verifikasi import nilai_berkas
+from .services.ai_summary import OllamaSummaryError, summarize_application
 from .throttle import client_ip, throttle_public
 from .uploads import (GAMBAR_SAJA, LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES,
                       SEMUA_LAMPILAN, valid_upload)
@@ -502,6 +503,35 @@ def officer(request):
         'officers': officers,
         'page_obj': page,
     })
+
+
+@login_required(login_url='/login/')
+@user_passes_test(is_officer, login_url='/login/')
+def application_ai_summary(request, pk):
+    item = get_object_or_404(
+        Pengajuan.objects.select_related('penduduk').prefetch_related('penduduk__dokumen'),
+        pk=pk,
+    )
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Gunakan POST untuk membuat ringkasan.'}, status=405)
+    try:
+        summary = summarize_application(item)
+    except OllamaSummaryError as error:
+        AuditLog.objects.create(
+            user=request.user,
+            aksi='ringkasan-ai-gagal',
+            deskripsi=f'Ringkasan AI pengajuan {item.pk} gagal: {error}',
+        )
+        return JsonResponse({
+            'status': 'unavailable',
+            'error': str(error),
+        }, status=503)
+    AuditLog.objects.create(
+        user=request.user,
+        aksi='ringkasan-ai',
+        deskripsi=f'Ringkasan AI lokal dibuat untuk pengajuan {item.pk}.',
+    )
+    return JsonResponse({'status': 'ok', 'summary': summary})
 
 
 @user_passes_test(is_officer, login_url='/login/')

@@ -211,6 +211,31 @@ class SipperFlowTests(TestCase):
         self.assertIn('overdue', data)
         self.assertIn('unassigned', data)
 
+    def test_officer_ai_summary_endpoint_is_local_and_audited(self):
+        person = Penduduk.objects.create(
+            user=self.user, nama='Summary Citizen', nik='9202020202020206',
+            daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan',
+        )
+        application = Pengajuan.objects.create(penduduk=person)
+        UserRole.objects.create(user=self.staff, role='petugas')
+        self.client.force_login(self.staff)
+        with mock.patch(
+            'core.views.summarize_application',
+            return_value='Ikhtisar\nData pengajuan tersedia.',
+        ):
+            response = self.client.post(
+                f'/petugas/pengajuan/{application.pk}/ringkasan-ai/',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json()['summary'],
+            'Ikhtisar\nData pengajuan tersedia.',
+        )
+        self.assertTrue(AuditLog.objects.filter(
+            aksi='ringkasan-ai',
+            deskripsi__contains=f'pengajuan {application.pk}',
+        ).exists())
+
     def test_staff_can_search_and_review_application_detail(self):
         person = Penduduk.objects.create(user=self.user, nama='Citizen Detail', nik='9202020202020202', daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan')
         application = Pengajuan.objects.create(penduduk=person)
