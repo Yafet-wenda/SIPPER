@@ -16,6 +16,34 @@
       {% else %}
         <a class="button button-green" href="{% url 'core:application' %}">Lengkapi pengajuan</a>
       {% endif %}
+
+      <section class="table-section">
+        <div class="section-label">
+          <h2>Riwayat pengajuan</h2>
+          <span>{{ riwayat_keputusan|length }} perubahan</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Waktu</th><th>Status</th><th>Catatan</th><th>Pelaku</th></tr>
+            </thead>
+            <tbody>
+              {% for riwayat in riwayat_keputusan %}
+                <tr>
+                  <td>{{ riwayat.created_at|date:'d M Y H:i' }}</td>
+                  <td><span class="status status-{{ riwayat.status }}">{{ riwayat.get_status_display }}</span></td>
+                  <td>{{ riwayat.catatan|default:'-' }}</td>
+                  <td>{% if riwayat.actor %}{{ riwayat.actor.get_full_name|default:riwayat.actor.username }}{% else %}Sistem{% endif %}</td>
+                </tr>
+              {% empty %}
+                <tr>
+                  <td colspan="4" class="empty">Belum ada perubahan status. Pengajuan Anda tercatat sebagai menunggu verifikasi.</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
 
     {% if person %}
@@ -43,11 +71,13 @@
           <form method="post" enctype="multipart/form-data" action="{% url 'core:resubmit_application' person.pengajuan.pk %}" style="margin-top:15px">
             <label class="full">
               Ganti foto KTP <small>kosongkan bila sudah benar</small>
-              <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png">
+              <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png" data-resubmit-preview="ktp-preview">
+              <span id="ktp-preview" class="upload-preview" style="display:block"></span>
             </label>
             <label class="full">
               Ganti foto Kartu Keluarga <small>kosongkan bila sudah benar</small>
-              <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png">
+              <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png" data-resubmit-preview="kk-preview">
+              <span id="kk-preview" class="upload-preview" style="display:block"></span>
             </label>
             {% if gemini_ocr_available %}
               <label class="full">
@@ -59,7 +89,8 @@
             {% endif %}
             <label class="full">
               Ganti pasfoto <small>JPG atau PNG, kosongkan bila sudah benar</small>
-              <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png">
+              <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png" data-resubmit-preview="pasfoto-preview">
+              <span id="pasfoto-preview" class="upload-preview" style="display:block"></span>
             </label>
             <button class="button button-green" type="submit">Kirim ulang</button>
             {% csrf_token %}
@@ -83,7 +114,10 @@
         {% if card %}
           <div>
             <small>KARTU DIGITAL</small>
-            <strong><a href="{% url 'core:validate_card' card.kode %}">Lihat kartu →</a></strong>
+            <strong>
+              <a href="{% url 'core:validate_card' card.kode %}">Lihat kartu →</a>
+            </strong>
+            <small>Berlaku sampai {{ card.berlaku_sampai|date:'d M Y' }}</small>
           </div>
         {% endif %}
       </section>
@@ -137,4 +171,17 @@
       </section>
     {% endif %}
   </div>
+  <script>
+    document.querySelectorAll('input[type="file"][data-resubmit-preview]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var target = document.getElementById(input.dataset.resubmitPreview);
+        var file = input.files && input.files[0];
+        if (target) {
+          target.textContent = file
+            ? file.name + ' — ' + (file.size / 1024).toFixed(0) + ' KB'
+            : '';
+        }
+      });
+    });
+  </script>
 {% endblock %}

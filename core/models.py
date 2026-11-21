@@ -61,6 +61,14 @@ class Pengajuan(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True, verbose_name='dikirim pada')
     verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name='verified_applications', verbose_name='diverifikasi oleh')
     verified_at = models.DateTimeField(null=True, blank=True, verbose_name='diverifikasi pada')
+    assigned_to = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='assigned_applications',
+        verbose_name='ditugaskan kepada',
+    )
 
     def __str__(self):
         return f'{self.penduduk.nama} - {self.get_status_display()}'
@@ -68,6 +76,35 @@ class Pengajuan(models.Model):
     class Meta:
         verbose_name = 'pengajuan'
         verbose_name_plural = 'pengajuan'
+
+
+class RiwayatKeputusan(models.Model):
+    pengajuan = models.ForeignKey(
+        Pengajuan,
+        on_delete=models.CASCADE,
+        related_name='riwayat_keputusan',
+        verbose_name='pengajuan',
+    )
+    status = models.CharField(max_length=20, choices=Pengajuan.STATUS, verbose_name='status')
+    catatan = models.TextField(blank=True, verbose_name='catatan')
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='decision_history',
+        verbose_name='pelaku',
+    )
+    actor_role = models.CharField(max_length=30, default='petugas', verbose_name='peran pelaku')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='waktu keputusan')
+
+    def __str__(self):
+        return f'{self.pengajuan_id}: {self.get_status_display()}'
+
+    class Meta:
+        ordering = ('-created_at',)
+        verbose_name = 'riwayat keputusan'
+        verbose_name_plural = 'riwayat keputusan'
 
 
 class KartuDigital(models.Model):

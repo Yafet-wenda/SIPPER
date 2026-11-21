@@ -25,6 +25,17 @@
     .inline-actions .aksi-tombol button[name="status"][value="perlu_perbaikan"] { color: #d97706; }
     .catatan-hint { font-size: 11px; color: #b91c1c; min-height: 14px; }
     .catatan-existing { display: block; margin-top: 4px; font-size: 12px; color: #64748b; }
+    .sla-badge { display:inline-block; margin-top:5px; padding:3px 7px; border-radius:999px; font-size:11px; }
+    .sla-badge.warning { background:#fef3c7; color:#92400e; }
+    .sla-badge.overdue { background:#fee2e2; color:#991b1b; }
+    .sla-badge.normal { background:#ecfdf5; color:#065f46; }
+    .assign-form { display:flex; gap:5px; margin-top:6px; }
+    .assign-form select { min-width:100px; max-width:150px; font-size:12px; }
+    .row-overdue { background: #fff5f5 !important; }
+    .row-warning { background: #fffbeb !important; }
+    .bulk-toolbar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0; }
+    .bulk-toolbar select { max-width:220px; }
+    .live-officer { font-weight:700; }
     @media (max-width: 640px) { .inline-actions { min-width: 180px; } }
   </style>
 {% endblock %}
@@ -48,21 +59,49 @@
         <option value="ditolak" {% if selected_status == 'ditolak' %}selected{% endif %}>Ditolak</option>
         <option value="perlu_perbaikan" {% if selected_status == 'perlu_perbaikan' %}selected{% endif %}>Perlu perbaikan</option>
       </select>
+      <select name="sla">
+        <option value="">Semua SLA</option>
+        <option value="24" {% if selected_sla == '24' %}selected{% endif %}>Menunggu 24+ jam</option>
+        <option value="overdue" {% if selected_sla == 'overdue' %}selected{% endif %}>Terlambat 48+ jam</option>
+      </select>
+      <select name="assigned">
+        <option value="">Semua penugasan</option>
+        <option value="me" {% if selected_assigned == 'me' %}selected{% endif %}>Ditugaskan kepada saya</option>
+        <option value="unassigned" {% if selected_assigned == 'unassigned' %}selected{% endif %}>Belum ditugaskan</option>
+      </select>
       <button class="button button-green" type="submit">Filter</button>
-      <a class="button button-dark" href="?q={{ query }}&status={{ selected_status }}&export=csv">Export CSV</a>
+      <a class="button button-dark" href="?q={{ query }}&status={{ selected_status }}&sla={{ selected_sla }}&assigned={{ selected_assigned }}&export=csv">Export CSV</a>
     </form>
 
     <div class="table-section">
       <div class="section-label">
         <h2>{{ applications|length }} pengajuan ditemukan</h2>
-        <span>Periksa data sebelum menyetujui</span>
+        <span id="officer-live-status" class="live-officer">Antrean diperbarui otomatis</span>
       </div>
+      <form method="post" id="bulk-officer-actions" class="bulk-toolbar">
+        {% csrf_token %}
+        <select name="action" id="bulk-action" aria-label="Aksi massal">
+          <option value="">Pilih aksi massal</option>
+          <option value="claim">Ambil pengajuan</option>
+          <option value="bulk_assign">Tugaskan kepada...</option>
+          <option value="bulk_approve">Setujui massal</option>
+        </select>
+        <select name="assigned_to" aria-label="Petugas massal">
+          <option value="">Pilih petugas</option>
+          {% for officer in officers %}
+            <option value="{{ officer.pk }}">{{ officer.get_full_name|default:officer.username }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="button button-dark">Jalankan</button>
+      </form>
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
+              <th><input type="checkbox" id="select-all-officer" aria-label="Pilih semua pengajuan"></th>
               <th>Perantau</th>
               <th>Asal → Tujuan</th>
+              <th>SLA</th>
               <th>Tujuan</th>
               <th>Berkas</th>
               <th>Status</th>
@@ -71,12 +110,23 @@
           </thead>
           <tbody>
             {% for item in applications %}
-              <tr>
+              <tr class="{% if item.sla_state == 'overdue' %}row-overdue{% elif item.sla_state == 'warning' %}row-warning{% endif %}">
+                <td><input type="checkbox" name="selected" value="{{ item.pk }}" form="bulk-officer-actions"></td>
                 <td>
                   <strong><a href="{% url 'core:application_detail' item.pk %}">{{ item.penduduk.nama }}</a></strong>
                   <small>{{ item.penduduk.nik }}</small>
                 </td>
                 <td>{{ item.penduduk.daerah_asal }} → {{ item.penduduk.kota_tujuan }}</td>
+                <td>
+                  <strong>{{ item.sla_jam }} jam</strong>
+                  {% if item.status == 'menunggu' %}
+                    <span class="sla-badge {{ item.sla_state }}">
+                      {% if item.sla_state == 'overdue' %}Terlambat{% elif item.sla_state == 'warning' %}Perlu prioritas{% else %}Dalam SLA{% endif %}
+                    </span>
+                  {% else %}
+                    <span class="sla-badge normal">Selesai</span>
+                  {% endif %}
+                </td>
                 <td>{{ item.penduduk.tujuan|title }}</td>
                 <td>
                   <span class="lampiran {% if 'ktp' in item.jenis_ada %}lampiran--ada{% else %}lampiran--kurang{% endif %}">KTP{% if 'ktp' not in item.jenis_ada %} belum{% endif %}</span>
@@ -89,6 +139,28 @@
                   {% endif %}
                 </td>
                 <td>
+                  {% if not item.assigned_to_id and item.status == 'menunggu' %}
+                    <form method="post" style="margin-bottom:6px">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="claim">
+                      <input type="hidden" name="selected" value="{{ item.pk }}">
+                      <button type="submit" class="button button-green" style="padding:5px 8px;font-size:12px">Ambil pengajuan</button>
+                    </form>
+                  {% endif %}
+                  <form method="post" class="assign-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="assign">
+                    <input type="hidden" name="id" value="{{ item.id }}">
+                    <select name="assigned_to" aria-label="Tugaskan pengajuan {{ item.penduduk.nama }}">
+                      <option value="">Tanpa petugas</option>
+                      {% for officer in officers %}
+                        <option value="{{ officer.pk }}" {% if item.assigned_to_id == officer.pk %}selected{% endif %}>
+                          {{ officer.get_full_name|default:officer.username }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="button button-dark" style="padding:5px 8px;font-size:12px">Tugaskan</button>
+                  </form>
                   <form method="post" class="inline-actions" novalidate>
                     {% csrf_token %}
                     <input type="hidden" name="id" value="{{ item.id }}">
@@ -96,6 +168,14 @@
                            value="{{ item.catatan }}"
                            placeholder="Catatan (wajib utk Tolak / Perbaikan)"
                            aria-label="Catatan untuk {{ item.penduduk.nama }}">
+                    <select class="catatan-template" aria-label="Template catatan">
+                      <option value="">Pakai template catatan...</option>
+                      <option>Foto KTP buram atau tidak terbaca</option>
+                      <option>Foto Kartu Keluarga tidak lengkap</option>
+                      <option>NIK pada KTP tidak sesuai isian pengajuan</option>
+                      <option>Nama pada dokumen tidak sesuai identitas pengajuan</option>
+                      <option>Dokumen kedaluwarsa atau tidak sah</option>
+                    </select>
                     <div class="aksi-tombol">
                       <button name="status" value="disetujui" title="Setujui">✓</button>
                       <button name="status" value="perlu_perbaikan" data-wajib-catatan title="Minta perbaikan">!</button>
@@ -108,7 +188,7 @@
               </tr>
             {% empty %}
               <tr>
-                <td colspan="6" class="empty">Antrean masih kosong.</td>
+                <td colspan="8" class="empty">Antrean masih kosong.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -118,9 +198,9 @@
 
     {% if page_obj.has_other_pages %}
       <div class="pagination">
-        <a href="?q={{ query }}&status={{ selected_status }}&page={{ page_obj.previous_page_number }}">← Sebelumnya</a>
+        <a href="?q={{ query }}&status={{ selected_status }}&sla={{ selected_sla }}&assigned={{ selected_assigned }}&page={{ page_obj.previous_page_number }}">← Sebelumnya</a>
         <span>Halaman {{ page_obj.number }} dari {{ page_obj.paginator.num_pages }}</span>
-        <a href="?q={{ query }}&status={{ selected_status }}&page={{ page_obj.next_page_number }}">Berikutnya →</a>
+        <a href="?q={{ query }}&status={{ selected_status }}&sla={{ selected_sla }}&assigned={{ selected_assigned }}&page={{ page_obj.next_page_number }}">Berikutnya →</a>
       </div>
     {% endif %}
   </div>
@@ -132,6 +212,13 @@
     document.querySelectorAll('form.inline-actions').forEach(function (form) {
       var catatan = form.querySelector('.catatan-inline');
       var hint = form.querySelector('.catatan-hint');
+      var template = form.querySelector('.catatan-template');
+      if (template) {
+        template.addEventListener('change', function () {
+          if (template.value) catatan.value = template.value;
+          catatan.dispatchEvent(new Event('input'));
+        });
+      }
       form.addEventListener('submit', function (event) {
         var tombol = event.submitter;
         var butuh = tombol && tombol.hasAttribute('data-wajib-catatan');
@@ -141,6 +228,15 @@
           if (hint) hint.textContent = 'Isi catatan dulu sebelum menolak / meminta perbaikan.';
           catatan.focus();
         } else {
+          var tombol = event.submitter;
+          var namaAksi = tombol && tombol.value === 'disetujui' ? 'menyetujui'
+            : tombol && tombol.value === 'ditolak' ? 'menolak'
+            : tombol && tombol.value === 'perlu_perbaikan' ? 'meminta perbaikan'
+            : 'mengubah status';
+          if (!window.confirm('Konfirmasi ' + namaAksi + ' pengajuan ini?')) {
+            event.preventDefault();
+            return;
+          }
           catatan.classList.remove('invalid');
           if (hint) hint.textContent = '';
         }
@@ -150,5 +246,69 @@
         if (hint) hint.textContent = '';
       });
     });
+
+    var selectAll = document.getElementById('select-all-officer');
+    if (selectAll) {
+      selectAll.addEventListener('change', function () {
+        document.querySelectorAll('input[name="selected"][form="bulk-officer-actions"]').forEach(function (input) {
+          input.checked = selectAll.checked;
+        });
+      });
+    }
+
+    var bulkForm = document.getElementById('bulk-officer-actions');
+    if (bulkForm) {
+      bulkForm.addEventListener('submit', function (event) {
+        var action = document.getElementById('bulk-action').value;
+        var selected = document.querySelectorAll('input[name="selected"][form="bulk-officer-actions"]:checked');
+        if (!action) {
+          event.preventDefault();
+          window.alert('Pilih aksi massal terlebih dahulu.');
+          return;
+        }
+        if (!selected.length) {
+          event.preventDefault();
+          window.alert('Pilih minimal satu pengajuan.');
+          return;
+        }
+        if (action === 'bulk_assign') {
+          var assignee = bulkForm.querySelector('[name="assigned_to"]').value;
+          if (!assignee) {
+            event.preventDefault();
+            window.alert('Pilih petugas untuk penugasan massal.');
+            return;
+          }
+        }
+        if (action === 'bulk_approve' && !window.confirm('Setujui ' + selected.length + ' pengajuan terpilih?')) {
+          event.preventDefault();
+        }
+      });
+    }
+
+    var liveStatus = document.getElementById('officer-live-status');
+    var lastCount = null;
+    function refreshOfficerQueue() {
+      fetch('{% url "core:api_pending_count" %}', {
+        credentials: 'same-origin',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+      }).then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.json();
+      }).then(function (data) {
+        if (lastCount !== null && data.count !== lastCount) {
+          liveStatus.textContent = 'Antrean berubah: ' + data.count + ' menunggu. Muat ulang untuk melihat data terbaru.';
+          liveStatus.style.color = '#92400e';
+        } else {
+          liveStatus.textContent = data.count + ' menunggu · ' + data.overdue + ' terlambat · ' + data.unassigned + ' belum ditugaskan';
+          liveStatus.style.color = '';
+        }
+        lastCount = data.count;
+      }).catch(function () {
+        liveStatus.textContent = 'Pembaruan antrean terputus';
+        liveStatus.style.color = '#991b1b';
+      });
+    }
+    setInterval(refreshOfficerQueue, 15000);
+    refreshOfficerQueue();
   </script>
 {% endblock %}

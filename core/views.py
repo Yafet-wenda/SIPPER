@@ -6,7 +6,7 @@ core.akses, pembatas IP di core.throttle, aturan berkas di core.uploads,
 OCR di core.ocr_worker, kartu PDF di core.kartu_pdf, laporan PDF di
 core.pdf_report, dan keputusan status di core.keputusan.
 """
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import mimetypes
 import os
@@ -34,8 +34,9 @@ from . import chatbot, kartu_pdf, llm, pdf_report
 from .akses import is_officer
 from .csv_utils import sel_aman, waktu_wib
 from .keputusan import terapkan_status
-from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
+from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole, RiwayatKeputusan
 from .ocr_worker import picu_async
+from .ai_verifikasi import nilai_berkas
 from .throttle import client_ip, throttle_public
 from .uploads import (GAMBAR_SAJA, LAMPILAN_UPLOAD, MAX_UPLOAD_BYTES,
                       SEMUA_LAMPILAN, valid_upload)
@@ -73,8 +74,14 @@ def dashboard(request):
     # semacam ini melihat seluruh pengajuan warga di dasbornya sendiri.
     if not is_officer(request.user):
         applications = applications.filter(penduduk__user=request.user)
-    person = Penduduk.objects.filter(user=request.user).prefetch_related('dokumen').select_related('pengajuan', 'kartu').first()
-    context = {'latest': applications[:5], 'total': applications.count(), 'pending': applications.filter(status='menunggu').count(), 'approved': applications.filter(status='disetujui').count(), 'person': person, 'card': getattr(person, 'kartu', None) if person else None}
+    person = Penduduk.objects.filter(user=request.user).prefetch_related(
+        'dokumen',
+        'pengajuan__riwayat_keputusan',
+    ).select_related('pengajuan', 'kartu').first()
+    riwayat = []
+    if person and hasattr(person, 'pengajuan'):
+        riwayat = list(person.pengajuan.riwayat_keputusan.select_related('actor').all()[:20])
+    context = {'latest': applications[:5], 'total': applications.count(), 'pending': applications.filter(status='menunggu').count(), 'approved': applications.filter(status='disetujui').count(), 'person': person, 'card': getattr(person, 'kartu', None) if person else None, 'riwayat_keputusan': riwayat}
     return render(request, 'dashboard.html' if is_officer(request.user) else 'citizen_dashboard_v4.html', context)
 
 
@@ -255,9 +262,9 @@ def application(request):
                     )
             except IntegrityError:
                 messages.error(request, 'NIK tersebut sudah terdaftar.')
-                return render(request, 'application_v3.html', {'name': request.user.first_name, 'tujuan_pilihan': Penduduk.TUJUAN})
-            messages.success(request, 'Pengajuan tersimpan dan masuk antrean verifikasi.')
-            return redirect('core:dashboard')
+            else:
+                messages.success(request, 'Pengajuan tersimpan dan masuk antrean verifikasi.')
+                return redirect('core:dashboard')
     return render(request, 'application_v3.html', {'name': request.user.first_name, 'tujuan_pilihan': Penduduk.TUJUAN})
 
 
@@ -279,6 +286,13 @@ def resubmit_application(request, pk):
         item.status = 'menunggu'
         item.catatan = ''
         item.save(update_fields=['status', 'catatan'])
+        RiwayatKeputusan.objects.create(
+            pengajuan=item,
+            status='menunggu',
+            catatan='Pengajuan dikirim ulang oleh warga dengan dokumen yang diperbarui.',
+            actor=request.user,
+            actor_role='warga',
+        )
         for field, label in LAMPILAN_UPLOAD:
             uploaded = files[field]
             if not uploaded:
@@ -346,23 +360,99 @@ def annotate_jenis_dokumen(page):
 def officer(request):
     query = request.GET.get('q', '').strip()
     status = request.GET.get('status', '').strip()
-    applications = Pengajuan.objects.select_related('penduduk').order_by('-submitted_at')
+    sla = request.GET.get('sla', '').strip()
+    assigned = request.GET.get('assigned', '').strip()
+    applications = Pengajuan.objects.select_related('penduduk', 'assigned_to').order_by('-submitted_at')
     if query:
         applications = applications.filter(penduduk__nama__icontains=query) | applications.filter(penduduk__nik__icontains=query)
     if status in {'menunggu', 'disetujui', 'ditolak', 'perlu_perbaikan'}:
         applications = applications.filter(status=status)
+    if assigned == 'me':
+        applications = applications.filter(assigned_to=request.user)
+    elif assigned == 'unassigned':
+        applications = applications.filter(assigned_to__isnull=True)
+    now = timezone.now()
+    if sla == 'overdue':
+        applications = applications.filter(status='menunggu', submitted_at__lte=now - timedelta(hours=48))
+    elif sla == '24':
+        applications = applications.filter(status='menunggu', submitted_at__lte=now - timedelta(hours=24))
     if request.GET.get('export') == 'csv':
         import csv
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="laporan-pengajuan.csv"'
         writer = csv.writer(response)
-        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Dikirim (WIB)'])
+        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Ditugaskan kepada', 'Dikirim (WIB)', 'Usia (jam)'])
         for item in applications:
             writer.writerow([sel_aman(item.penduduk.nama), item.penduduk.nik, sel_aman(item.penduduk.daerah_asal),
                              sel_aman(item.penduduk.kota_tujuan), sel_aman(item.penduduk.tujuan),
-                             item.get_status_display(), waktu_wib(item.submitted_at)])
+                             item.get_status_display(),
+                             item.assigned_to.username if item.assigned_to_id else '',
+                             waktu_wib(item.submitted_at),
+                             max(0, int((timezone.now() - item.submitted_at).total_seconds() // 3600))])
         return response
     if request.method == 'POST':
+        action = request.POST.get('action', '').strip()
+        if action in {'claim', 'bulk_assign', 'bulk_approve'}:
+            ids = [int(value) for value in request.POST.getlist('selected') if value.isdigit()]
+            items = Pengajuan.objects.filter(pk__in=ids).select_related('penduduk')
+            if action == 'claim':
+                claimed = 0
+                for item in items.filter(status='menunggu', assigned_to__isnull=True):
+                    item.assigned_to = request.user
+                    item.save(update_fields=['assigned_to'])
+                    claimed += 1
+                    AuditLog.objects.create(user=request.user, aksi='penugasan',
+                                            deskripsi=f'Pengajuan {item.penduduk.nama} diambil oleh petugas.')
+                messages.success(request, f'{claimed} pengajuan berhasil diambil.')
+            elif action == 'bulk_assign':
+                assignee_id = request.POST.get('assigned_to', '').strip()
+                assignee = User.objects.filter(
+                    Q(pk=assignee_id),
+                ).filter(Q(is_staff=True) | Q(role_profile__role='petugas')).distinct().first()
+                if assignee:
+                    assigned = items.update(assigned_to=assignee)
+                    AuditLog.objects.create(user=request.user, aksi='penugasan',
+                                            deskripsi=f'{assigned} pengajuan ditugaskan massal kepada {assignee.username}.')
+                    messages.success(request, f'{assigned} pengajuan ditugaskan.')
+                else:
+                    messages.error(request, 'Petugas massal tidak ditemukan.')
+            elif action == 'bulk_approve':
+                approved = 0
+                for item in items:
+                    berubah, _ = terapkan_status(
+                        item, 'disetujui', request.user, request,
+                        catatan=item.catatan or None, sumber='persetujuan massal petugas',
+                    )
+                    approved += berubah
+                messages.success(request, f'{approved} pengajuan disetujui massal.')
+            return redirect(request.get_full_path())
+        if request.POST.get('action') == 'assign':
+            try:
+                id_diminta = int(request.POST.get('id', ''))
+            except (TypeError, ValueError):
+                id_diminta = None
+            item = Pengajuan.objects.filter(pk=id_diminta).first() if id_diminta else None
+            assignee_id = request.POST.get('assigned_to', '').strip()
+            assignee = None
+            if assignee_id:
+                assignee = User.objects.filter(
+                    Q(pk=assignee_id),
+                ).filter(Q(is_staff=True) | Q(role_profile__role='petugas')).distinct().first()
+            if item is None:
+                messages.error(request, 'Pengajuan tidak ditemukan.')
+            elif assignee_id and assignee is None:
+                messages.error(request, 'Petugas penugasan tidak ditemukan.')
+            else:
+                item.assigned_to = assignee
+                item.save(update_fields=['assigned_to'])
+                AuditLog.objects.create(
+                    user=request.user,
+                    aksi='penugasan',
+                    deskripsi=f'Pengajuan {item.penduduk.nama} '
+                              f'{"ditugaskan kepada " + assignee.username if assignee else "dikembalikan tanpa penugasan"}.',
+                )
+                messages.success(request, 'Penugasan pengajuan diperbarui.')
+            return redirect(request.get_full_path())
         # Kolom id datang dari tombol form. Nilai yang bukan angka membuat
         # get_object_or_404 melempar ValueError, bukan 404, sehingga petugas
         # melihat halaman galat alih-alih pesan yang bisa dibaca.
@@ -394,13 +484,50 @@ def officer(request):
                 messages.warning(request, f'Status {item.penduduk.nama} diperbarui, tapi email pemberitahuan tidak terkirim.')
     page = Paginator(applications, 10).get_page(request.GET.get('page'))
     annotate_jenis_dokumen(page)
-    return render(request, 'officer.html', {'applications': page, 'query': query, 'selected_status': status, 'page_obj': page})
+    now = timezone.now()
+    for item in page:
+        item.sla_jam = max(0, int((now - item.submitted_at).total_seconds() // 3600))
+        item.sla_state = 'overdue' if item.status == 'menunggu' and item.sla_jam >= 48 else (
+            'warning' if item.status == 'menunggu' and item.sla_jam >= 24 else 'normal'
+        )
+    officers = User.objects.filter(
+        Q(is_staff=True) | Q(role_profile__role='petugas')
+    ).filter(is_active=True).distinct().order_by('first_name', 'username')
+    return render(request, 'officer.html', {
+        'applications': page,
+        'query': query,
+        'selected_status': status,
+        'selected_sla': sla,
+        'selected_assigned': assigned,
+        'officers': officers,
+        'page_obj': page,
+    })
 
 
 @user_passes_test(is_officer, login_url='/login/')
 def application_detail(request, pk):
     item = get_object_or_404(Pengajuan.objects.select_related('penduduk'), pk=pk)
     if request.method == 'POST':
+        if request.POST.get('action') == 'assign':
+            assignee_id = request.POST.get('assigned_to', '').strip()
+            assignee = None
+            if assignee_id:
+                assignee = User.objects.filter(
+                    Q(pk=assignee_id),
+                ).filter(Q(is_staff=True) | Q(role_profile__role='petugas')).distinct().first()
+            if assignee_id and assignee is None:
+                messages.error(request, 'Petugas penugasan tidak ditemukan.')
+            else:
+                item.assigned_to = assignee
+                item.save(update_fields=['assigned_to'])
+                AuditLog.objects.create(
+                    user=request.user,
+                    aksi='penugasan',
+                    deskripsi=f'Pengajuan {item.penduduk.nama} '
+                              f'{"ditugaskan kepada " + assignee.username if assignee else "dikembalikan tanpa penugasan"}.',
+                )
+                messages.success(request, 'Penugasan pengajuan diperbarui.')
+            return redirect('core:application_detail', pk=item.pk)
         status = request.POST.get('status', '')
         note = request.POST.get('catatan', '').strip()
         if status not in dict(Pengajuan.STATUS):
@@ -423,10 +550,28 @@ def application_detail(request, pk):
     # memakai ID dokumen yang ditulis tetap di template, sehingga selalu salah
     # atau gagal memuat begitu ID tersebut tidak ada.
     ocr_document = next((d for d in documents if d.jenis == 'ktp'), documents[0] if documents else None)
+    comparison = None
+    if ocr_document:
+        hasil_ocr = ocr_document.extracted_data or {}
+        if not hasil_ocr and ocr_document.extracted_nik:
+            hasil_ocr = {'nik': ocr_document.extracted_nik}
+        assessment = nilai_berkas(
+            item.penduduk,
+            hasil_ocr,
+            ocr_document.ocr_confidence,
+            ocr_document.jenis,
+        )
+        comparison = assessment
+    officers = User.objects.filter(
+        Q(is_staff=True) | Q(role_profile__role='petugas')
+    ).filter(is_active=True).distinct().order_by('first_name', 'username')
     return render(request, 'application_detail_v2.html', {
         'item': item,
         'documents': documents,
+        'officers': officers,
+        'riwayat_keputusan': item.riwayat_keputusan.select_related('actor').all()[:30],
         'ocr_document': ocr_document,
+        'comparison': comparison,
         # Batas panjang pesan dan saran awal chatbot diambil dari modulnya agar
         # tidak ada angka yang ditulis dua kali (template vs backend).
         'CHAT_MAX_PANJANG': chatbot.MAX_PANJANG_PESAN,
@@ -618,7 +763,18 @@ def api_pending_count(request):
     """
     if not is_officer(request.user):
         return JsonResponse({'error': 'Akses khusus petugas.'}, status=403)
-    return JsonResponse({'count': Pengajuan.objects.filter(status='menunggu').count()})
+    now = timezone.now()
+    return JsonResponse({
+        'count': Pengajuan.objects.filter(status='menunggu').count(),
+        'overdue': Pengajuan.objects.filter(
+            status='menunggu',
+            submitted_at__lte=now - timedelta(hours=48),
+        ).count(),
+        'unassigned': Pengajuan.objects.filter(
+            status='menunggu',
+            assigned_to__isnull=True,
+        ).count(),
+    })
 
 
 @throttle_public(limit=120, json_error=True)

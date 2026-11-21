@@ -1,6 +1,8 @@
 import csv
 import os
 from datetime import timedelta
+from django.conf import settings
+from django.db import connection
 
 from django import forms
 from django.contrib import admin
@@ -16,7 +18,7 @@ from django.urls import path, reverse
 from django.db.models import Count
 from .csv_utils import sel_aman, waktu_wib
 from .ai_verifikasi import AMBAT_VALID
-from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole
+from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole, RiwayatKeputusan
 from .keputusan import terapkan_status
 from .ocr_worker import picu_async
 
@@ -56,10 +58,16 @@ class SipperAdminSite(admin.AdminSite):
         return custom + urls
 
     def live_stats(self, request):
-        return JsonResponse(self.dashboard_data(request.user))
+        try:
+            periode = int(request.GET.get('period', 14))
+        except (TypeError, ValueError):
+            periode = 14
+        if periode not in (7, 14, 30):
+            periode = 14
+        return JsonResponse(self.dashboard_data(request.user, periode=periode))
 
     @staticmethod
-    def dashboard_data(user):
+    def dashboard_data(user, periode=14):
         """Semua angka dashboard, dihitung dari database pada saat dipanggil.
 
         Agregat boleh dilihat semua petugas, tetapi nama warga dan isi log audit
@@ -75,11 +83,12 @@ class SipperAdminSite(admin.AdminSite):
         # Lookup tanggal pada MySQL/MariaDB memakai CONVERT_TZ yang butuh tabel
         # zona waktu server; di MariaDB XAMPP mesin ini tabel itu tidak terisi,
         # jadi hasilnya senyap bernilai NULL (angka hari tampak 0).
+        periode = periode if periode in (7, 14, 30) else 14
         awal_jendela = timezone.localtime().replace(
-            hour=0, minute=0, second=0, microsecond=0) - timedelta(days=13)
+            hour=0, minute=0, second=0, microsecond=0) - timedelta(days=periode - 1)
         deret = {
             (today - timedelta(days=offset)).isoformat(): {'masuk': 0, 'selesai': 0}
-            for offset in range(13, -1, -1)
+            for offset in range(periode - 1, -1, -1)
         }
         for row in (Pengajuan.objects.filter(submitted_at__gte=awal_jendela)
                     .values_list('submitted_at', flat=True)):
@@ -113,18 +122,69 @@ class SipperAdminSite(admin.AdminSite):
 
         # Rata-rata durasi verifikasi diambil dari 200 berkas terakhir yang sudah
         # selesai supaya biayanya tetap terbatas, bukan seluruh tabel.
-        selesai_list = (
-            Pengajuan.objects.filter(status='disetujui', verified_at__isnull=False)
-            .order_by('-verified_at').values_list('submitted_at', 'verified_at')[:200]
-        )
-        rerata_jam = None
-        if selesai_list:
-            jam = [(b - a).total_seconds() / 3600 for a, b in selesai_list if b and a and b >= a]
-            if jam:
-                rerata_jam = round(sum(jam) / len(jam), 1)
+        def rerata_verifikasi(hari=None):
+            qs = Pengajuan.objects.filter(
+                status__in=['disetujui', 'ditolak', 'perlu_perbaikan'],
+                verified_at__isnull=False,
+            )
+            if hari:
+                qs = qs.filter(verified_at__gte=timezone.now() - timedelta(days=hari))
+            rows = qs.order_by('-verified_at').values_list(
+                'submitted_at', 'verified_at'
+            )[:200]
+            jam = [
+                (b - a).total_seconds() / 3600
+                for a, b in rows if b and a and b >= a
+            ]
+            return round(sum(jam) / len(jam), 1) if jam else None
+
+        rerata_jam = rerata_verifikasi()
+        rerata_7_hari = rerata_verifikasi(7)
+        rerata_30_hari = rerata_verifikasi(30)
+
+        antrean_terlambat = Pengajuan.objects.filter(
+            status='menunggu',
+            submitted_at__lte=timezone.now() - timedelta(hours=48),
+        ).count()
+        kartu_hampir_habis = KartuDigital.objects.filter(
+            status='aktif',
+            berlaku_sampai__gte=today,
+            berlaku_sampai__lte=today + timedelta(days=30),
+        ).count()
+        kegagalan_email_24_jam = AuditLog.objects.filter(
+            aksi='notifikasi-gagal',
+            created_at__gte=timezone.now() - timedelta(hours=24),
+        ).count()
+        kegagalan_email_7_hari = AuditLog.objects.filter(
+            aksi='notifikasi-gagal',
+            created_at__gte=timezone.now() - timedelta(days=7),
+        ).count()
+
+        try:
+            connection.ensure_connection()
+            database_status = 'ok'
+        except Exception:
+            database_status = 'unavailable'
+
+        media_status = 'ok'
+        if not getattr(settings, 'MEDIA_ROOT', None):
+            media_status = 'belum_dikonfigurasi'
+        elif not os.path.isdir(settings.MEDIA_ROOT):
+            media_status = 'folder_tidak_ada'
+        elif not os.access(settings.MEDIA_ROOT, os.W_OK):
+            media_status = 'tidak_dapat_ditulis'
+
+        email_backend = getattr(settings, 'EMAIL_BACKEND', '')
+        email_status = 'configured'
+        if email_backend.endswith('.console.EmailBackend'):
+            email_status = 'console'
+        elif email_backend.endswith('.smtp.EmailBackend'):
+            if not getattr(settings, 'EMAIL_HOST', '') or not getattr(settings, 'EMAIL_HOST_USER', ''):
+                email_status = 'belum_dikonfigurasi'
 
         return {
             'server_time': timezone.localtime().isoformat(),
+            'periode': periode,
             'deret_hari': deret_hari,
             'hari_ini': masuk_hari_ini,
             'status': {
@@ -145,7 +205,19 @@ class SipperAdminSite(admin.AdminSite):
             'ai_ambang': AMBAT_VALID,
             'kartu_berlaku': kartu_berlaku,
             'kartu_habis': KartuDigital.objects.count() - kartu_berlaku,
+            'kartu_hampir_habis': kartu_hampir_habis,
+            'antrean_terlambat': antrean_terlambat,
             'rerata_jam': rerata_jam,
+            'rerata_7_hari': rerata_7_hari,
+            'rerata_30_hari': rerata_30_hari,
+            'kegagalan_email_24_jam': kegagalan_email_24_jam,
+            'kegagalan_email_7_hari': kegagalan_email_7_hari,
+            'layanan': {
+                'database': database_status,
+                'email': email_status,
+                'media': media_status,
+                'ocr': 'aktif' if getattr(settings, 'GEMINI_OCR_ENABLED', False) else 'lokal',
+            },
             'antrean': [
                 {
                     'pk': p.pk,
@@ -362,7 +434,7 @@ class PendudukAdmin(EksporCSVMixin, admin.ModelAdmin):
 
 @admin.register(Pengajuan, site=sipper_admin)
 class PengajuanAdmin(EksporCSVMixin, admin.ModelAdmin):
-    list_display = ('penduduk', 'status_badge', 'submitted_at', 'verified_by', 'verified_at')
+    list_display = ('penduduk', 'status_badge', 'assigned_to', 'submitted_at', 'verified_by', 'verified_at')
     list_filter = ('status', 'penduduk__kota_tujuan', PengajuanMasukFilter)
     search_fields = ('penduduk__nama', 'penduduk__nik', 'catatan')
     autocomplete_fields = ('penduduk',)
@@ -552,6 +624,15 @@ class PemutakhiranAdmin(EksporCSVMixin, admin.ModelAdmin):
     @admin.display(description='Tujuan baru')
     def new_destination(self, obj):
         return obj.data_baru.get('kota_tujuan', '-')
+
+
+@admin.register(RiwayatKeputusan, site=sipper_admin)
+class RiwayatKeputusanAdmin(EksporCSVMixin, admin.ModelAdmin):
+    list_display = ('pengajuan', 'status', 'actor', 'actor_role', 'created_at')
+    list_filter = ('status', 'actor_role')
+    search_fields = ('pengajuan__penduduk__nama', 'pengajuan__penduduk__nik', 'catatan')
+    readonly_fields = ('pengajuan', 'status', 'catatan', 'actor', 'actor_role', 'created_at')
+    list_per_page = 25
 
 
 @admin.register(AuditLog, site=sipper_admin)

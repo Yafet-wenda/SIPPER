@@ -70,14 +70,45 @@
         <strong id="sip-m-warga">{{ live_stats.warga }}</strong>
         <em>{{ live_stats.total_pengajuan }} pengajuan total</em>
       </a>
+      <a href="{% url 'core:officer' %}?status=menunggu" data-metric="terlambat">
+        <small>Antrean terlambat</small>
+        <strong id="sip-m-terlambat">{{ live_stats.antrean_terlambat }}</strong>
+        <em>menunggu lebih dari 48 jam</em>
+      </a>
+      <a href="{% url 'sipper_admin:core_kartudigital_changelist' %}" data-metric="kartu-hampir-habis">
+        <small>Kartu hampir kedaluwarsa</small>
+        <strong id="sip-m-kartu-hampir-habis">{{ live_stats.kartu_hampir_habis }}</strong>
+        <em>akan habis dalam 30 hari</em>
+      </a>
+      <a href="{% url 'sipper_admin:core_auditlog_changelist' %}?aksi__exact=notifikasi-gagal" data-metric="email-gagal">
+        <small>Email gagal 24 jam</small>
+        <strong id="sip-m-email-gagal">{{ live_stats.kegagalan_email_24_jam }}</strong>
+        <em id="sip-m-email-gagal-7">{{ live_stats.kegagalan_email_7_hari }} kegagalan dalam 7 hari</em>
+      </a>
+    </section>
+
+    <section class="sip-alert-grid" aria-label="Peringatan layanan">
+      <div class="sip-alert" id="sip-offline-alert" role="status" hidden>
+        <strong>Sambungan data terputus</strong>
+        <span>Angka terakhir tetap ditampilkan. Periksa koneksi dan server sebelum mengambil keputusan.</span>
+      </div>
+      <div class="sip-alert" id="sip-operational-alert" role="status" hidden>
+        <strong id="sip-operational-alert-title">Perhatian operasional</strong>
+        <span id="sip-operational-alert-text">Ada layanan atau antrean yang perlu diperiksa.</span>
+      </div>
     </section>
 
     <section class="sipper-columns">
       <div class="sipper-panel sipper-pulse-chart">
         <div class="sipper-panel__head">
           <h2>Denyut 14 hari</h2>
-          <span class="sipper-time" id="sip-pulse-summary">Memuat</span>
+          <div class="sip-period-picker" aria-label="Rentang grafik">
+            <button type="button" data-period="7">7 hari</button>
+            <button type="button" data-period="14" class="is-active">14 hari</button>
+            <button type="button" data-period="30">30 hari</button>
+          </div>
         </div>
+        <span class="sipper-time" id="sip-pulse-summary">Memuat</span>
         <div id="sip-pulse" role="img" aria-label="Grafik batang pengajuan masuk dan selesai per hari selama 14 hari terakhir">
           <p class="sipper-empty">Grafik membutuhkan JavaScript.</p>
         </div>
@@ -147,6 +178,36 @@
         <ul class="sipper-activity" id="sip-activity">
           <li><span>Belum ada aktivitas tercatat.</span></li>
         </ul>
+      </div>
+    </section>
+
+    <section class="sipper-columns sipper-columns--pair">
+      <div class="sipper-panel">
+        <div class="sipper-panel__head">
+          <h2>Aksi cepat</h2>
+        </div>
+        <div class="sip-quick-actions">
+          <a href="{% url 'core:officer' %}?status=menunggu">Verifikasi pengajuan <span>→</span></a>
+          <a href="{% url 'sipper_admin:core_dokumen_changelist' %}?status__exact=pending">Tinjau dokumen <span>→</span></a>
+          <a href="{% url 'sipper_admin:core_kartudigital_changelist' %}">Kelola kartu <span>→</span></a>
+          <a href="{% url 'core:scan_card' %}">Pindai QR kartu <span>→</span></a>
+        </div>
+      </div>
+
+      <div class="sipper-panel">
+        <div class="sipper-panel__head">
+          <h2>Status layanan</h2>
+        </div>
+        <div class="sip-service-grid" id="sip-services">
+          <div><span>Database</span><strong id="sip-service-database">{{ live_stats.layanan.database }}</strong></div>
+          <div><span>Email</span><strong id="sip-service-email">{{ live_stats.layanan.email }}</strong></div>
+          <div><span>Penyimpanan media</span><strong id="sip-service-media">{{ live_stats.layanan.media }}</strong></div>
+          <div><span>OCR</span><strong id="sip-service-ocr">{{ live_stats.layanan.ocr }}</strong></div>
+        </div>
+        <div class="sip-average-grid">
+          <div><span>Rata-rata 7 hari</span><strong id="sip-average-7">{{ live_stats.rerata_7_hari|floatformat:1|default:'—' }} jam</strong></div>
+          <div><span>Rata-rata 30 hari</span><strong id="sip-average-30">{{ live_stats.rerata_30_hari|floatformat:1|default:'—' }} jam</strong></div>
+        </div>
       </div>
     </section>
 

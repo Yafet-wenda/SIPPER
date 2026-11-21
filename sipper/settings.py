@@ -2,11 +2,9 @@ import os
 import sys
 from pathlib import Path
 
-from dotenv import load_dotenv
 from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / '.env')
 # Bawaannya mati supaya proses yang dilupakan tanpa DJANGO_DEBUG di lingkungan
 # tidak berakhir menyajikan traceback SQL. dev.bat menyetel 1, prod.bat menyetel 0.
 DEBUG = os.getenv('DJANGO_DEBUG', '0') == '1'
@@ -110,6 +108,7 @@ EMAIL_PORT = int(os.getenv('DJANGO_EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('DJANGO_EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('DJANGO_EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('DJANGO_EMAIL_USE_TLS', '1') == '1'
+EMAIL_USE_SSL = os.getenv('DJANGO_EMAIL_USE_SSL', '0') == '1'
 # Tanpa batas waktu, send_mail ikut menunggu sampai OS menyerah (menit) ketika
 # SMTP mati atau DNS menggantung, dan petugas yang menekan tombol verifikasi
 # melihat layarnya membeku.

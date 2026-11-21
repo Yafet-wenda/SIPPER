@@ -137,6 +137,79 @@ class SipperFlowTests(TestCase):
         self.assertEqual(KartuDigital.objects.count(), 1)
         self.assertTrue(KartuDigital.objects.first().is_valid())
         self.assertEqual(self.client.get(f'/kartu/{KartuDigital.objects.first().kode}/').status_code, 200)
+        application.refresh_from_db()
+        self.assertTrue(application.riwayat_keputusan.filter(status='disetujui', actor=self.staff).exists())
+
+    def test_officer_can_assign_application_and_filter_sla(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        person = Penduduk.objects.create(
+            user=self.user, nama='Assigned Citizen', nik='9202020202020203',
+            daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan',
+        )
+        application = Pengajuan.objects.create(penduduk=person)
+        Pengajuan.objects.filter(pk=application.pk).update(
+            submitted_at=timezone.now() - timedelta(hours=30)
+        )
+        UserRole.objects.create(user=self.staff, role='petugas')
+        self.client.force_login(self.staff)
+        response = self.client.post('/petugas/', {
+            'action': 'assign',
+            'id': application.pk,
+            'assigned_to': str(self.staff.pk),
+        })
+        self.assertEqual(response.status_code, 302)
+        application.refresh_from_db()
+        self.assertEqual(application.assigned_to, self.staff)
+        self.assertContains(
+            self.client.get('/petugas/?assigned=me'),
+            'Assigned Citizen',
+        )
+        self.assertContains(
+            self.client.get('/petugas/?sla=24'),
+            'Assigned Citizen',
+        )
+
+    def test_officer_can_claim_and_bulk_approve_applications(self):
+        person = Penduduk.objects.create(
+            user=self.user, nama='Bulk Citizen', nik='9202020202020204',
+            daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan',
+        )
+        application = Pengajuan.objects.create(penduduk=person)
+        UserRole.objects.create(user=self.staff, role='petugas')
+        self.client.force_login(self.staff)
+
+        response = self.client.post('/petugas/', {
+            'action': 'claim',
+            'selected': str(application.pk),
+        })
+        self.assertEqual(response.status_code, 302)
+        application.refresh_from_db()
+        self.assertEqual(application.assigned_to, self.staff)
+
+        application.assigned_to = None
+        application.save(update_fields=['assigned_to'])
+        response = self.client.post('/petugas/', {
+            'action': 'bulk_approve',
+            'selected': str(application.pk),
+        })
+        self.assertEqual(response.status_code, 302)
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'disetujui')
+        self.assertTrue(KartuDigital.objects.filter(penduduk=person).exists())
+
+    def test_pending_count_api_reports_officer_queue_metrics(self):
+        person = Penduduk.objects.create(
+            user=self.user, nama='Live Citizen', nik='9202020202020205',
+            daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan',
+        )
+        Pengajuan.objects.create(penduduk=person)
+        UserRole.objects.create(user=self.staff, role='petugas')
+        self.client.force_login(self.staff)
+        data = self.client.get('/api/pending-count/').json()
+        self.assertIn('count', data)
+        self.assertIn('overdue', data)
+        self.assertIn('unassigned', data)
 
     def test_staff_can_search_and_review_application_detail(self):
         person = Penduduk.objects.create(user=self.user, nama='Citizen Detail', nik='9202020202020202', daerah_asal='Jayapura', kota_tujuan='Malang', tujuan='pendidikan')
@@ -397,6 +470,10 @@ class SipperFlowTests(TestCase):
         self.assertRedirects(response, '/dashboard/')
         application.refresh_from_db()
         self.assertEqual(application.status, 'menunggu')
+        self.assertTrue(application.riwayat_keputusan.filter(
+            status='menunggu',
+            actor_role='warga',
+        ).exists())
 
     def test_profile_and_password_reset_pages_are_available(self):
         self.client.force_login(self.user)
@@ -663,6 +740,34 @@ class SipperFlowTests(TestCase):
         application.refresh_from_db()
         self.assertEqual(application.status, 'ditolak')
         self.assertEqual(len(mail.outbox), 0)
+        self.assertTrue(AuditLog.objects.filter(
+            aksi='notifikasi-gagal',
+            deskripsi__contains='Warga tidak memiliki email',
+        ).exists())
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend')
+    def test_zero_email_delivery_is_recorded_as_failure(self):
+        self.user.email = 'warga@example.invalid'
+        self.user.save(update_fields=['email'])
+        person = Penduduk.objects.create(
+            user=self.user, nama='No Delivery', nik='9920202020202020',
+            daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan',
+        )
+        application = Pengajuan.objects.create(penduduk=person)
+        self.client.force_login(self.staff)
+        with mock.patch('core.emails.send_mail', return_value=0):
+            response = self.client.post(
+                '/petugas/',
+                {'id': application.pk, 'status': 'ditolak',
+                 'catatan': 'Data tidak sesuai berkas.'},
+            )
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, 'ditolak')
+        self.assertTrue(AuditLog.objects.filter(
+            aksi='notifikasi-gagal',
+            deskripsi__contains='tidak mengirim pesan',
+        ).exists())
         self.assertTrue(AuditLog.objects.filter(aksi='verifikasi').exists())
 
     def admin_user(self):
@@ -724,6 +829,14 @@ class SipperFlowTests(TestCase):
         self.assertEqual(data['antrean'][0]['nama'], 'Warga Satu')
         self.assertIsNotNone(data['rerata_jam'])
         self.assertGreaterEqual(data['rerata_jam'], 0.0)
+        self.assertIn('antrean_terlambat', data)
+        self.assertIn('kartu_hampir_habis', data)
+        self.assertIn('kegagalan_email_24_jam', data)
+        self.assertIn('kegagalan_email_7_hari', data)
+        self.assertEqual(set(data['layanan']), {'database', 'email', 'media', 'ocr'})
+        period_30 = self.client.get('/admin/live-stats/?period=30').json()
+        self.assertEqual(period_30['periode'], 30)
+        self.assertEqual(len(period_30['deret_hari']), 30)
 
     def test_admin_changelist_shows_status_badge(self):
         person = self.make_person('Warga Tiga', '9101010101010113')

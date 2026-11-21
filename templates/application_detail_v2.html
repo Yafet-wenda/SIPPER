@@ -25,6 +25,8 @@
     }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
                overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    .doc-zoomed { position: fixed; z-index: 9999; inset: 5vh 5vw; width: 90vw !important; height: 90vh !important; object-fit: contain !important; background: #111827; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+    .doc-zoom-button { margin-left: 6px; font-size: 12px; }
     @media (max-width: 768px) {
       #ocr-panel > div { grid-template-columns: 1fr !important; }
     }
@@ -82,12 +84,99 @@
         <label>
           Catatan
           <textarea name="catatan" rows="5">{{ item.catatan }}</textarea>
+          <select id="detail-catatan-template" aria-label="Template catatan">
+            <option value="">Pakai template catatan...</option>
+            <option>Foto KTP buram atau tidak terbaca</option>
+            <option>Foto Kartu Keluarga tidak lengkap</option>
+            <option>NIK pada KTP tidak sesuai isian pengajuan</option>
+            <option>Nama pada dokumen tidak sesuai identitas pengajuan</option>
+            <option>Dokumen kedaluwarsa atau tidak sah</option>
+          </select>
         </label>
         <button class="button button-green" type="submit">
           Simpan keputusan <span>→</span>
         </button>
       </form>
     </div>
+
+    {% if comparison %}
+      <section class="table-section detail-docs" style="margin-top:24px">
+        <div class="section-label">
+          <h2>Perbandingan identitas OCR</h2>
+          <span>Skor {{ comparison.skor|floatformat:1 }}%</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Data</th><th>Isian warga</th><th>Hasil OCR</th><th>Kecocokan</th></tr></thead>
+            <tbody>
+              {% for baris in comparison.baris %}
+                <tr>
+                  <td><strong>{{ baris.label }}</strong></td>
+                  <td>{{ baris.formulir }}</td>
+                  <td>{{ baris.ocr }}</td>
+                  <td>
+                    {% if baris.field == 'nik' and baris.kecocokan == 1 %}
+                      <span class="status status-valid">Persis cocok</span>
+                    {% elif baris.field == 'nik' %}
+                      <span class="status status-invalid">Tidak cocok</span>
+                    {% else %}
+                      {{ baris.keterangan }}
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="table-section detail-docs" style="margin-top:24px">
+      <div class="section-label">
+        <h2>Penugasan petugas</h2>
+        <span>{% if item.assigned_to %}{{ item.assigned_to.get_full_name|default:item.assigned_to.username }}{% else %}Belum ditugaskan{% endif %}</span>
+      </div>
+      <form method="post" class="form-card" style="max-width:520px">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="assign">
+        <label>
+          Tugaskan kepada
+          <select name="assigned_to">
+            <option value="">Tanpa petugas</option>
+            {% for officer in officers %}
+              <option value="{{ officer.pk }}" {% if item.assigned_to_id == officer.pk %}selected{% endif %}>
+                {{ officer.get_full_name|default:officer.username }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="button button-green" type="submit">Simpan penugasan</button>
+      </form>
+    </section>
+
+    <section class="table-section detail-docs" style="margin-top:24px">
+      <div class="section-label">
+        <h2>Riwayat keputusan</h2>
+        <span>{{ riwayat_keputusan|length }} perubahan</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Waktu</th><th>Status</th><th>Catatan</th><th>Pelaku</th></tr></thead>
+          <tbody>
+            {% for riwayat in riwayat_keputusan %}
+              <tr>
+                <td>{{ riwayat.created_at|date:'d M Y H:i' }}</td>
+                <td><span class="status status-{{ riwayat.status }}">{{ riwayat.get_status_display }}</span></td>
+                <td>{{ riwayat.catatan|default:'-' }}</td>
+                <td>{% if riwayat.actor %}{{ riwayat.actor.get_full_name|default:riwayat.actor.username }}{% else %}Sistem{% endif %}</td>
+              </tr>
+            {% empty %}
+              <tr><td colspan="4" class="empty">Belum ada riwayat keputusan.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
 
     <section class="table-section detail-docs">
       <div class="section-label">
@@ -117,6 +206,7 @@
                     <a class="doc-thumb-link" href="{% url 'core:document_file' document.pk %}" target="_blank" rel="noopener">
                       <img src="{% url 'core:document_file' document.pk %}" alt="Pratinjau {{ document.get_jenis_display }}" class="doc-thumb" loading="lazy">
                     </a>
+                    <button type="button" class="doc-zoom-button" data-doc-zoom aria-label="Perbesar {{ document.get_jenis_display }}">Perbesar</button>
                   {% else %}
                     <span class="doc-pdf">PDF</span>
                   {% endif %}
@@ -203,6 +293,50 @@
   </div>
 
   <script>
+    var catatanTemplate = document.getElementById('detail-catatan-template');
+    if (catatanTemplate) {
+      catatanTemplate.addEventListener('change', function () {
+        if (catatanTemplate.value) {
+          var textarea = document.querySelector('.review-form textarea[name="catatan"]');
+          if (textarea) textarea.value = catatanTemplate.value;
+        }
+      });
+    }
+    var reviewForm = document.querySelector('.review-form');
+    if (reviewForm) {
+      reviewForm.addEventListener('submit', function (event) {
+        var statusSelect = reviewForm.querySelector('[name="status"]');
+        var catatan = reviewForm.querySelector('[name="catatan"]');
+        if (['ditolak', 'perlu_perbaikan'].includes(statusSelect.value) && !catatan.value.trim()) {
+          event.preventDefault();
+          catatan.focus();
+          window.alert('Tolak atau minta perbaikan membutuhkan catatan.');
+          return;
+        }
+        var label = statusSelect.options[statusSelect.selectedIndex].text;
+        if (!window.confirm('Simpan keputusan "' + label + '" untuk pengajuan ini?')) {
+          event.preventDefault();
+        }
+      });
+    }
+    document.querySelectorAll('[data-doc-zoom]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var image = button.parentElement.querySelector('.doc-thumb');
+        if (!image) return;
+        var zoomed = image.classList.toggle('doc-zoomed');
+        button.textContent = zoomed ? 'Tutup' : 'Perbesar';
+      });
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        document.querySelectorAll('.doc-zoomed').forEach(function (image) {
+          image.classList.remove('doc-zoomed');
+        });
+        document.querySelectorAll('[data-doc-zoom]').forEach(function (button) {
+          button.textContent = 'Perbesar';
+        });
+      }
+    });
     // ID dokumen yang dipakai panel OCR & tombol proses ulang (KTP diutamakan).
     const ocrDocumentId = {% if ocr_document %}{{ ocr_document.pk }}{% else %}null{% endif %};
 

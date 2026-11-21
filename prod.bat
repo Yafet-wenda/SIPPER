@@ -27,6 +27,7 @@ cd /D "%~dp0"
 
 if not defined XAMPP_HOME if exist "C:\xampp\mysql_start.bat" set "XAMPP_HOME=C:\xampp"
 if not defined XAMPP_HOME if exist "D:\xampp\mysql_start.bat" set "XAMPP_HOME=D:\xampp"
+if not defined XAMPP_HOME if exist "D:\exampp\mysql_start.bat" set "XAMPP_HOME=D:\exampp"
 if not defined XAMPP_HOME if exist "F:\xampp\mysql_start.bat" set "XAMPP_HOME=F:\xampp"
 if not defined XAMPP_HOME set "XAMPP_HOME=C:\xampp"
 echo        XAMPP: %XAMPP_HOME%

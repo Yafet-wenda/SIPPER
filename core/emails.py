@@ -23,11 +23,13 @@ def notify_status(person, status):
     body = PESAN_STATUS.get(status)
     if not body:
         return False, 'Status ini tidak perlu diberitahukan.'
-    send_mail(
+    terkirim = send_mail(
         subject='SIPPER: status pengajuan Anda diperbarui',
         message=f'{person.nama}, {body}\n\nDikirim pada {timezone.localtime():%d %m %Y %H:%M} WIB',
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[person.user.email],
         fail_silently=False,
     )
+    if not terkirim:
+        return False, 'Server email menerima permintaan tetapi tidak mengirim pesan.'
     return True, person.user.email

@@ -60,12 +60,14 @@
 
       <label class="full">
         Foto KTP <small>PDF, JPG, PNG / maksimal 5 MB</small>
-        <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png" required>
+        <input type="file" name="ktp" accept=".pdf,.jpg,.jpeg,.png" required data-preview="preview-ktp">
       </label>
+      <div id="preview-ktp" class="upload-preview full" hidden></div>
       <label class="full">
         Foto Kartu Keluarga <small>PDF, JPG, PNG / maksimal 5 MB</small>
-        <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png" required>
+        <input type="file" name="kk" accept=".pdf,.jpg,.jpeg,.png" required data-preview="preview-kk">
       </label>
+      <div id="preview-kk" class="upload-preview full" hidden></div>
       {% if gemini_ocr_available %}
         <div class="full">
           <p>Dengan persetujuan, KTP dikirim ke Google Gemini bila OCR lokal gagal/meragukan atau data utamanya belum lengkap; setiap KK dikirim untuk membaca tabel anggota keluarga secara rinci. PDF KTP/KK juga dikirim karena OCR lokal belum mendukung PDF. Tanpa persetujuan, dokumen hanya diproses lokal dan PDF tidak terbaca OCR. Pasfoto tidak dikirim.</p>
@@ -79,8 +81,9 @@
       {% endif %}
       <label class="full">
         Pasfoto <small>opsional — JPG atau PNG / maksimal 5 MB, dipakai untuk kartu digital</small>
-        <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png">
+        <input type="file" name="pasfoto" accept=".jpg,.jpeg,.png" data-preview="preview-pasfoto">
       </label>
+      <div id="preview-pasfoto" class="upload-preview full" hidden></div>
       <button class="button button-green full" type="submit">
         Kirim pengajuan <span>↗</span>
       </button>
@@ -88,6 +91,35 @@
   </div>
 
   <script>
+    document.querySelectorAll('input[type="file"][data-preview]').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var target = document.getElementById(input.dataset.preview);
+        if (!target) return;
+        var file = input.files && input.files[0];
+        target.textContent = '';
+        target.hidden = !file;
+        if (!file) return;
+
+        var summary = document.createElement('p');
+        summary.style.margin = '6px 0';
+        summary.textContent = file.name + ' — ' + (file.size / 1024).toFixed(0) + ' KB';
+        target.appendChild(summary);
+
+        if (file.type.startsWith('image/')) {
+          var image = document.createElement('img');
+          image.src = URL.createObjectURL(file);
+          image.alt = 'Pratinjau berkas ' + file.name;
+          image.style.maxWidth = '180px';
+          image.style.maxHeight = '220px';
+          image.style.objectFit = 'contain';
+          image.style.border = '1px solid #d8e3dc';
+          image.style.borderRadius = '8px';
+          image.onload = function () { URL.revokeObjectURL(image.src); };
+          target.appendChild(image);
+        }
+      });
+    });
+
     const nikInput = document.getElementById('application-nik');
     const nikStatus = document.getElementById('nik-feedback');
     const nikValidationUrl = nikInput.dataset.validateUrl;

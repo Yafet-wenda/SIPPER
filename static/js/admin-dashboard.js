@@ -22,6 +22,7 @@
   var state = {
     paused: false,
     offline: false,
+    period: 14,
     // Jam server dipakai sebagai acuan "sekarang" supaya selisih waktu relatif
     // tidak rusak bila jam laptop petugas meleset.
     serverNow: null,
@@ -132,6 +133,15 @@
     if (kartu) kartu.textContent = number(data.kartu_habis) + ' habis atau nonaktif';
     var warga = document.querySelector('#sip-m-warga + em');
     if (warga) warga.textContent = number(data.total_pengajuan) + ' pengajuan total';
+    setText('sip-m-terlambat', number(data.antrean_terlambat));
+    setText('sip-m-kartu-hampir-habis', number(data.kartu_hampir_habis));
+    setText('sip-m-email-gagal', number(data.kegagalan_email_24_jam));
+    setText('sip-m-email-gagal-7',
+      number(data.kegagalan_email_7_hari) + ' kegagalan dalam 7 hari');
+    setText('sip-average-7',
+      data.rerata_7_hari === null ? '—' : data.rerata_7_hari.toFixed(1) + ' jam');
+    setText('sip-average-30',
+      data.rerata_30_hari === null ? '—' : data.rerata_30_hari.toFixed(1) + ' jam');
     el.rerata.textContent = data.rerata_jam === null ? '—' : data.rerata_jam.toFixed(1);
   }
 
@@ -145,6 +155,35 @@
     });
   }
 
+  function renderServices(data) {
+    var label = {
+      ok: 'Normal',
+      configured: 'Aktif',
+      console: 'Console',
+      lokal: 'Lokal',
+      aktif: 'Aktif',
+      unavailable: 'Tidak tersedia',
+      belum_dikonfigurasi: 'Belum dikonfigurasi',
+      folder_tidak_ada: 'Folder tidak ada',
+      tidak_dapat_ditulis: 'Tidak dapat ditulis',
+      belum_dikonfigurasi: 'Belum dikonfigurasi'
+    };
+    Object.keys(data.layanan || {}).forEach(function (key) {
+      var value = data.layanan[key];
+      setText('sip-service-' + key, label[value] || value);
+      var node = document.getElementById('sip-service-' + key);
+      if (node) {
+        node.dataset.status = value;
+        node.classList.toggle('is-normal',
+          value === 'ok' || value === 'configured' || value === 'lokal' || value === 'aktif');
+        node.classList.toggle('is-warning',
+          value === 'console' || value === 'belum_dikonfigurasi');
+        node.classList.toggle('is-danger',
+          value === 'unavailable' || value === 'folder_tidak_ada' || value === 'tidak_dapat_ditulis');
+      }
+    });
+  }
+
   /* ------------------------------------------------------- denyut 14 hari */
 
   function renderPulse(data) {
@@ -154,8 +193,8 @@
 
     if (!deret.length || !ada) {
       el.pulse.appendChild(element('p', 'sipper-empty',
-        'Belum ada pengajuan masuk maupun selesai dalam 14 hari terakhir.'));
-      el.pulseSummary.textContent = '14 hari: kosong';
+        'Belum ada pengajuan masuk maupun selesai dalam ' + state.period + ' hari terakhir.'));
+      el.pulseSummary.textContent = state.period + ' hari: kosong';
       return;
     }
 
@@ -315,22 +354,45 @@
     state.offline = false;
     setState(state.paused ? 'stale' : 'live', state.paused ? 'Jeda' : 'Langsung');
     renderMetrics(data);
+    renderServices(data);
     renderComposition(data);
     renderPulse(data);
     renderQueue(data);
     renderActivity(data);
     el.updated.textContent = 'Diperbarui baru saja';
+
+    var offlineAlert = document.getElementById('sip-offline-alert');
+    if (offlineAlert) offlineAlert.hidden = true;
+    var operationalAlert = document.getElementById('sip-operational-alert');
+    var operationalTitle = document.getElementById('sip-operational-alert-title');
+    var operationalText = document.getElementById('sip-operational-alert-text');
+    var masalah = [];
+    if (data.antrean_terlambat) masalah.push(data.antrean_terlambat + ' antrean melewati 48 jam');
+    if (data.kartu_hampir_habis) masalah.push(data.kartu_hampir_habis + ' kartu hampir kedaluwarsa');
+    if (data.kegagalan_email_24_jam) masalah.push(data.kegagalan_email_24_jam + ' kegagalan email 24 jam');
+    if (data.layanan.database !== 'ok') masalah.push('database tidak normal');
+    if (data.layanan.media !== 'ok') masalah.push('media tidak dapat ditulis');
+    if (operationalAlert && operationalTitle && operationalText) {
+      operationalAlert.hidden = masalah.length === 0;
+      operationalTitle.textContent = masalah.length ? 'Perhatian operasional' : 'Operasional normal';
+      operationalText.textContent = masalah.length
+        ? masalah.join('; ') + '.'
+        : 'Tidak ada antrean terlambat, kartu mendesak, atau kegagalan layanan utama yang terdeteksi.';
+    }
   }
 
   function failed() {
     state.offline = true;
     setState('offline', 'Terputus');
     el.updated.textContent = 'Tidak dapat menghubungi server; angka terakhir tetap ditampilkan.';
+    var alert = document.getElementById('sip-offline-alert');
+    if (alert) alert.hidden = false;
   }
 
   function refresh() {
     if (state.paused || document.hidden || !navigator.onLine) return;
-    fetch(STATS_URL, {
+    var separator = STATS_URL.indexOf('?') === -1 ? '?' : '&';
+    fetch(STATS_URL + separator + 'period=' + state.period, {
       credentials: 'same-origin',
       headers: {'X-Requested-With': 'XMLHttpRequest'}
     })
@@ -348,6 +410,18 @@
     el.toggle.textContent = state.paused ? 'Lanjutkan' : 'Jeda';
     setState(state.paused ? 'stale' : 'live', state.paused ? 'Jeda' : 'Langsung');
     if (!state.paused) refresh();
+  });
+
+  document.querySelectorAll('.sip-period-picker button[data-period]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      state.period = Number(button.dataset.period);
+      document.querySelectorAll('.sip-period-picker button[data-period]').forEach(function (item) {
+        item.classList.toggle('is-active', item === button);
+      });
+      var judul = document.querySelector('.sipper-pulse-chart .sipper-panel__head h2');
+      if (judul) judul.textContent = 'Denyut ' + state.period + ' hari';
+      refresh();
+    });
   });
 
   document.addEventListener('visibilitychange', function () {

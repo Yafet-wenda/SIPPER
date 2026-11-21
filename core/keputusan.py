@@ -16,7 +16,7 @@ from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from .emails import notify_status
-from .models import AuditLog, KartuDigital
+from .models import AuditLog, KartuDigital, RiwayatKeputusan
 
 
 def _buat_qr(request, card):
@@ -61,6 +61,9 @@ def beri_tahu_status(person, status, actor):
     if sent:
         AuditLog.objects.create(user=actor, aksi='notifikasi',
                                 deskripsi=f'Email status {status} dikirim ke {detail}.')
+    else:
+        AuditLog.objects.create(user=actor, aksi='notifikasi-gagal',
+                                deskripsi=f'Email status {status} untuk {person.nama} tidak terkirim: {detail}')
     return sent
 
 
@@ -88,6 +91,13 @@ def terapkan_status(item, status, actor, request, *, catatan=None, sumber='petug
     AuditLog.objects.create(user=actor, aksi='verifikasi',
                             deskripsi=f'Status {item.penduduk.nama} menjadi {item.get_status_display()} '
                                       f'(lewat {sumber}).')
+    RiwayatKeputusan.objects.create(
+        pengajuan=item,
+        status=status,
+        catatan=item.catatan,
+        actor=actor,
+        actor_role='petugas',
+    )
     if status == 'disetujui':
         terbitkan_kartu(request, item.penduduk)
     return True, beri_tahu_status(item.penduduk, status, actor)
