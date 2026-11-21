@@ -383,14 +383,14 @@ def officer(request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = 'attachment; filename="laporan-pengajuan.csv"'
         writer = csv.writer(response)
-        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Ditugaskan kepada', 'Dikirim (WIB)', 'Usia (jam)'])
+        writer.writerow(['Nama', 'NIK', 'Asal', 'Tujuan', 'Alasan', 'Status', 'Ditugaskan kepada', 'Usia (jam)', 'Dikirim (WIB)'])
         for item in applications:
             writer.writerow([sel_aman(item.penduduk.nama), item.penduduk.nik, sel_aman(item.penduduk.daerah_asal),
                              sel_aman(item.penduduk.kota_tujuan), sel_aman(item.penduduk.tujuan),
                              item.get_status_display(),
                              item.assigned_to.username if item.assigned_to_id else '',
-                             waktu_wib(item.submitted_at),
-                             max(0, int((timezone.now() - item.submitted_at).total_seconds() // 3600))])
+                             max(0, int((timezone.now() - item.submitted_at).total_seconds() // 3600)),
+                             waktu_wib(item.submitted_at)])
         return response
     if request.method == 'POST':
         action = request.POST.get('action', '').strip()
