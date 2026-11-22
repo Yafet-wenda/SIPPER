@@ -811,7 +811,7 @@ def api_pending_count(request):
 @require_POST
 @throttle_public(limit=30, window=60, json_error=True)
 def api_public_chat(request):
-    """Panduan publik SIPPER berbasis aturan, tanpa data identitas atau konteks warga."""
+    """Chat publik umum dan panduan SIPPER tanpa konteks data warga."""
     try:
         muatan = json.loads(request.body.decode('utf-8') or '{}')
     except (ValueError, UnicodeDecodeError):
@@ -844,6 +844,7 @@ def api_public_chat(request):
         'cara_daftar', 'cara_pengajuan', 'dokumen_umum',
         'verifikasi_warga', 'kirim_ulang', 'bantuan', 'sapaan',
         'terima_kasih', 'kemampuan_diri', 'kartu_digital',
+        'tentang_sipper', 'pencipta_sipper',
     }:
         jawaban = hasil['jawaban'].replace(
             'Saya asisten verifikasi dokumen SIPPER',
@@ -866,6 +867,17 @@ def api_public_chat(request):
         })
     except PublicChatError:
         hasil = chatbot.jawab(pesan, {})
+        if hasil['kategori'] == 'tidak_dikenal':
+            return JsonResponse({
+                'jawaban': (
+                    'Maaf, Asisten AI umum sedang tidak tersedia. Coba lagi beberapa saat '
+                    'nanti. Untuk panduan SIPPER, saya masih bisa membantu pertanyaan tentang '
+                    'pendaftaran, pengajuan, dokumen, dan kartu digital.'
+                ),
+                'kategori': 'ai_tidak_tersedia',
+                'saran': ['Cara daftar akun', 'Cara ajukan data', 'Dokumen apa yang diperlukan?'],
+                'versi': 'aturan-lokal',
+            })
         jawaban = hasil['jawaban'].replace(
             'Saya asisten verifikasi dokumen SIPPER',
             'Saya asisten panduan SIPPER',

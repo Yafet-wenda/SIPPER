@@ -418,6 +418,11 @@ def _jawab_selisih(konteks):
 
 
 def _jawab_bantuan(konteks):
+    if not konteks.get('pengajuan_id'):
+        return '\n'.join([
+            'Saya bisa menjawab pertanyaan umum dan membantu panduan SIPPER.',
+            'Untuk SIPPER, tanyakan tentang pendaftaran, pengajuan data, dokumen, verifikasi, kartu digital, atau QR.',
+        ])
     return '\n'.join([
         'Saya asisten berbasis aturan untuk membantu verifikasi pengajuan ini. Yang bisa saya jawab:',
         '- Ringkasan pengajuan, status, dan langkah berikutnya',
@@ -432,17 +437,40 @@ def _jawab_bantuan(konteks):
 
 
 def _jawab_sapaan(konteks):
+    if not konteks.get('pengajuan_id'):
+        return 'Halo! Saya Asisten AI SIPPER. Saya bisa membantu pertanyaan umum maupun tentang website SIPPER.'
     return ('Halo. Saya asisten verifikasi dokumen SIPPER. '
             'Tanyakan ringkasan pengajuan ini, arti confidence, kelengkapan dokumen, atau alasan status verifikasinya.')
 
 
+def _jawab_tentang_sipper(konteks):
+    return (
+        'SIPPER adalah Sistem Informasi Penduduk Perantauan, yaitu website untuk membantu '
+        'pendataan dan pengajuan warga yang merantau. SIPPER bukan sistem pengelolaan wajib pajak.'
+    )
+
+
+def _jawab_pencipta_sipper(konteks):
+    return '\n'.join([
+        'SIPPER dikembangkan oleh Yafet Wenda, mahasiswa Teknik Informatika di PENS.',
+        'GitHub: https://github.com/Yafet-wenda',
+        'Repositori SIPPER: https://github.com/Yafet-wenda/SIPPER',
+        'YouTube: Pena Yafet.',
+    ])
+
+
 def _jawab_terima_kasih(konteks):
+    if not konteks.get('pengajuan_id'):
+        return 'Sama-sama! Silakan tanyakan hal lain tentang SIPPER atau pertanyaan umum.'
     return 'Sama-sama. Kalau ada dokumen yang masih meragukan, bandingkan teks OCR-nya dengan berkas asli sebelum memutuskan status.'
 
 
 def _jawab_kemampuan(konteks):
-    return ('Saya bukan model bahasa besar. Saya kumpulan aturan pencocokan kata kunci yang menjawab dari basis pengetahuan SIPPER '
-            'dan dari data pengajuan yang sedang Anda buka. Keuntungannya: cepat, gratis, offline, dan jawabannya selalu sama untuk pertanyaan yang sama.')
+    return '\n'.join([
+        'Saya Asisten AI SIPPER. Saya bisa menjawab pertanyaan umum dan membantu menjelaskan website SIPPER.',
+        _jawab_tentang_sipper(konteks),
+        _jawab_pencipta_sipper(konteks),
+    ])
 
 
 # --------------------------------------------------------------------------
@@ -618,7 +646,7 @@ ATURAN = [
     {
         'id': 'privasi',
         'kata_kunci': ('privasi', 'keamanan data', 'data dikirim', 'dikirim ke internet', 'kirim ke internet',
-                       'dikirim ke mana', 'internet', 'cloud', 'lokal', 'offline', 'pihak ketiga',
+                       'dikirim ke mana', 'cloud', 'lokal', 'offline', 'pihak ketiga',
                        'pihak luar', 'aman tidak', 'data saya aman', 'apakah aman', 'data bocor', 'kebocoran'),
         'penjawab': _jawab_privasi,
         'saran': ['Kamu pakai AI dari mana?', 'Bagaimana cara kerja verifikasi otomatis?'],
@@ -632,12 +660,30 @@ ATURAN = [
         'saran': ['Bandingkan data warga dengan hasil OCR', 'Buatkan ringkasan pengajuan ini'],
     },
     {
+        'id': 'tentang_sipper',
+        'kata_kunci': ('apa itu sipper', 'sipper itu apa', 'sipper adalah', 'kepanjangan sipper',
+                       'arti sipper', 'sipper wajib pajak'),
+        'penjawab': _jawab_tentang_sipper,
+        'saran': ['Bagaimana cara daftar akun?', 'Siapa pencipta SIPPER?'],
+    },
+    {
+        'id': 'pencipta_sipper',
+        'kata_kunci': ('siapa pencipta sipper', 'siapa pembuat sipper', 'siapa pengembang sipper',
+                       'siapa yang membuat sipper', 'siapa penciptanya', 'pencipta sipper',
+                       'pembuat sipper', 'pengembang sipper', 'siapa yafet', 'yafet wenda',
+                       'profil yafet', 'githubku', 'akun github', 'github yafet',
+                       'akun youtube yafet', 'youtube pena yafet', 'pena yafet'),
+        'penjawab': _jawab_pencipta_sipper,
+        'saran': ['Apa itu SIPPER?', 'Bagaimana cara daftar akun?'],
+    },
+    {
         'id': 'kemampuan_diri',
         'kata_kunci': ('kamu ai apa', 'pakai ai apa', 'pakai ai', 'ai dari mana', 'kamu ai', 'ai apa',
-                       'model apa', 'kamu siapa', 'siapa kamu', 'basis aturan', 'rule based',
+                       'model apa', 'kamu siapa', 'siapa kamu', 'siapakah kamu', 'siapakah anda',
+                       'anda siapa', 'kamu asisten apa', 'basis aturan', 'rule based',
                        'gpt', 'chatgpt', 'gemini', 'openai', 'ollama', 'llm'),
         'penjawab': _jawab_kemampuan,
-        'saran': ['Apa yang bisa kamu bantu?', 'Apakah data warga saya dikirim ke internet?'],
+        'saran': ['Apa yang bisa kamu bantu?', 'Siapa pencipta SIPPER?'],
     },
     {
         'id': 'bantuan',

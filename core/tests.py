@@ -1,5 +1,6 @@
 import csv
 import io
+import json
 import os
 import re
 import shutil
@@ -236,6 +237,72 @@ class SipperFlowTests(TestCase):
         self.assertEqual(response.json()['versi'], 'ollama-lokal')
         self.assertIn('jaringan komputer', response.json()['jawaban'].lower())
 
+    def test_public_chat_answers_sipper_identity_and_creator_from_known_facts(self):
+        kasus = (
+            ('Siapakah kamu?', ('Asisten AI SIPPER', 'Sistem Informasi Penduduk Perantauan')),
+            ('Siapa pencipta SIPPER?', ('Yafet Wenda', 'Teknik Informatika di PENS')),
+            ('Apa akun GitHub dan YouTube Yafet?', (
+                'https://github.com/Yafet-wenda',
+                'https://github.com/Yafet-wenda/SIPPER',
+                'Pena Yafet',
+            )),
+        )
+        with mock.patch(
+            'core.views.answer_public_chat',
+            side_effect=AssertionError('Fakta identitas harus dijawab secara lokal.'),
+        ):
+            for pertanyaan, fakta in kasus:
+                response = self.client.post(
+                    '/api/public-chat/',
+                    data={'pesan': pertanyaan},
+                    content_type='application/json',
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json()['versi'], 'aturan-lokal')
+                for nilai in fakta:
+                    self.assertIn(nilai, response.json()['jawaban'])
+        self.assertIn(
+            'bukan sistem pengelolaan wajib pajak',
+            self.client.post(
+                '/api/public-chat/',
+                data={'pesan': 'Apa itu SIPPER?'},
+                content_type='application/json',
+            ).json()['jawaban'],
+        )
+
+    def test_public_chat_greeting_and_help_are_not_limited_to_application_review(self):
+        for pertanyaan in ('Halo', 'Apa yang bisa kamu bantu?'):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': pertanyaan},
+                content_type='application/json',
+            )
+            self.assertEqual(response.status_code, 200)
+            jawaban = response.json()['jawaban'].lower()
+            self.assertIn('pertanyaan umum', jawaban)
+            self.assertNotIn('pengajuan ini', jawaban)
+
+    def test_public_chat_ollama_prompt_has_canonical_sipper_facts(self):
+        opener = mock.Mock()
+        response = mock.MagicMock()
+        response.__enter__.return_value.read.return_value = (
+            b'{"message":{"content":"SIPPER membantu pendataan perantau."}}'
+        )
+        opener.open.return_value = response
+        with mock.patch(
+            'core.services.public_chat.build_opener',
+            return_value=opener,
+        ):
+            from .services.public_chat import answer_public_chat
+            answer_public_chat('Jelaskan alur kerja website ini.')
+
+        payload = json.loads(opener.open.call_args.args[0].data)
+        instruksi = payload['messages'][0]['content']
+        self.assertIn('Sistem Informasi Penduduk Perantauan', instruksi)
+        self.assertIn('bukan sistem pengelolaan wajib pajak', instruksi)
+        self.assertIn('Yafet Wenda', instruksi)
+        self.assertIn('Pena Yafet', instruksi)
+
     def test_public_chat_fallback_is_rule_based_when_ollama_is_offline(self):
         from .services.public_chat import PublicChatError
         with mock.patch(
@@ -249,6 +316,21 @@ class SipperFlowTests(TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['versi'], 'aturan-lokal')
+
+    def test_public_chat_reports_when_general_ai_is_unavailable(self):
+        from .services.public_chat import PublicChatError
+        with mock.patch(
+            'core.views.answer_public_chat',
+            side_effect=PublicChatError('Ollama lokal tidak dapat dihubungi.'),
+        ):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': 'Jelaskan proses fotosintesis.'},
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['kategori'], 'ai_tidak_tersedia')
+        self.assertIn('AI umum sedang tidak tersedia', response.json()['jawaban'])
 
     def test_pending_count_api_reports_officer_queue_metrics(self):
         person = Penduduk.objects.create(
@@ -1044,16 +1126,18 @@ class SipperFlowTests(TestCase):
         self.assertIn('DJANGO_SECRET_KEY', result.stderr + result.stdout)
 
     def test_ui_tidak_mencantumkan_data_pribadi_penyusun(self):
-        """Contoh isi formulir tidak boleh memakai nama atau email asli.
+        """Data pribadi tidak boleh masuk ke UI, kecuali profil publik yang disetujui.
 
-        Halaman ini dilihat seluruh warga, jadi data pribadi penyusun yang
-        tertinggal di antarmuka berarti PII tersebar tanpa keperluan.
+        Tautan GitHub di footer memang diminta untuk ditampilkan secara publik;
+        selain tautan itu, contoh dan isian UI tidak boleh membocorkan identifier pribadi.
         """
         terlarang = ['wendayafet', 'gamil.com', 'Yafet']
+        profil_github_publik = 'https://github.com/Yafet-wenda/SIPPER'
         root = Path(__file__).resolve().parent.parent / 'templates'
         temuan = []
         for berkas in sorted(root.rglob('*.html')):
             isi = berkas.read_text(encoding='utf-8')
+            isi = isi.replace(profil_github_publik, '')
             for kata in terlarang:
                 if kata in isi:
                     temuan.append(f'{berkas.name}: {kata}')
