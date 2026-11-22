@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=17">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=18">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -96,6 +96,11 @@
 
     <footer>
         <span>SIPPER / 2026</span>
+        <address class="footer-contact">
+            <a href="mailto:sipper@gmail.com">sipper@gmail.com</a>
+            <a href="tel:+6285333263700">+62 085333263700</a>
+            <a href="https://github.com/Yafet-wenda/SIPPER">GitHub: https://github.com/Yafet-wenda/SIPPER</a>
+        </address>
         <span>Data perantauan, lebih tertata.</span>
     </footer>
     <script src="{% static 'js/file-label.js' %}?v=1" defer></script>
@@ -223,12 +228,7 @@
         });
         close.addEventListener('click', function () { setOpen(false); });
         clear.addEventListener('click', function () {
-          if (!window.confirm('Hapus seluruh percakapan ini?')) return;
           log.textContent = '';
-          var welcome = document.createElement('div');
-          welcome.className = 'public-chat-message public-chat-message--bot';
-          welcome.textContent = 'Percakapan telah dihapus. Apa yang ingin ditanyakan?';
-          log.appendChild(welcome);
           renderSuggestions([
             'Cara daftar akun',
             'Cara ajukan data',
