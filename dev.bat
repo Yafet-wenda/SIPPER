@@ -29,6 +29,9 @@ set "DJANGO_SECURE_SSL_REDIRECT=0"
 set "DJANGO_SECURE_COOKIES=0"
 set "DJANGO_HSTS_SECONDS=0"
 rem Buka browser otomatis 4 detik setelah baris ini (server butuh waktu siap).
+echo        Menyiapkan Ollama untuk Asisten AI...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-ollama.ps1"
+if errorlevel 1 echo        PERHATIAN: Ollama tidak aktif. Asisten akan memakai jawaban lokal cadangan.
 start "" /min cmd /c "timeout /t 4 /nobreak >nul & start https://127.0.0.1:8000/"
 .venv\Scripts\python.exe manage.py runserver_tls 127.0.0.1:8000 --insecure
 pause

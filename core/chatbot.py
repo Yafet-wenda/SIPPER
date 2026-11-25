@@ -480,6 +480,35 @@ def _jawab_kemampuan(konteks):
 
 ATURAN = [
     {
+        'id': 'manfaat_sipper',
+        'kata_kunci': ('manfaat', 'keuntungan', 'fungsi', 'gunanya', 'tujuan sipper',
+                       'apa kegunaan', 'kegunaan', 'fitur'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Manfaat utama SIPPER:',
+            '- Memusatkan pendataan warga perantauan dalam satu sistem.',
+            '- Mempermudah pengajuan data dan unggah dokumen secara digital.',
+            '- Memantau status Menunggu, Perlu Perbaikan, Ditolak, atau Disetujui.',
+            '- Membantu petugas mencocokkan data dan dokumen dengan OCR serta riwayat keputusan.',
+            '- Memutakhirkan data domisili dan menerbitkan kartu digital ber-QR setelah disetujui.',
+            '- Menyediakan riwayat pengajuan serta pemberitahuan melalui dashboard/email.',
+        ]),
+        'saran': ['Bagaimana cara mengajukan data?', 'Apa saja fiturnya?', 'Siapa yang boleh memakai SIPPER?'],
+    },
+    {
+        'id': 'pemutakhiran',
+        'kata_kunci': ('pemutakhiran', 'ubah data', 'update data', 'perbarui data', 'pindah domisili',
+                       'ganti kota tujuan', 'ubah alamat', 'ubah domisili'),
+        'penjawab': lambda konteks: '\n'.join([
+            'Pemutakhiran digunakan untuk memperbarui data perantauan yang sudah terdaftar.',
+            '1. Masuk ke akun warga.',
+            '2. Buka menu Pemutakhiran.',
+            '3. Perbarui daerah asal, kota tujuan, atau tujuan merantau sesuai kebutuhan.',
+            '4. Simpan perubahan. Riwayat pemutakhiran akan tercatat oleh sistem.',
+            'Catatan: pemutakhiran domisili berbeda dari mengirim ulang pengajuan yang ditolak atau perlu perbaikan.',
+        ]),
+        'saran': ['Bagaimana cara mengajukan data?', 'Apakah dokumen bisa diganti?', 'Masuk ke dashboard di mana?'],
+    },
+    {
         'id': 'cara_daftar',
         'kata_kunci': ('cara daftar', 'buat akun', 'daftar akun', 'registrasi', 'mendaftar', 'buat akun baru',
                         'daftar sipper', 'langkah daftar'),

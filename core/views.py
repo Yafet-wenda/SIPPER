@@ -822,6 +822,12 @@ def api_public_chat(request):
     if len(pesan) > chatbot.MAX_PANJANG_PESAN:
         return JsonResponse({'error': f'Maksimal {chatbot.MAX_PANJANG_PESAN} karakter.'}, status=400)
 
+    riwayat = muatan.get('riwayat') if isinstance(muatan, dict) else None
+    if riwayat is not None:
+        from .services.public_chat import riwayat_valid
+        if not riwayat_valid(riwayat):
+            return JsonResponse({'error': 'riwayat tidak valid.'}, status=400)
+
     normal_pesan = chatbot._normalisasi(pesan)
     kata_pribadi = (
         'status saya', 'pengajuan saya', 'data saya', 'kartu saya',
@@ -858,7 +864,7 @@ def api_public_chat(request):
         })
 
     try:
-        jawaban = answer_public_chat(pesan)
+        jawaban = answer_public_chat(pesan, riwayat or [])
         return JsonResponse({
             'jawaban': jawaban,
             'kategori': 'umum',

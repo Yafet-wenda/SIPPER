@@ -58,6 +58,10 @@ echo [1/4] MariaDB
 tasklist /FI "IMAGENAME eq mysqld.exe" | findstr /I "mysqld.exe" >NUL
 if errorlevel 1 (start "MariaDB" "%XAMPP_HOME%\mysql_start.bat") else (echo       sudah jalan, dilewati)
 
+echo        Menyiapkan Ollama untuk Asisten AI
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\start-ollama.ps1"
+if errorlevel 1 echo        PERHATIAN: Ollama tidak aktif. Asisten akan memakai jawaban lokal cadangan.
+
 echo [2/4] collectstatic
 if exist staticfiles\admin (
     echo       sudah tersusun, dilewati. Kalau ada file static berubah, jalankan:

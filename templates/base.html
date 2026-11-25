@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=18">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=19">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -20,12 +20,16 @@
         <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 3C6.48 3 2 6.58 2 11c0 2.38 1.32 4.51 3.39 5.96L4.5 21l4.18-2.09c1.04.25 2.15.09 3.32.09 5.52 0 10-3.58 10-8s-4.48-8-10-8Zm-4 9.5h8v-1.5H8v1.5Zm0-3h8V7H8v2.5Z"/>
         </svg>
+        <span class="public-chat-fab-status" aria-hidden="true"></span>
     </button>
     <section class="public-chat-panel" id="public-chat-panel" aria-label="Asisten panduan SIPPER" hidden>
         <header class="public-chat-head">
-            <div>
-                <strong>Asisten SIPPER</strong>
-                <span>Asisten umum & panduan SIPPER</span>
+            <div class="public-chat-identity">
+                <span class="public-chat-avatar" aria-hidden="true">AI</span>
+                <div>
+                    <strong>Asisten SIPPER</strong>
+                    <span><i></i> Siap membantu</span>
+                </div>
             </div>
             <div class="public-chat-head-actions">
                 <button type="button" id="public-chat-clear" aria-label="Hapus seluruh percakapan" title="Hapus chat">🗑</button>
@@ -191,6 +195,7 @@
         var log = document.getElementById('public-chat-log');
         var suggestions = document.getElementById('public-chat-suggestions');
         var csrf = document.querySelector('#public-chat-csrf input[name="csrfmiddlewaretoken"]');
+        var riwayat = [];
 
         if (!toggle || !panel || !form || !input || !log) return;
 
@@ -229,10 +234,12 @@
         close.addEventListener('click', function () { setOpen(false); });
         clear.addEventListener('click', function () {
           log.textContent = '';
+          riwayat = [];
+          addMessage('Percakapan dibersihkan. Silakan tanyakan hal baru tentang SIPPER atau pertanyaan umum.', false);
           renderSuggestions([
             'Cara daftar akun',
             'Cara ajukan data',
-            'Apa itu internet?'
+            'Apa manfaat SIPPER?'
           ]);
           input.value = '';
           input.focus();
@@ -244,6 +251,7 @@
           if (!message) return;
           input.value = '';
           addMessage(message, true);
+          riwayat.push({peran: 'user', isi: message});
           var waiting = addMessage('Sedang menyiapkan jawaban…', false);
 
           fetch('{% url "core:api_public_chat" %}', {
@@ -254,7 +262,7 @@
               'X-CSRFToken': csrf ? csrf.value : '',
               'X-Requested-With': 'XMLHttpRequest'
             },
-            body: JSON.stringify({pesan: message})
+            body: JSON.stringify({pesan: message, riwayat: riwayat.slice(-12, -1)})
           }).then(function (response) {
             return response.json().then(function (data) {
               if (!response.ok) throw new Error(data.error || 'Permintaan gagal diproses.');
@@ -263,6 +271,8 @@
           }).then(function (data) {
             waiting.remove();
             addMessage(data.jawaban, false);
+            riwayat.push({peran: 'assistant', isi: data.jawaban});
+            if (riwayat.length > 12) riwayat = riwayat.slice(-12);
             renderSuggestions(data.saran);
           }).catch(function (error) {
             waiting.remove();
