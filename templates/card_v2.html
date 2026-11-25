@@ -91,22 +91,6 @@
       opacity: .86;
     }
 
-    .ks-status {
-      font-size: .8em;
-      font-weight: 700;
-      letter-spacing: .08em;
-      white-space: nowrap;
-      padding: .38em .7em;
-      border-radius: 999px;
-      background: rgba(255, 255, 255, .18);
-      border: 1px solid rgba(255, 255, 255, .4);
-    }
-
-    .ks-status.tidak-aktif {
-      background: #6b1119;
-      border-color: rgba(255, 255, 255, .25);
-    }
-
     .ks-body {
       flex: 1;
       display: grid;
@@ -257,14 +241,35 @@
     }
 
     @media print {
-      .kartu-sipper {
-        --ks: 12px;
-        box-shadow: none;
-        border-color: #cfd4cd;
+      @page {
+        size: A4 portrait;
+        margin: 15mm;
+      }
+
+      .validation-page {
+        max-width: none;
+        margin: 0;
       }
 
       .ks-layar {
-        width: 500px;
+        width: 85.6mm;
+        margin: 12mm auto 0;
+      }
+
+      .kartu-sipper {
+        --ks: 2.07264mm;
+        width: 85.6mm;
+        height: 53.98mm;
+        aspect-ratio: auto;
+        box-shadow: none;
+        border-color: #cfd4cd;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .ks-gerak,
+      .ks-aksi {
+        display: none !important;
       }
 
       .ks-layar::after {
@@ -273,6 +278,10 @@
 
       .ks-stage {
         overflow: visible;
+      }
+
+      .ks-batasan {
+        break-inside: avoid;
       }
     }
   </style>
@@ -288,9 +297,6 @@
               <h2>Kartu SIPPER</h2>
               <p>Sistem Informasi Penduduk Perantauan</p>
             </div>
-            <span class="ks-status {% if not valid %}tidak-aktif{% endif %}">
-              {% if valid %}KARTU TERVERIFIKASI{% else %}KARTU TIDAK AKTIF{% endif %}
-            </span>
           </div>
           <div class="ks-body">
             <div class="ks-foto">

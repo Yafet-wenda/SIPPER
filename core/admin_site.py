@@ -17,6 +17,7 @@ from django.utils.html import format_html
 from django.urls import path, reverse
 from django.db.models import Count
 from .csv_utils import sel_aman, waktu_wib
+from .akses import sinkronkan_akses_peran
 from .ai_verifikasi import AMBAT_VALID
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole, RiwayatKeputusan
 from .keputusan import terapkan_status
@@ -663,12 +664,45 @@ class UserRoleAdmin(EksporCSVMixin, admin.ModelAdmin):
         ('Peran', lambda o: o.get_role_display()),
     )
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        sinkronkan_akses_peran(obj.user)
+
+    def delete_model(self, request, obj):
+        user = obj.user
+        super().delete_model(request, obj)
+        sinkronkan_akses_peran(user)
+
     @admin.display(boolean=True, description='Akses petugas')
     def is_officer(self, obj):
         return obj.is_officer()
 
 
+class UserRoleInline(admin.StackedInline):
+    model = UserRole
+    extra = 1
+    max_num = 1
+    can_delete = False
+    verbose_name = 'Hak akses'
+    verbose_name_plural = 'Hak akses'
+    fields = ('role',)
+
+
+class SipperUserAdmin(UserAdmin):
+    fieldsets = (
+        (None, {'fields': ('username', 'password')}),
+        ('Informasi pribadi', {'fields': ('first_name', 'last_name', 'email')}),
+        ('Status akun', {'fields': ('is_active',)}),
+        ('Tanggal penting', {'fields': ('last_login', 'date_joined')}),
+    )
+    inlines = (UserRoleInline,)
+
+    def save_related(self, request, form, formsets, change):
+        super().save_related(request, form, formsets, change)
+        sinkronkan_akses_peran(form.instance)
+
+
 sipper_admin.register(User)
 sipper_admin.unregister(User)
-sipper_admin.register(User, UserAdmin)
+sipper_admin.register(User, SipperUserAdmin)
 sipper_admin.register(Group, GroupAdmin)

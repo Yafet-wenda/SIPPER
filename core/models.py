@@ -220,7 +220,11 @@ class Pemutakhiran(models.Model):
 
 
 class UserRole(models.Model):
-    ROLE_CHOICES = [('masyarakat', 'Masyarakat'), ('petugas', 'Petugas Pemerintah')]
+    ROLE_CHOICES = [
+        ('masyarakat', 'User'),
+        ('petugas', 'Petugas'),
+        ('admin', 'Admin'),
+    ]
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='role_profile', verbose_name='pengguna')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='masyarakat', verbose_name='peran')
 
@@ -232,4 +236,4 @@ class UserRole(models.Model):
         verbose_name_plural = 'peran pengguna'
 
     def is_officer(self):
-        return self.role == 'petugas' or self.user.is_staff
+        return self.role in {'petugas', 'admin'} or self.user.is_staff

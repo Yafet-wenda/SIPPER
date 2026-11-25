@@ -87,6 +87,8 @@ def terapkan_status(item, status, actor, request, *, catatan=None, sumber='petug
         fields += ['verified_by', 'verified_at']
     item.save(update_fields=fields)
     if not berubah:
+        if status == 'disetujui':
+            terbitkan_kartu(request, item.penduduk)
         return False, False
     AuditLog.objects.create(user=actor, aksi='verifikasi',
                             deskripsi=f'Status {item.penduduk.nama} menjadi {item.get_status_display()} '

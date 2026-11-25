@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=19">
+    <link rel="stylesheet" href="{% static 'css/style.css' %}?v=20">
     {% block extra_head %}{% endblock %}
 </head>
 <body>
@@ -287,6 +287,16 @@
           });
         });
       })();
+    </script>
+    <script>
+      document.querySelectorAll('.flash').forEach(function (notice) {
+        window.setTimeout(function () {
+          notice.classList.add('flash--hiding');
+          window.setTimeout(function () {
+            notice.remove();
+          }, 260);
+        }, 4000);
+      });
     </script>
 </body>
 </html>

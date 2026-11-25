@@ -1369,11 +1369,32 @@ td small {
 }
 
 .flash {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 14px 18px;
   background: var(--ink);
   color: #fff;
   font-size: 13px;
   box-shadow: 0 8px 20px #17392b20;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+
+.flash::before {
+  content: "i";
+  display: grid;
+  place-items: center;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font: 700 12px/1 'Space Grotesk', sans-serif;
+}
+
+.flash.flash--hiding {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 
 .flash.error {

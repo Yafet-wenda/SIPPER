@@ -65,6 +65,19 @@
         </div>
       </div>
 
+      {% if card %}
+        <section class="table-section">
+          <div class="section-label">
+            <h2>Kartu SIPPER</h2>
+            <span>Berlaku sampai {{ card.berlaku_sampai|date:'d M Y' }}</span>
+          </div>
+          <p>Pengajuan Anda telah disetujui. Kartu digital SIPPER sudah tersedia.</p>
+          <p>Kartu dapat dicetak dari halaman kartu atau diunduh sebagai PDF.</p>
+          <a class="button button-green" href="{% url 'core:validate_card' card.kode %}">Lihat kartu digital</a>
+          <a class="button button-dark" href="{% url 'core:download_card' card.kode %}">Unduh PDF</a>
+        </section>
+      {% endif %}
+
       {% if person.pengajuan.status == 'perlu_perbaikan' or person.pengajuan.status == 'ditolak' %}
         <div class="flash">
           Catatan petugas: {{ person.pengajuan.catatan|default:'Pengajuan dapat dikirim ulang.' }}
@@ -109,15 +122,6 @@
           <small>TUJUAN</small>
           <strong>{{ person.tujuan|title }}</strong>
         </div>
-        {% if card %}
-          <div>
-            <small>KARTU DIGITAL</small>
-            <strong>
-              <a href="{% url 'core:validate_card' card.kode %}">Lihat kartu →</a>
-            </strong>
-            <small>Berlaku sampai {{ card.berlaku_sampai|date:'d M Y' }}</small>
-          </div>
-        {% endif %}
       </section>
 
       <section class="table-section">

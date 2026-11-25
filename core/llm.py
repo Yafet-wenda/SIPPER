@@ -29,6 +29,7 @@ import json
 import math
 import os
 import re
+import time
 from urllib import error as _urllib_error
 from urllib import request as _urllib_request
 
@@ -362,6 +363,95 @@ def _daftar_isi(pesan, riwayat):
                     'parts': [{'text': samarkan_teks(item['isi'])}]})
     isi.append({'role': 'user', 'parts': [{'text': samarkan_teks(pesan)}]})
     return isi
+
+
+def _isi_sistem_umum():
+    return '\n'.join([
+        'Anda adalah "Asisten AI SIPPER", asisten profesional untuk Sistem Informasi '
+        'Penduduk Perantauan milik Yafet Wenda.',
+        '',
+        'Jawab dalam bahasa Indonesia yang jelas, akurat, ringkas, dan terstruktur.',
+        'Gunakan konteks percakapan, daftar langkah, manfaat, atau contoh bila membantu.',
+        '',
+        'Fakta resmi SIPPER:',
+        '- SIPPER adalah website pendataan dan pengajuan warga perantauan.',
+        '- SIPPER bukan sistem pengelolaan wajib pajak dan bukan portal pemerintah resmi.',
+        '- Pendaftaran akun membutuhkan nama, email aktif, dan password minimal 8 karakter.',
+        '- Pengajuan mencakup NIK 16 digit, daerah asal, kota tujuan, tujuan merantau, '
+        'nomor telepon, tanggal perjalanan, KTP, dan Kartu Keluarga.',
+        '- Format berkas yang diterima adalah PDF/JPG/JPEG/PNG, maksimal 5 MB per berkas.',
+        '- Status pengajuan: Menunggu, Perlu Perbaikan, Ditolak, atau Disetujui.',
+        '- Status Disetujui menerbitkan kartu digital ber-QR; status Ditolak atau Perlu '
+        'Perbaikan dapat dibaca dan diperbaiki dari Ringkasan/dashboard.',
+        '- Yafet Wenda adalah pengembang SIPPER, mahasiswa Teknik Informatika di PENS.',
+        '- GitHub: https://github.com/Yafet-wenda',
+        '- Repositori: https://github.com/Yafet-wenda/SIPPER',
+        '- YouTube: Pena Yafet.',
+        '',
+        'Jangan mengarang status pribadi, NIK, alamat, nama, keputusan petugas, data '
+        'mutakhir, atau tautan yang tidak tersedia. Untuk status pribadi, arahkan pengguna '
+        'ke login dan menu Ringkasan/dashboard.',
+        'Jika suatu pertanyaan membutuhkan informasi terkini atau sumber resmi, jelaskan '
+        'keterbatasan Anda dan arahkan ke sumber yang tepat.',
+    ])
+
+
+def jawab_umum_llm(pesan, riwayat=None):
+    """Jawaban umum SIPPER melalui Gemini; tidak menerima konteks data warga."""
+    kunci = kunci_api()
+    if not kunci:
+        raise LlmTidakTersedia('GEMINI_API_KEY belum diisi.')
+
+    riwayat_gemini = []
+    if isinstance(riwayat, list):
+        for item in riwayat[-MAKS_RIWAYAT:]:
+            if not isinstance(item, dict):
+                continue
+            peran = item.get('peran')
+            isi = item.get('isi')
+            if peran not in {'user', 'assistant'}:
+                continue
+            if not isinstance(isi, str) or not isi.strip() or len(isi) > MAKS_ISI_RIWAYAT:
+                continue
+            riwayat_gemini.append({
+                'peran': 'model' if peran == 'assistant' else 'user',
+                'isi': isi,
+            })
+
+    muatan = {
+        'systemInstruction': {'parts': [{'text': _isi_sistem_umum()}]},
+        'contents': _daftar_isi(pesan, riwayat_gemini),
+        'generationConfig': {'temperature': 0.3, 'maxOutputTokens': 700},
+    }
+    permintaan = _urllib_request.Request(
+        ALAMAT_API.format(model=nama_model()),
+        data=json.dumps(muatan, ensure_ascii=False).encode('utf-8'),
+        headers={'Content-Type': 'application/json', 'x-goog-api-key': kunci},
+        method='POST',
+    )
+    for percobaan in range(3):
+        try:
+            with _urllib_request.urlopen(permintaan, timeout=TIMEOUT_DETIK) as respons:
+                balasan = json.loads(respons.read().decode('utf-8'))
+            break
+        except _urllib_error.HTTPError as galat:
+            if galat.code in {429, 503} and percobaan < 2:
+                time.sleep(1 + percobaan)
+                continue
+            raise LlmTidakTersedia(f'HTTP {galat.code} dari Gemini') from galat
+        except (_urllib_error.URLError, TimeoutError, OSError, ValueError) as galat:
+            if percobaan < 2:
+                time.sleep(1 + percobaan)
+                continue
+            raise LlmTidakTersedia(str(getattr(galat, 'reason', galat))[:300]) from galat
+    try:
+        bagian = balasan['candidates'][0]['content']['parts']
+        teks = ''.join(str(item.get('text', '')) for item in bagian).strip()
+    except (KeyError, IndexError, TypeError, AttributeError) as galat:
+        raise LlmTidakTersedia(f'balasan Gemini tidak terbaca ({type(galat).__name__})') from galat
+    if not teks:
+        raise LlmTidakTersedia('Gemini mengembalikan jawaban kosong.')
+    return teks
 
 
 def jawab_llm(pesan, konteks, riwayat=None):

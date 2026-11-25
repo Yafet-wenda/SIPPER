@@ -176,8 +176,6 @@ def bangun(card, response):
     document.drawString(x0 + dalam, y_atas - 12, 'Kartu SIPPER')
     document.setFont('Helvetica', 5.2)
     document.drawString(x0 + dalam, y_atas - 19.5, 'Sistem Informasi Penduduk Perantauan')
-    document.setFont('Helvetica-Bold', 5.6)
-    document.drawRightString(x1 - dalam, y_atas - 12, 'TERVERIFIKASI' if card.is_valid() else 'TIDAK AKTIF')
 
     # Pasfoto di kiri, blok inisial bila warga belum mengunggah foto.
     document.setFillColor(colors.HexColor('#eef0df'))

@@ -33,7 +33,7 @@ from django.contrib.auth.models import User
 from . import chatbot, kartu_pdf, llm, pdf_report
 from .akses import is_officer
 from .csv_utils import sel_aman, waktu_wib
-from .keputusan import terapkan_status
+from .keputusan import terapkan_status, terbitkan_kartu
 from .models import AuditLog, Dokumen, KartuDigital, Penduduk, Pengajuan, Pemutakhiran, UserRole, RiwayatKeputusan
 from .ocr_worker import picu_async
 from .ai_verifikasi import nilai_berkas
@@ -80,10 +80,15 @@ def dashboard(request):
         'dokumen',
         'pengajuan__riwayat_keputusan',
     ).select_related('pengajuan', 'kartu').first()
+    card = getattr(person, 'kartu', None) if person else None
+    pengajuan_person = getattr(person, 'pengajuan', None) if person else None
+    if pengajuan_person and pengajuan_person.status == 'disetujui':
+        if card is None or not card.qr_code:
+            card = terbitkan_kartu(request, person)
     riwayat = []
     if person and hasattr(person, 'pengajuan'):
         riwayat = list(person.pengajuan.riwayat_keputusan.select_related('actor').all()[:20])
-    context = {'latest': applications[:5], 'total': applications.count(), 'pending': applications.filter(status='menunggu').count(), 'approved': applications.filter(status='disetujui').count(), 'person': person, 'card': getattr(person, 'kartu', None) if person else None, 'riwayat_keputusan': riwayat}
+    context = {'latest': applications[:5], 'total': applications.count(), 'pending': applications.filter(status='menunggu').count(), 'approved': applications.filter(status='disetujui').count(), 'person': person, 'card': card, 'riwayat_keputusan': riwayat}
     return render(request, 'dashboard.html' if is_officer(request.user) else 'citizen_dashboard_v4.html', context)
 
 
@@ -735,7 +740,7 @@ def validate_card(request, code):
     # wajahnya (pemilik atau petugas). Pengunjung anonim tetap melihat kartu
     # lengkap dengan NIK tersamar, tanpa foto.
     boleh_lihat_foto = is_officer(request.user) or (request.user.is_authenticated and card.penduduk.user_id == request.user.id)
-    return render(request, 'card_v2.html', {'card': card, 'valid': card.is_valid(), 'pengajuan_id': pengajuan_id, 'boleh_lihat_foto': boleh_lihat_foto, 'batasan': kartu_pdf.KARTU_BATASAN})
+    return render(request, 'card_v2.html', {'card': card, 'pengajuan_id': pengajuan_id, 'boleh_lihat_foto': boleh_lihat_foto, 'batasan': kartu_pdf.KARTU_BATASAN})
 
 
 @throttle_public
@@ -862,6 +867,18 @@ def api_public_chat(request):
             'saran': hasil['saran'],
             'versi': 'aturan-lokal',
         })
+
+    if llm.tersedia():
+        try:
+            jawaban = llm.jawab_umum_llm(pesan, riwayat or [])
+            return JsonResponse({
+                'jawaban': jawaban,
+                'kategori': 'umum',
+                'saran': ['Cara daftar akun', 'Cara ajukan data', 'Dokumen apa yang diperlukan?'],
+                'versi': 'gemini',
+            })
+        except llm.LlmTidakTersedia:
+            pass
 
     try:
         jawaban = answer_public_chat(pesan, riwayat or [])

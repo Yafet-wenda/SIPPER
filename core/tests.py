@@ -141,6 +141,23 @@ class SipperFlowTests(TestCase):
         application.refresh_from_db()
         self.assertTrue(application.riwayat_keputusan.filter(status='disetujui', actor=self.staff).exists())
 
+    def test_dashboard_repairs_and_displays_card_for_existing_approved_application(self):
+        person = Penduduk.objects.create(
+            user=self.user, nama='Approved Citizen', nik='9101010101010111',
+            daerah_asal='Jayapura', kota_tujuan='Surabaya', tujuan='pekerjaan',
+        )
+        Pengajuan.objects.create(penduduk=person, status='disetujui')
+        self.client.force_login(self.user)
+
+        response = self.client.get('/dashboard/')
+
+        self.assertEqual(response.status_code, 200)
+        card = KartuDigital.objects.get(penduduk=person)
+        self.assertTrue(card.qr_code)
+        self.assertContains(response, 'Kartu SIPPER')
+        self.assertContains(response, f'/kartu/{card.kode}/')
+        self.assertContains(response, f'/kartu/{card.kode}/download/')
+
     def test_officer_can_assign_application_and_filter_sla(self):
         from datetime import timedelta
         from django.utils import timezone
@@ -223,8 +240,25 @@ class SipperFlowTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('masuk ke akun', response.json()['jawaban'].lower())
 
+    def test_public_chat_prefers_gemini_when_configured(self):
+        with mock.patch('core.views.llm.tersedia', return_value=True), mock.patch(
+            'core.views.llm.jawab_umum_llm',
+            return_value='Internet adalah jaringan yang menghubungkan perangkat di seluruh dunia.',
+        ), mock.patch(
+            'core.views.answer_public_chat',
+            side_effect=AssertionError('Ollama tidak boleh dipanggil saat Gemini berhasil.'),
+        ):
+            response = self.client.post(
+                '/api/public-chat/',
+                data={'pesan': 'Apa itu internet?', 'riwayat': []},
+                content_type='application/json',
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['versi'], 'gemini')
+        self.assertIn('jaringan', response.json()['jawaban'].lower())
+
     def test_public_chat_answers_general_question_via_ollama(self):
-        with mock.patch(
+        with mock.patch('core.views.llm.tersedia', return_value=False), mock.patch(
             'core.views.answer_public_chat',
             return_value='Internet adalah jaringan komputer global.',
         ):
@@ -319,7 +353,7 @@ class SipperFlowTests(TestCase):
 
     def test_public_chat_reports_when_general_ai_is_unavailable(self):
         from .services.public_chat import PublicChatError
-        with mock.patch(
+        with mock.patch('core.views.llm.tersedia', return_value=False), mock.patch(
             'core.views.answer_public_chat',
             side_effect=PublicChatError('Ollama lokal tidak dapat dihubungi.'),
         ):
@@ -547,8 +581,10 @@ class SipperFlowTests(TestCase):
 
     def test_pemutakhiran_tanpa_data_mengarahkan_ke_pengajuan(self):
         self.client.force_login(self.user)
-        response = self.client.get('/pemutakhiran/')
+        response = self.client.get('/pemutakhiran/', follow=True)
         self.assertRedirects(response, '/pengajuan/')
+        self.assertContains(response, 'Lengkapi data pengajuan terlebih dahulu sebelum melakukan pemutakhiran.')
+        self.assertContains(response, 'class="flash info"')
 
     def test_histori_tanpa_data_mengarahkan_ke_pengajuan(self):
         self.client.force_login(self.user)
@@ -811,6 +847,43 @@ class SipperFlowTests(TestCase):
         context = response.context
         self.assertEqual(context['total'], Pengajuan.objects.count())
         self.assertEqual(context['total'], 2)
+
+    def test_role_admin_gets_admin_and_petugas_features_without_superuser(self):
+        from .akses import is_officer, sinkronkan_akses_peran
+
+        admin = User.objects.create_user(username='adminrole@example.com', password='password123')
+        role = UserRole.objects.create(user=admin, role='admin')
+        sinkronkan_akses_peran(admin)
+        admin.refresh_from_db()
+
+        self.assertTrue(admin.is_staff)
+        self.assertFalse(admin.is_superuser)
+        self.assertTrue(is_officer(admin))
+        self.assertTrue(admin.has_perm('core.view_pengajuan'))
+
+        superuser = User.objects.create_superuser(
+            username='rootrole@example.com',
+            email='rootrole@example.com',
+            password='password123',
+        )
+        self.client.force_login(superuser)
+        change_page = self.client.get(f'/admin/auth/user/{admin.pk}/change/')
+        self.assertContains(change_page, 'Hak akses')
+        self.assertContains(change_page, '<option value="admin">Admin</option>', html=True)
+        self.assertContains(change_page, '<option value="masyarakat">User</option>', html=True)
+        self.assertContains(change_page, '<option value="petugas">Petugas</option>', html=True)
+        self.assertNotContains(change_page, 'id="id_user_permissions"')
+
+        self.client.force_login(admin)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
+        self.assertEqual(self.client.get('/petugas/').status_code, 200)
+
+        role.role = 'masyarakat'
+        role.save(update_fields=['role'])
+        sinkronkan_akses_peran(admin)
+        admin = User.objects.get(pk=admin.pk)
+        self.assertFalse(admin.is_staff)
+        self.assertFalse(admin.has_perm('core.view_pengajuan'))
 
     def test_invalid_date_and_protected_apis(self):
         self.client.force_login(self.user)
@@ -1653,6 +1726,11 @@ class PasfotoKartuTests(TestCase):
         isi = self.client.get(f'/kartu/{card.kode}/').content.decode()
         self.assertIn('Kartu SIPPER', isi)
         self.assertIn('Batasan & operasional sistem', isi)
+        self.assertIn('Cetak kartu', isi)
+        self.assertIn('window.print()', isi)
+        self.assertIn('85.6mm', isi)
+        self.assertNotIn('KARTU TERVERIFIKASI', isi)
+        self.assertNotIn('KARTU TIDAK AKTIF', isi)
         self.assertIn('bukan pengganti dokumen', isi)
         self.assertIn('Dukcapil', isi)
         self.assertIn(card.penduduk.nik[-4:], isi, 'NIK tetap tampil sebagian')
